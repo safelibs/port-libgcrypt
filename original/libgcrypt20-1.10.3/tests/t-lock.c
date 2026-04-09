@@ -27,7 +27,6 @@
 #include <assert.h>
 #include <errno.h>
 #include <unistd.h>
-#include <time.h>
 #if HAVE_PTHREAD
 # include <pthread.h>
 #endif
@@ -65,27 +64,10 @@
 /* Requested nonce size.  */
 #define NONCE_SIZE  11
 
-
-/* This tests works by having a a couple of accountant threads which do
-   random transactions between accounts and a revision threads which
-   checks that the balance of all accounts is invariant.  The idea for
-   this check is due to Bruno Haible.  */
-#define N_ACCOUNT 8
-#define ACCOUNT_VALUE 42
-static int account[N_ACCOUNT];
-
-/* Number of transactions done by each accountant.  */
-#define N_TRANSACTIONS 1000
-
-/* Number of accountants to run.  */
-#define N_ACCOUNTANTS 5
-
-/* Maximum transaction value.  A quite low value is used so that we
-   would get an integer overflow.  */
-#define MAX_TRANSACTION_VALUE 50
-
-/* Flag to tell the revision thread to finish.  */
-static volatile int stop_revision_thread;
+/* Number of threads for the public crypto stress test.  */
+#define N_CRYPTO_THREADS 4
+/* Number of iterations for the public crypto stress test.  */
+#define N_CRYPTO_ITERATIONS 1000
 
 
 struct thread_arg_s
@@ -93,78 +75,30 @@ struct thread_arg_s
   int no;
 };
 
+static const unsigned char aes_test_key[16] = {
+  0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+  0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f
+};
 
+static const unsigned char aes_test_plaintext[16] = {
+  0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
+  0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff
+};
 
-
-#if defined(HAVE_PTHREAD) || defined(_WIN32)
-/* Private external-lock test hooks are not part of the public API.
-   Use a regular process-local mutex for this harness instead.  */
-#ifdef _WIN32
-static CRITICAL_SECTION external_lock_test_mutex;
-#else
-static pthread_mutex_t external_lock_test_mutex;
-#endif
+static const unsigned char aes_test_ciphertext[16] = {
+  0x69, 0xc4, 0xe0, 0xd8, 0x6a, 0x7b, 0x04, 0x30,
+  0xd8, 0xcd, 0xb7, 0x80, 0x70, 0xb4, 0xc5, 0x5a
+};
 
-static void
-external_lock_test_init (int line)
-{
-#ifdef _WIN32
-  (void)line;
-  InitializeCriticalSection (&external_lock_test_mutex);
-#else
-  int rc;
+static const unsigned char sha256_input[] = "abc";
 
-  rc = pthread_mutex_init (&external_lock_test_mutex, NULL);
-  if (rc)
-    fail ("init lock failed at %d: %s", line, strerror (rc));
-#endif
-}
+static const unsigned char sha256_result[32] = {
+  0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea,
+  0x41, 0x41, 0x40, 0xde, 0x5d, 0xae, 0x22, 0x23,
+  0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c,
+  0xb4, 0x10, 0xff, 0x61, 0xf2, 0x00, 0x15, 0xad
+};
 
-static void
-external_lock_test_lock (int line)
-{
-#ifdef _WIN32
-  (void)line;
-  EnterCriticalSection (&external_lock_test_mutex);
-#else
-  int rc;
-
-  rc = pthread_mutex_lock (&external_lock_test_mutex);
-  if (rc)
-    fail ("taking lock failed at %d: %s", line, strerror (rc));
-#endif
-}
-
-static void
-external_lock_test_unlock (int line)
-{
-#ifdef _WIN32
-  (void)line;
-  LeaveCriticalSection (&external_lock_test_mutex);
-#else
-  int rc;
-
-  rc = pthread_mutex_unlock (&external_lock_test_mutex);
-  if (rc)
-    fail ("releasing lock failed at %d: %s", line, strerror (rc));
-#endif
-}
-
-static void
-external_lock_test_destroy (int line)
-{
-#ifdef _WIN32
-  (void)line;
-  DeleteCriticalSection (&external_lock_test_mutex);
-#else
-  int rc;
-
-  rc = pthread_mutex_destroy (&external_lock_test_mutex);
-  if (rc)
-    fail ("destroying lock failed at %d: %s", line, strerror (rc));
-#endif
-}
-#endif
 
 
 
@@ -191,9 +125,9 @@ nonce_thread (void *argarg)
 #endif
 
 
-/* To check our locking function we run several threads all accessing
-   the nonce functions.  If this function returns we know that there
-   are no obvious deadlocks or failed lock initialization.  */
+/* To check Libgcrypt's public locking behavior we run several threads
+   all accessing nonce generation.  If this function returns we know
+   that there are no obvious deadlocks in this code path.  */
 static void
 check_nonce_lock (void)
 {
@@ -250,181 +184,117 @@ check_nonce_lock (void)
 }
 
 
-/* Initialize all accounts.  */
-static void
-init_accounts (void)
-{
-  int i;
-
-  for (i=0; i < N_ACCOUNT; i++)
-    account[i] = ACCOUNT_VALUE;
-}
-
-
-/* Check that the sum of all accounts matches the initial sum.  */
-static void
-check_accounts (void)
-{
-  int i, sum;
-
-  sum = 0;
-  for (i = 0; i < N_ACCOUNT; i++)
-    sum += account[i];
-  if (sum != N_ACCOUNT * ACCOUNT_VALUE)
-    die ("accounts out of balance");
-}
-
-
-static void
-print_accounts (void)
-{
-  int i;
-
-  for (i=0; i < N_ACCOUNT; i++)
-    printf ("account %d: %6d\n", i, account[i]);
-}
-
-
 #if defined(HAVE_PTHREAD) || defined(_WIN32)
-/* Get a a random integer value in the range 0 to HIGH.  */
-static unsigned int
-get_rand (int high)
-{
-  return (unsigned int)(1+(int)((double)(high+1)*rand ()/(RAND_MAX+1.0))) - 1;
-}
-
-
-/* Pick a random account.  Note that this function is not
-   thread-safe. */
-static int
-pick_account (void)
-{
-  return get_rand (N_ACCOUNT - 1);
-}
-
-
-/* Pick a random value for a transaction.  This is not thread-safe.  */
-static int
-pick_value (void)
-{
-  return get_rand (MAX_TRANSACTION_VALUE);
-}
-
-
-/* This is the revision department.  */
+/* The crypto thread repeatedly creates, uses, verifies, and destroys
+   independent public API contexts from multiple threads.  */
 static THREAD_RET_TYPE
-revision_thread (void *arg)
+crypto_thread (void *argarg)
 {
-  (void)arg;
-
-  while (!stop_revision_thread)
-    {
-      external_lock_test_lock (__LINE__);
-      check_accounts ();
-      external_lock_test_unlock (__LINE__);
-    }
-  return THREAD_RET_VALUE;
-}
-
-
-/* This is one of our accountants.  */
-static THREAD_RET_TYPE
-accountant_thread (void *arg)
-{
+  struct thread_arg_s *arg = argarg;
   int i;
-  int acc1, acc2;
-  int value;
 
-  (void)arg;
-
-  for (i = 0; i < N_TRANSACTIONS; i++)
+  for (i = 0; i < N_CRYPTO_ITERATIONS; i++)
     {
-      external_lock_test_lock (__LINE__);
-      acc1 = pick_account ();
-      acc2 = pick_account ();
-      value = pick_value ();
-      account[acc1] += value;
-      account[acc2] -= value;
-      external_lock_test_unlock (__LINE__);
+      gcry_cipher_hd_t chd;
+      gcry_md_hd_t mhd;
+      gpg_error_t err;
+      unsigned char out[sizeof aes_test_ciphertext];
+      unsigned char digest[sizeof sha256_result];
+      const unsigned char *p;
+
+      err = gcry_cipher_open (&chd, GCRY_CIPHER_AES, GCRY_CIPHER_MODE_ECB, 0);
+      if (err)
+        die ("thread %d: gcry_cipher_open failed: %s",
+             arg->no, gpg_strerror (err));
+      err = gcry_cipher_setkey (chd, aes_test_key, sizeof aes_test_key);
+      if (err)
+        die ("thread %d: gcry_cipher_setkey failed: %s",
+             arg->no, gpg_strerror (err));
+      err = gcry_cipher_encrypt (chd, out, sizeof out,
+                                 aes_test_plaintext,
+                                 sizeof aes_test_plaintext);
+      if (err)
+        die ("thread %d: gcry_cipher_encrypt failed: %s",
+             arg->no, gpg_strerror (err));
+      if (memcmp (out, aes_test_ciphertext, sizeof out))
+        die ("thread %d: AES test vector mismatch", arg->no);
+      gcry_cipher_close (chd);
+
+      err = gcry_md_open (&mhd, GCRY_MD_SHA256, 0);
+      if (err)
+        die ("thread %d: gcry_md_open failed: %s",
+             arg->no, gpg_strerror (err));
+      gcry_md_write (mhd, sha256_input, sizeof sha256_input - 1);
+      p = gcry_md_read (mhd, GCRY_MD_SHA256);
+      if (!p)
+        die ("thread %d: gcry_md_read failed", arg->no);
+      memcpy (digest, p, sizeof digest);
+      gcry_md_close (mhd);
+      if (memcmp (digest, sha256_result, sizeof digest))
+        die ("thread %d: SHA-256 test vector mismatch", arg->no);
+
+      if (i && !(i%100))
+        info ("thread %d completed %d crypto iterations so far", arg->no, i);
     }
+
+  gcry_free (arg);
   return THREAD_RET_VALUE;
 }
 #endif
 
-
+/* To check Libgcrypt's public locking behavior we also run several
+   threads all creating and destroying cipher and digest contexts.  */
 static void
-run_test (void)
+check_crypto_lock (void)
 {
 #ifdef _WIN32
-  HANDLE rthread;
-  HANDLE athreads[N_ACCOUNTANTS];
+  HANDLE threads[N_CRYPTO_THREADS];
+  struct thread_arg_s *arg;
   int i;
   int rc;
 
-  external_lock_test_init (__LINE__);
-  stop_revision_thread = 0;
-  rthread = CreateThread (NULL, 0, revision_thread, NULL, 0, NULL);
-  if (!rthread)
-    die ("error creating revision thread: rc=%d", (int)GetLastError ());
-
-  for (i=0; i < N_ACCOUNTANTS; i++)
+  for (i=0; i < N_CRYPTO_THREADS; i++)
     {
-      athreads[i] = CreateThread (NULL, 0, accountant_thread, NULL, 0, NULL);
-      if (!athreads[i])
-        die ("error creating accountant thread %d: rc=%d",
+      arg = gcry_xmalloc (sizeof *arg);
+      arg->no = i;
+      threads[i] = CreateThread (NULL, 0, crypto_thread, arg, 0, NULL);
+      if (!threads[i])
+        die ("error creating crypto thread %d: rc=%d",
              i, (int)GetLastError ());
     }
 
-  for (i=0; i < N_ACCOUNTANTS; i++)
+  for (i=0; i < N_CRYPTO_THREADS; i++)
     {
-      rc = WaitForSingleObject (athreads[i], INFINITE);
+      rc = WaitForSingleObject (threads[i], INFINITE);
       if (rc == WAIT_OBJECT_0)
-        info ("accountant thread %d has terminated", i);
+        info ("crypto thread %d has terminated", i);
       else
-        fail ("waiting for accountant thread %d failed: %d",
+        fail ("waiting for crypto thread %d failed: %d",
               i, (int)GetLastError ());
-      CloseHandle (athreads[i]);
+      CloseHandle (threads[i]);
     }
-  stop_revision_thread = 1;
 
-  rc = WaitForSingleObject (rthread, INFINITE);
-  if (rc == WAIT_OBJECT_0)
-    info ("revision thread has terminated");
-  else
-    fail ("waiting for revision thread failed: %d", (int)GetLastError ());
-  CloseHandle (rthread);
-
-  external_lock_test_destroy (__LINE__);
 #elif HAVE_PTHREAD
-  pthread_t rthread;
-  pthread_t athreads[N_ACCOUNTANTS];
+  pthread_t threads[N_CRYPTO_THREADS];
+  struct thread_arg_s *arg;
   int rc, i;
 
-  external_lock_test_init (__LINE__);
-  stop_revision_thread = 0;
-  pthread_create (&rthread, NULL, revision_thread, NULL);
-
-  for (i=0; i < N_ACCOUNTANTS; i++)
-    pthread_create (&athreads[i], NULL, accountant_thread, NULL);
-
-  for (i=0; i < N_ACCOUNTANTS; i++)
+  for (i=0; i < N_CRYPTO_THREADS; i++)
     {
-      rc = pthread_join (athreads[i], NULL);
-      if (rc)
-        fail ("pthread_join failed for accountant thread %d: %s",
-              i, strerror (errno));
-      else
-        info ("accountant thread %d has terminated", i);
+      arg = gcry_xmalloc (sizeof *arg);
+      arg->no = i;
+      pthread_create (&threads[i], NULL, crypto_thread, arg);
     }
 
-  stop_revision_thread = 1;
-  rc = pthread_join (rthread, NULL);
-  if (rc)
-    fail ("pthread_join failed for the revision thread: %s", strerror (errno));
-  else
-    info ("revision thread has terminated");
-
-  external_lock_test_destroy (__LINE__);
+  for (i=0; i < N_CRYPTO_THREADS; i++)
+    {
+      rc = pthread_join (threads[i], NULL);
+      if (rc)
+        fail ("pthread_join failed for crypto thread %d: %s",
+              i, strerror (errno));
+      else
+        info ("crypto thread %d has terminated", i);
+    }
 #endif /*!_WIN32*/
 }
 
@@ -465,8 +335,6 @@ main (int argc, char **argv)
         }
     }
 
-  srand ((unsigned int)time(NULL)*getpid());
-
   if (debug)
     xgcry_control ((GCRYCTL_SET_DEBUG_FLAGS, 1u, 0));
   xgcry_control ((GCRYCTL_DISABLE_SECMEM, 0));
@@ -476,19 +344,10 @@ main (int argc, char **argv)
   xgcry_control ((GCRYCTL_INITIALIZATION_FINISHED, 0));
 
   check_nonce_lock ();
+  check_crypto_lock ();
 
-  init_accounts ();
-  check_accounts ();
-
-  run_test ();
-  check_accounts ();
-
-  /* Run a second time to check deinit code.  */
-  run_test ();
-  check_accounts ();
-
-  if (verbose)
-    print_accounts ();
+  /* Run a second time to exercise repeated threaded context setup.  */
+  check_crypto_lock ();
 
   return error_count ? 1 : 0;
 }
