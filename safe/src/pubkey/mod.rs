@@ -354,7 +354,7 @@ pub extern "C" fn gcry_pk_random_override_new(
     unsafe { (encoding::api().pk_random_override_new)(r_ctx, p, len) }
 }
 
-#[unsafe(no_mangle)]
+#[unsafe(export_name = "safe_gcry_pk_register")]
 pub extern "C" fn gcry_pk_register() -> u32 {
     error::gcry_error_from_code(error::GPG_ERR_NOT_SUPPORTED)
 }

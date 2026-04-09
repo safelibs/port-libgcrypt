@@ -47,6 +47,7 @@ void safe_gcry_randomize(void *buffer, size_t length, enum gcry_random_level lev
 void safe_gcry_create_nonce(void *buffer, size_t length);
 char *safe_gcry_get_config(int mode, const char *what);
 gcry_error_t safe_gcry_md_get(gcry_md_hd_t hd, int algo, unsigned char *buffer, int buflen);
+gcry_error_t safe_gcry_pk_register(void);
 gcry_error_t safe_gcry_sexp_build_dispatch(gcry_sexp_t *retsexp,
                                            size_t *erroff,
                                            const char *format,

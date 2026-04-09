@@ -129,6 +129,7 @@ FORWARD4(gcry_error_t,
          int, algo,
          unsigned char *, buffer,
          int, buflen)
+FORWARD0(gcry_error_t, gcry_pk_register)
 
 gcry_error_t
 gcry_control(enum gcry_ctl_cmds cmd, ...)

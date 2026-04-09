@@ -15,6 +15,11 @@ STAGE_INCLUDEDIR="${STAGE_PREFIX}/include"
 STAGE_BINDIR="${STAGE_PREFIX}/bin"
 STAGE_ACLOCAL="${STAGE_PREFIX}/share/aclocal"
 RELEASE_LIBDIR="${SAFE_DIR}/target/release"
+EXPECTED_ROOT="${SAFE_DIR}/target/bootstrap/check-abi-expected"
+EXPECTED_INCLUDEDIR="${EXPECTED_ROOT}/include"
+EXPECTED_PKGCONFIG="${EXPECTED_ROOT}/pkgconfig"
+EXPECTED_BINDIR="${EXPECTED_ROOT}/bin"
+PUBLIC_SMOKE_SOURCE="${SAFE_DIR}/tests/compat/public-api-smoke.c"
 
 fail() {
   echo "check-abi: $*" >&2
@@ -44,87 +49,131 @@ stage_install_tree() {
   chmod +x "${STAGE_BINDIR}/libgcrypt-config"
 }
 
-check_thread_header_smoke() {
-  local tmpdir smoke_c smoke_bin
-  tmpdir="$(mktemp -d "${SAFE_DIR}/target/bootstrap/check-abi-thread.XXXXXX")"
-  smoke_c="${tmpdir}/thread-smoke.c"
-  smoke_bin="${tmpdir}/thread-smoke"
+render_expected_original_artifacts() {
+  mkdir -p "${EXPECTED_INCLUDEDIR}" "${EXPECTED_PKGCONFIG}" "${EXPECTED_BINDIR}"
 
-  cat >"${smoke_c}" <<'EOF'
-#include <gcrypt.h>
-#include <stdio.h>
+  python3 - "${ORIGINAL_DIR}" "${EXPECTED_ROOT}" "${MULTIARCH}" <<'PY'
+from pathlib import Path
+import sys
 
-GCRY_THREAD_OPTION_PTH_IMPL;
-GCRY_THREAD_OPTION_PTHREAD_IMPL;
+original_dir = Path(sys.argv[1])
+expected_root = Path(sys.argv[2])
+multiarch = sys.argv[3]
 
-static void smoke(gcry_md_hd_t hd) {
-  gcry_cipher_reset(NULL);
-  gcry_fast_random_poll();
-  (void)gcry_fips_mode_active();
-  if (hd) {
-    gcry_md_putc(hd, 'x');
-    gcry_md_final(hd);
-  }
+package_version = "1.10.3"
+version_number = "0x010a03"
+prefix = "/usr"
+exec_prefix = "/usr"
+includedir = "/usr/include"
+libdir = f"/usr/lib/{multiarch}"
+host = multiarch
+api_version = "1"
+ciphers = "arcfour blowfish cast5 des aes twofish serpent rfc2268 seed camellia idea salsa20 gost28147 chacha20 sm4"
+pubkeys = "dsa elgamal rsa ecc"
+digests = "crc gostr3411-94 md2 md4 md5 rmd160 sha1 sha256 sha512 sha3 tiger whirlpool stribog blake2 sm3"
+
+def write(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+
+header = (original_dir / "src" / "gcrypt.h.in").read_text()
+header = (
+    header.replace("@configure_input@", "original/libgcrypt20-1.10.3/src/gcrypt.h.in")
+    .replace("@VERSION@", package_version)
+    .replace("@VERSION_NUMBER@", version_number)
+)
+write(expected_root / "include" / "gcrypt.h", header)
+
+pc = (original_dir / "src" / "libgcrypt.pc.in").read_text()
+pc = (
+    pc.replace("@prefix@", prefix)
+    .replace("@exec_prefix@", exec_prefix)
+    .replace("@includedir@", includedir)
+    .replace("@libdir@", libdir)
+    .replace("@LIBGCRYPT_CONFIG_HOST@", host)
+    .replace("@LIBGCRYPT_CONFIG_API_VERSION@", api_version)
+    .replace("@LIBGCRYPT_CIPHERS@", ciphers)
+    .replace("@LIBGCRYPT_PUBKEY_CIPHERS@", pubkeys)
+    .replace("@LIBGCRYPT_DIGESTS@", digests)
+    .replace("@PACKAGE_VERSION@", package_version)
+    .replace("@LIBGCRYPT_CONFIG_CFLAGS@", "")
+    .replace("@LIBGCRYPT_CONFIG_LIBS@", "-lgcrypt")
+    .replace("@DL_LIBS@", "")
+)
+write(expected_root / "pkgconfig" / "libgcrypt.pc", pc)
+
+config = (original_dir / "src" / "libgcrypt-config.in").read_text()
+config = (
+    config.replace("@configure_input@", "original/libgcrypt20-1.10.3/src/libgcrypt-config.in")
+    .replace("@prefix@", prefix)
+    .replace("@exec_prefix@", exec_prefix)
+    .replace("@PACKAGE_VERSION@", package_version)
+    .replace("@includedir@", includedir)
+    .replace("@libdir@", libdir)
+    .replace("@GPG_ERROR_LIBS@", "-lgpg-error")
+    .replace("@GPG_ERROR_CFLAGS@", "")
+    .replace("@LIBGCRYPT_CONFIG_LIBS@", "-lgcrypt")
+    .replace("@LIBGCRYPT_CONFIG_CFLAGS@", "")
+    .replace("@LIBGCRYPT_CONFIG_API_VERSION@", api_version)
+    .replace("@LIBGCRYPT_CONFIG_HOST@", host)
+    .replace("@LIBGCRYPT_CIPHERS@", ciphers)
+    .replace("@LIBGCRYPT_PUBKEY_CIPHERS@", pubkeys)
+    .replace("@LIBGCRYPT_DIGESTS@", digests)
+)
+config = config.replace(
+    'if test "x$libdir" != "x/usr/lib" -a "x$libdir" != "x/lib" -a "x$libdir" != "x/lib/${debianmultiarch}" ; then',
+    'if test "x$libdir" != "x/usr/lib" -a "x$libdir" != "x/lib" -a "x$libdir" != "x/usr/lib/${debianmultiarch}" -a "x$libdir" != "x/lib/${debianmultiarch}" ; then',
+)
+write(expected_root / "bin" / "libgcrypt-config", config)
+PY
+
+  chmod +x "${EXPECTED_BINDIR}/libgcrypt-config"
 }
 
-int main(void) {
-  struct gcry_thread_cbs cbs = {
-    GCRY_THREAD_OPTION_PTHREAD | (GCRY_THREAD_OPTION_VERSION << 8)
-  };
-  struct gcry_md_handle handle = {0};
-  gcry_kdf_thread_ops_t ops = {0};
-  (void)cbs;
-  (void)ops;
-  smoke(&handle);
-  return 0;
-}
-EOF
+compare_text_file() {
+  local label="$1"
+  local actual="$2"
+  local expected="$3"
 
-  cc \
-    -I"${STAGE_INCLUDEDIR}" \
-    "${smoke_c}" \
-    -L"${STAGE_LIBDIR}" \
-    -Wl,-rpath,"${STAGE_LIBDIR}" \
-    -lgcrypt -lgpg-error \
-    -o "${smoke_bin}"
+  python3 - "${label}" "${actual}" "${expected}" <<'PY'
+from pathlib import Path
+import sys
 
-  LD_LIBRARY_PATH="${STAGE_LIBDIR}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" "${smoke_bin}"
-  rm -rf "${tmpdir}"
+label = sys.argv[1]
+actual = [line.rstrip() for line in Path(sys.argv[2]).read_text().splitlines()]
+expected = [line.rstrip() for line in Path(sys.argv[3]).read_text().splitlines()]
+if actual != expected:
+    print(f"{label} mismatch", file=sys.stderr)
+    raise SystemExit(1)
+PY
 }
 
-check_variadic_smoke() {
-  local tmpdir smoke_c smoke_bin
-  tmpdir="$(mktemp -d "${SAFE_DIR}/target/bootstrap/check-abi-varargs.XXXXXX")"
-  smoke_c="${tmpdir}/variadic-smoke.c"
-  smoke_bin="${tmpdir}/variadic-smoke"
+compare_command_output() {
+  local actual_cmd="$1"
+  local expected_cmd="$2"
+  local description="$3"
+  local actual_stdout actual_stderr expected_stdout expected_stderr actual_rc expected_rc
 
-  cat >"${smoke_c}" <<'EOF'
-#include <gcrypt.h>
-#include <stdio.h>
+  actual_stdout="$(mktemp "${SAFE_DIR}/target/bootstrap/check-abi.actual.stdout.XXXXXX")"
+  actual_stderr="$(mktemp "${SAFE_DIR}/target/bootstrap/check-abi.actual.stderr.XXXXXX")"
+  expected_stdout="$(mktemp "${SAFE_DIR}/target/bootstrap/check-abi.expected.stdout.XXXXXX")"
+  expected_stderr="$(mktemp "${SAFE_DIR}/target/bootstrap/check-abi.expected.stderr.XXXXXX")"
 
-int main(void) {
-  gcry_sexp_t sexp = NULL;
-  size_t erroff = 0;
+  set +e
+  bash -c "${actual_cmd}" >"${actual_stdout}" 2>"${actual_stderr}"
+  actual_rc=$?
+  bash -c "${expected_cmd}" >"${expected_stdout}" 2>"${expected_stderr}"
+  expected_rc=$?
+  set -e
 
-  (void)gcry_control(GCRYCTL_SET_VERBOSITY, 0);
-  (void)gcry_sexp_build(&sexp, &erroff, "(data)");
-  (void)gcry_sexp_vlist(NULL, NULL);
-  (void)gcry_sexp_extract_param(sexp, NULL, "", NULL);
-  gcry_log_debug("bootstrap smoke %d", 1);
-  return 0;
-}
-EOF
+  if [[ "${actual_rc}" -ne "${expected_rc}" ]] \
+    || ! cmp -s "${actual_stdout}" "${expected_stdout}" \
+    || ! cmp -s "${actual_stderr}" "${expected_stderr}"; then
+    rm -f "${actual_stdout}" "${actual_stderr}" "${expected_stdout}" "${expected_stderr}"
+    fail "${description} mismatch"
+  fi
 
-  cc \
-    -I"${STAGE_INCLUDEDIR}" \
-    "${smoke_c}" \
-    -L"${STAGE_LIBDIR}" \
-    -Wl,-rpath,"${STAGE_LIBDIR}" \
-    -lgcrypt -lgpg-error \
-    -o "${smoke_bin}"
-
-  LD_LIBRARY_PATH="${STAGE_LIBDIR}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" "${smoke_bin}"
-  rm -rf "${tmpdir}"
+  rm -f "${actual_stdout}" "${actual_stderr}" "${expected_stdout}" "${expected_stderr}"
 }
 
 check_thread_cbs_noop() {
@@ -315,7 +364,19 @@ EOF
   rm -rf "${tmpdir}"
 }
 
-check_symbol_inventory() {
+check_header_smoke_compilation() {
+  local tmpdir stage_obj original_obj
+  tmpdir="$(mktemp -d "${SAFE_DIR}/target/bootstrap/check-abi-header.XXXXXX")"
+  stage_obj="${tmpdir}/stage-public-api-smoke.o"
+  original_obj="${tmpdir}/original-public-api-smoke.o"
+
+  cc -I"${STAGE_INCLUDEDIR}" -c "${PUBLIC_SMOKE_SOURCE}" -o "${stage_obj}"
+  cc -I"${EXPECTED_INCLUDEDIR}" -c "${PUBLIC_SMOKE_SOURCE}" -o "${original_obj}"
+
+  rm -rf "${tmpdir}"
+}
+
+compare_export_names_against_original() {
   python3 - "${ORIGINAL_DIR}/src/libgcrypt.vers" "${STAGE_LIBDIR}/libgcrypt.so.20" <<'PY'
 import re
 import subprocess
@@ -325,7 +386,8 @@ from pathlib import Path
 expected_text = Path(sys.argv[1]).read_text()
 match = re.search(r'GCRYPT_1\.6\s*\{(.*)local:', expected_text, re.S)
 if not match:
-    raise SystemExit("unable to parse expected version script")
+    raise SystemExit("unable to parse original version script")
+
 expected = []
 for token in re.split(r'[;\s]+', match.group(1)):
     token = token.strip()
@@ -337,39 +399,174 @@ dyn = subprocess.check_output(
     ["readelf", "--dyn-syms", "--wide", sys.argv[2]],
     text=True,
 )
-actual_set = set()
+actual = set()
 for line in dyn.splitlines():
-    if "@@GCRYPT_1.6" not in line and "@GCRYPT_1.6" not in line:
+    parts = line.split()
+    if len(parts) < 8:
         continue
-    name = line.split()[-1]
-    actual_set.add(name.split("@", 1)[0])
+    if parts[6] == "UND":
+        continue
+    name = parts[-1].split("@", 1)[0]
+    if name.startswith("gcry_") or name.startswith("_gcry_"):
+        actual.add(name)
 
-missing = sorted(expected_set - actual_set)
-extra = sorted(actual_set - expected_set)
+missing = sorted(expected_set - actual)
+extra = sorted(actual - expected_set)
 if missing or extra:
     if missing:
-        print("missing:", ", ".join(missing), file=sys.stderr)
+        print("missing exports:", ", ".join(missing), file=sys.stderr)
     if extra:
-        print("extra:", ", ".join(extra), file=sys.stderr)
+        print("unexpected exports:", ", ".join(extra), file=sys.stderr)
     raise SystemExit(1)
-if len(actual_set) != 217:
-    raise SystemExit(f"expected 217 exports, saw {len(actual_set)}")
 PY
 }
 
+check_symbol_version_nodes() {
+  python3 - "${STAGE_LIBDIR}/libgcrypt.so.20" <<'PY'
+import re
+import subprocess
+import sys
+
+version_info = subprocess.check_output(
+    ["readelf", "--version-info", "--wide", sys.argv[1]],
+    text=True,
+)
+
+names = set(re.findall(r'Name: ([^ \n]+)', version_info))
+expected = {"libgcrypt.so.20", "GCRYPT_1.6"}
+if expected - names:
+    raise SystemExit(f"missing version definitions: {sorted(expected - names)}")
+unexpected = sorted(name for name in names if name.startswith("GCRYPT_") and name != "GCRYPT_1.6")
+if unexpected:
+    raise SystemExit(f"unexpected libgcrypt version definitions: {unexpected}")
+PY
+
+  local symbol
+  for symbol in gcry_check_version gcry_control gcry_md_get gcry_sexp_build gcry_sexp_vlist gcry_sexp_extract_param gcry_log_debug gcry_pk_register; do
+    objdump -T "${STAGE_LIBDIR}/libgcrypt.so.20" | grep -Eq "GCRYPT_1\\.6[[:space:]]+${symbol}$" \
+      || fail "${symbol} is not exported with GCRYPT_1.6"
+  done
+}
+
+check_soname() {
+  readelf -d "${STAGE_LIBDIR}/libgcrypt.so.20" | grep -q 'SONAME.*libgcrypt.so.20' \
+    || fail "shared object SONAME is not libgcrypt.so.20"
+}
+
+compare_original_metadata() {
+  compare_text_file "libgcrypt.pc" "${STAGE_PKGCONFIG}/libgcrypt.pc" "${EXPECTED_PKGCONFIG}/libgcrypt.pc"
+  compare_text_file "libgcrypt.m4" "${STAGE_ACLOCAL}/libgcrypt.m4" "${ORIGINAL_DIR}/src/libgcrypt.m4"
+  compare_text_file "libgcrypt.vers" "${SAFE_DIR}/abi/libgcrypt.vers" "${ORIGINAL_DIR}/src/libgcrypt.vers"
+
+  compare_command_output \
+    "\"${STAGE_BINDIR}/libgcrypt-config\" --version" \
+    "\"${EXPECTED_BINDIR}/libgcrypt-config\" --version" \
+    "libgcrypt-config --version"
+  compare_command_output \
+    "\"${STAGE_BINDIR}/libgcrypt-config\" --api-version" \
+    "\"${EXPECTED_BINDIR}/libgcrypt-config\" --api-version" \
+    "libgcrypt-config --api-version"
+  compare_command_output \
+    "\"${STAGE_BINDIR}/libgcrypt-config\" --host" \
+    "\"${EXPECTED_BINDIR}/libgcrypt-config\" --host" \
+    "libgcrypt-config --host"
+  compare_command_output \
+    "\"${STAGE_BINDIR}/libgcrypt-config\" --cflags" \
+    "\"${EXPECTED_BINDIR}/libgcrypt-config\" --cflags" \
+    "libgcrypt-config --cflags"
+  compare_command_output \
+    "\"${STAGE_BINDIR}/libgcrypt-config\" --libs" \
+    "\"${EXPECTED_BINDIR}/libgcrypt-config\" --libs" \
+    "libgcrypt-config --libs"
+  compare_command_output \
+    "\"${STAGE_BINDIR}/libgcrypt-config\" --algorithms" \
+    "\"${EXPECTED_BINDIR}/libgcrypt-config\" --algorithms" \
+    "libgcrypt-config --algorithms"
+  compare_command_output \
+    "\"${STAGE_BINDIR}/libgcrypt-config\" --variable=prefix" \
+    "\"${EXPECTED_BINDIR}/libgcrypt-config\" --variable=prefix" \
+    "libgcrypt-config --variable=prefix"
+  compare_command_output \
+    "\"${STAGE_BINDIR}/libgcrypt-config\" --variable=exec_prefix" \
+    "\"${EXPECTED_BINDIR}/libgcrypt-config\" --variable=exec_prefix" \
+    "libgcrypt-config --variable=exec_prefix"
+  compare_command_output \
+    "\"${STAGE_BINDIR}/libgcrypt-config\" --variable=host" \
+    "\"${EXPECTED_BINDIR}/libgcrypt-config\" --variable=host" \
+    "libgcrypt-config --variable=host"
+  compare_command_output \
+    "\"${STAGE_BINDIR}/libgcrypt-config\" --variable=api_version" \
+    "\"${EXPECTED_BINDIR}/libgcrypt-config\" --variable=api_version" \
+    "libgcrypt-config --variable=api_version"
+  compare_command_output \
+    "\"${STAGE_BINDIR}/libgcrypt-config\" --variable=symmetric_ciphers" \
+    "\"${EXPECTED_BINDIR}/libgcrypt-config\" --variable=symmetric_ciphers" \
+    "libgcrypt-config --variable=symmetric_ciphers"
+  compare_command_output \
+    "\"${STAGE_BINDIR}/libgcrypt-config\" --variable=asymmetric_ciphers" \
+    "\"${EXPECTED_BINDIR}/libgcrypt-config\" --variable=asymmetric_ciphers" \
+    "libgcrypt-config --variable=asymmetric_ciphers"
+  compare_command_output \
+    "\"${STAGE_BINDIR}/libgcrypt-config\" --variable=digests" \
+    "\"${EXPECTED_BINDIR}/libgcrypt-config\" --variable=digests" \
+    "libgcrypt-config --variable=digests"
+
+  check_header_smoke_compilation
+}
+
+usage() {
+  cat <<'EOF'
+Usage: check-abi.sh [--compare-original] [--check-symbol-versions] [--check-soname] [--thread-cbs-noop]
+EOF
+}
+
 main() {
+  local compare_original=0
+  local check_symbol_versions=0
+  local check_soname_flag=0
   local thread_cbs_noop_mode=0
 
-  if [[ "${1:-}" == "--bootstrap" ]]; then
+  while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+      --bootstrap)
+        ;;
+      --compare-original)
+        compare_original=1
+        ;;
+      --check-symbol-versions)
+        check_symbol_versions=1
+        ;;
+      --check-soname)
+        check_soname_flag=1
+        ;;
+      --thread-cbs-noop)
+        thread_cbs_noop_mode=1
+        ;;
+      --all)
+        compare_original=1
+        check_symbol_versions=1
+        check_soname_flag=1
+        ;;
+      --help|-h)
+        usage
+        return 0
+        ;;
+      *)
+        fail "unknown option: $1"
+        ;;
+    esac
     shift
-  fi
-  if [[ "${1:-}" == "--thread-cbs-noop" ]]; then
-    thread_cbs_noop_mode=1
-    shift
+  done
+
+  if [[ "${compare_original}" -eq 0 && "${check_symbol_versions}" -eq 0 && "${check_soname_flag}" -eq 0 && "${thread_cbs_noop_mode}" -eq 0 ]]; then
+    compare_original=1
+    check_symbol_versions=1
+    check_soname_flag=1
   fi
 
   cargo build --manifest-path "${SAFE_DIR}/Cargo.toml" --release --offline
   stage_install_tree
+  render_expected_original_artifacts
 
   require_file "${STAGE_LIBDIR}/libgcrypt.so.20"
   require_file "${STAGE_LIBDIR}/libgcrypt.so"
@@ -378,22 +575,10 @@ main() {
   require_file "${STAGE_BINDIR}/libgcrypt-config"
   require_file "${STAGE_PKGCONFIG}/libgcrypt.pc"
   require_file "${STAGE_ACLOCAL}/libgcrypt.m4"
-
-  readelf -d "${STAGE_LIBDIR}/libgcrypt.so.20" | grep -q 'SONAME.*libgcrypt.so.20' \
-    || fail "shared object SONAME is not libgcrypt.so.20"
-  grep -q '^GCRYPT_1.6' "${SAFE_DIR}/abi/libgcrypt.vers" \
-    || fail "version script input does not define GCRYPT_1.6"
-
-  grep -q 'struct gcry_thread_cbs' "${STAGE_INCLUDEDIR}/gcrypt.h" \
-    || fail "generated header lost struct gcry_thread_cbs"
-  grep -q 'GCRY_THREAD_OPTION_PTH_IMPL' "${STAGE_INCLUDEDIR}/gcrypt.h" \
-    || fail "generated header lost GCRY_THREAD_OPTION_PTH_IMPL"
-  grep -q 'GCRY_THREAD_OPTION_PTHREAD_IMPL' "${STAGE_INCLUDEDIR}/gcrypt.h" \
-    || fail "generated header lost GCRY_THREAD_OPTION_PTHREAD_IMPL"
-  grep -q 'typedef struct gcry_md_handle' "${STAGE_INCLUDEDIR}/gcrypt.h" \
-    || fail "generated header lost gcry_md_handle layout"
-  grep -q 'gcry_kdf_thread_ops_t' "${STAGE_INCLUDEDIR}/gcrypt.h" \
-    || fail "generated header lost gcry_kdf_thread_ops_t"
+  require_file "${EXPECTED_INCLUDEDIR}/gcrypt.h"
+  require_file "${EXPECTED_PKGCONFIG}/libgcrypt.pc"
+  require_file "${EXPECTED_BINDIR}/libgcrypt-config"
+  require_file "${PUBLIC_SMOKE_SOURCE}"
 
   if [[ "${thread_cbs_noop_mode}" -eq 1 ]]; then
     check_thread_cbs_noop
@@ -402,21 +587,20 @@ main() {
     return 0
   fi
 
-  check_thread_header_smoke
-  check_variadic_smoke
   check_runtime_shell_surface
+  compare_export_names_against_original
 
-  local pc_libs config_libs
-  pc_libs="$(PKG_CONFIG_LIBDIR="${STAGE_PKGCONFIG}" PKG_CONFIG_PATH= pkg-config --libs libgcrypt | xargs)"
-  [[ "${pc_libs}" == *"-lgcrypt"* ]] || fail "pkg-config --libs does not include -lgcrypt"
-  [[ "${pc_libs}" != *"-lgpg-error"* ]] || fail "pkg-config --libs unexpectedly includes -lgpg-error"
+  if [[ "${compare_original}" -eq 1 ]]; then
+    compare_original_metadata
+  fi
 
-  config_libs="$("${STAGE_BINDIR}/libgcrypt-config" --libs | xargs)"
-  [[ "${config_libs}" == "-lgcrypt" ]] || fail "libgcrypt-config --libs output mismatch: ${config_libs}"
-  [[ "${config_libs}" != *"-L/usr/lib"* ]] || fail "libgcrypt-config emitted a standard -L path"
-  [[ "${config_libs}" != *"-L/lib/"* ]] || fail "libgcrypt-config emitted a standard -L path"
+  if [[ "${check_symbol_versions}" -eq 1 ]]; then
+    check_symbol_version_nodes
+  fi
 
-  check_symbol_inventory || fail "exported symbol inventory mismatch"
+  if [[ "${check_soname_flag}" -eq 1 ]]; then
+    check_soname
+  fi
 
   echo "check-abi: ok"
 }
