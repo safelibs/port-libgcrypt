@@ -194,6 +194,127 @@ EOF
   rm -rf "${tmpdir}"
 }
 
+check_runtime_shell_surface() {
+  local tmpdir probe_c probe_bin
+  tmpdir="$(mktemp -d "${SAFE_DIR}/target/bootstrap/check-abi-runtime.XXXXXX")"
+  probe_c="${tmpdir}/runtime-shell.c"
+  probe_bin="${tmpdir}/runtime-shell"
+
+  cat >"${probe_c}" <<'EOF'
+#include <gcrypt.h>
+#include <gpg-error.h>
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+static int
+die(const char *message, unsigned int value)
+{
+  fprintf(stderr, "runtime-shell: %s (%u)\n", message, value);
+  return 1;
+}
+
+static int
+check_config_item(const char *name)
+{
+  char *value = gcry_get_config(0, name);
+
+  if (!value)
+    {
+      fprintf(stderr, "runtime-shell: missing config item %s (errno=%d)\n",
+              name, errno);
+      return 1;
+    }
+  if (strncmp(value, name, strlen(name)) || value[strlen(name)] != ':')
+    {
+      fprintf(stderr, "runtime-shell: malformed config item %s => %s\n",
+              name, value);
+      gcry_free(value);
+      return 1;
+    }
+
+  gcry_free(value);
+  return 0;
+}
+
+int
+main(void)
+{
+  static const char *keys[] = {
+    "version",
+    "cc",
+    "ciphers",
+    "pubkeys",
+    "digests",
+    "rnd-mod",
+    "cpu-arch",
+    "mpi-asm",
+    "hwflist",
+    "fips-mode",
+    "rng-type",
+    "compliance",
+  };
+  gcry_error_t err;
+  gcry_error_t rc;
+  char *missing;
+  size_t i;
+
+  if (gcry_control(GCRYCTL_FORCE_FIPS_MODE))
+    return die("FORCE_FIPS_MODE before init failed", 0);
+  if (gcry_control(GCRYCTL_NO_FIPS_MODE))
+    return die("NO_FIPS_MODE before init failed", 0);
+
+  if (!gcry_check_version(NULL))
+    return die("gcry_check_version failed", 0);
+
+  rc = gcry_control(GCRYCTL_ANY_INITIALIZATION_P);
+  if (rc != gpg_error(GPG_ERR_GENERAL))
+    return die("ANY_INITIALIZATION_P returned wrong truthy value", rc);
+
+  rc = gcry_control(GCRYCTL_FIPS_MODE_P);
+  if (rc != 0 && rc != gpg_error(GPG_ERR_GENERAL))
+    return die("FIPS_MODE_P returned invalid value", rc);
+
+  err = gcry_error_from_errno(EINVAL);
+  if (err != gpg_error_from_errno(EINVAL))
+    return die("gcry_error_from_errno disagrees with libgpg-error", err);
+  if (gpg_err_source(err) == GPG_ERR_SOURCE_GCRYPT)
+    return die("gcry_error_from_errno returned gcrypt source", err);
+
+  if (gcry_control(GCRYCTL_ENABLE_QUICK_RANDOM))
+    return die("ENABLE_QUICK_RANDOM failed", 0);
+  rc = gcry_control(GCRYCTL_FAKED_RANDOM_P);
+  if (rc != gpg_error(GPG_ERR_GENERAL))
+    return die("FAKED_RANDOM_P returned wrong truthy value", rc);
+
+  for (i = 0; i < sizeof(keys) / sizeof(keys[0]); i++)
+    if (check_config_item(keys[i]))
+      return 1;
+
+  errno = 123;
+  missing = gcry_get_config(0, "no-such-item");
+  if (missing)
+    return die("unknown config key returned data", 0);
+  if (errno != 0)
+    return die("unknown config key left errno set", errno);
+
+  return 0;
+}
+EOF
+
+  cc \
+    -I"${STAGE_INCLUDEDIR}" \
+    "${probe_c}" \
+    -L"${STAGE_LIBDIR}" \
+    -Wl,-rpath,"${STAGE_LIBDIR}" \
+    -lgcrypt -lgpg-error \
+    -o "${probe_bin}"
+
+  LD_LIBRARY_PATH="${STAGE_LIBDIR}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" "${probe_bin}"
+  rm -rf "${tmpdir}"
+}
+
 check_symbol_inventory() {
   python3 - "${ORIGINAL_DIR}/src/libgcrypt.vers" "${STAGE_LIBDIR}/libgcrypt.so.20" <<'PY'
 import re
@@ -276,12 +397,14 @@ main() {
 
   if [[ "${thread_cbs_noop_mode}" -eq 1 ]]; then
     check_thread_cbs_noop
+    check_runtime_shell_surface
     echo "check-abi: ok"
     return 0
   fi
 
   check_thread_header_smoke
   check_variadic_smoke
+  check_runtime_shell_surface
 
   local pc_libs config_libs
   pc_libs="$(PKG_CONFIG_LIBDIR="${STAGE_PKGCONFIG}" PKG_CONFIG_PATH= pkg-config --libs libgcrypt | xargs)"

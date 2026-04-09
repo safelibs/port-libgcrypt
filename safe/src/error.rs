@@ -1,6 +1,5 @@
 use std::ffi::{c_char, c_int};
 
-pub(crate) const GPG_ERR_SOURCE_GCRYPT: u32 = 1;
 pub(crate) const GPG_ERR_SOURCE_SHIFT: u32 = 24;
 pub(crate) const GPG_ERR_CODE_MASK: u32 = 0xffff;
 pub(crate) const GPG_ERR_SOURCE_MASK: u32 = 0x7f;
@@ -30,7 +29,11 @@ pub(crate) fn make_error(source: u32, code: u32) -> u32 {
 }
 
 pub(crate) fn gcry_error_from_code(code: u32) -> u32 {
-    make_error(GPG_ERR_SOURCE_GCRYPT, code)
+    code & GPG_ERR_CODE_MASK
+}
+
+pub(crate) fn gcry_error_from_source(source: u32, code: u32) -> u32 {
+    make_error(source, code)
 }
 
 pub(crate) fn gpg_err_code_from_os_error(err: c_int) -> u32 {
@@ -81,7 +84,7 @@ pub extern "C" fn gcry_err_code_to_errno(code: u32) -> c_int {
 
 #[unsafe(export_name = "safe_gcry_err_make_from_errno")]
 pub extern "C" fn gcry_err_make_from_errno(source: u32, err: c_int) -> u32 {
-    make_error(source, gpg_err_code_from_os_error(err))
+    gcry_error_from_source(source, gpg_err_code_from_os_error(err))
 }
 
 #[unsafe(export_name = "safe_gcry_error_from_errno")]

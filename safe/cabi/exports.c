@@ -142,9 +142,6 @@ gcry_control(enum gcry_ctl_cmds cmd, ...)
     case GCRYCTL_SET_PREFERRED_RNG_TYPE:
     case GCRYCTL_SET_VERBOSITY:
     case GCRYCTL_SET_DEBUG_FLAGS:
-    case GCRYCTL_ENABLE_QUICK_RANDOM:
-    case GCRYCTL_FORCE_FIPS_MODE:
-    case GCRYCTL_NO_FIPS_MODE:
     case GCRYCTL_AUTO_EXPAND_SECMEM:
     case 61: /* PRIV_CTL_EXTERNAL_LOCK_TEST */
       arg0 = (uintptr_t)va_arg(ap, int);

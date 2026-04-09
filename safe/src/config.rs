@@ -11,6 +11,12 @@ unsafe extern "C" {
     fn fwrite(ptr: *const c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
 }
 
+const LIBGCRYPT_CIPHERS: &str =
+    "arcfour blowfish cast5 des aes twofish serpent rfc2268 seed camellia idea salsa20 gost28147 chacha20 sm4";
+const LIBGCRYPT_PUBKEY_CIPHERS: &str = "dsa elgamal rsa ecc";
+const LIBGCRYPT_DIGESTS: &str =
+    "crc gostr3411-94 md2 md4 md5 rmd160 sha1 sha256 sha512 sha3 tiger whirlpool stribog blake2 sm3";
+
 fn cpu_arch_name() -> &'static str {
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     {
@@ -60,24 +66,131 @@ fn cpu_arch_line() -> String {
     format!("cpu-arch:{}:", cpu_arch_name())
 }
 
+fn cc_line() -> String {
+    "cc:0:gcc:unknown:".to_string()
+}
+
+fn ciphers_line() -> String {
+    format!("ciphers:{LIBGCRYPT_CIPHERS}:")
+}
+
+fn pubkeys_line() -> String {
+    format!("pubkeys:{LIBGCRYPT_PUBKEY_CIPHERS}:")
+}
+
+fn digests_line() -> String {
+    format!("digests:{LIBGCRYPT_DIGESTS}:")
+}
+
+fn rnd_mod_line() -> String {
+    "rnd-mod:unix:".to_string()
+}
+
+fn mpi_asm_line() -> String {
+    "mpi-asm::".to_string()
+}
+
+fn hwflist_line() -> String {
+    let state = global::lock_runtime_state();
+    let disabled = &state.disabled_hw_features;
+    let mut features = Vec::new();
+
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    {
+        let enabled = |name: &str| !disabled.contains("all") && !disabled.contains(name);
+
+        if enabled("intel-cpu") {
+            features.push("intel-cpu");
+        }
+        if enabled("intel-bmi2") && std::is_x86_feature_detected!("bmi2") {
+            features.push("intel-bmi2");
+        }
+        if enabled("intel-ssse3") && std::is_x86_feature_detected!("ssse3") {
+            features.push("intel-ssse3");
+        }
+        if enabled("intel-sse4.1") && std::is_x86_feature_detected!("sse4.1") {
+            features.push("intel-sse4.1");
+        }
+        if enabled("intel-pclmul") && std::is_x86_feature_detected!("pclmulqdq") {
+            features.push("intel-pclmul");
+        }
+        if enabled("intel-aesni") && std::is_x86_feature_detected!("aes") {
+            features.push("intel-aesni");
+        }
+        if enabled("intel-rdrand") && std::is_x86_feature_detected!("rdrand") {
+            features.push("intel-rdrand");
+        }
+        if enabled("intel-avx") && std::is_x86_feature_detected!("avx") {
+            features.push("intel-avx");
+        }
+        if enabled("intel-avx2") && std::is_x86_feature_detected!("avx2") {
+            features.push("intel-avx2");
+        }
+        if enabled("intel-shaext") && std::is_x86_feature_detected!("sha") {
+            features.push("intel-shaext");
+        }
+    }
+
+    if features.is_empty() {
+        "hwflist:".to_string()
+    } else {
+        format!("hwflist:{}:", features.join(":"))
+    }
+}
+
+fn fips_mode_line() -> String {
+    let fips_mode = global::lock_runtime_state().fips_mode;
+    format!("fips-mode:{}:::", if fips_mode { 'y' } else { 'n' })
+}
+
 fn rng_type_line() -> String {
     let rng_type = global::current_rng_type();
     format!("rng-type:{}:{}:0:0:", rng_type_name(rng_type), rng_type)
 }
 
+fn compliance_line() -> String {
+    "compliance:::".to_string()
+}
+
 fn config_text(what: Option<&CStr>) -> Option<String> {
-    match what.map(|item| item.to_bytes()) {
-        None => Some(format!(
-            "{}\n{}\n{}\n",
-            version_line(),
-            cpu_arch_line(),
-            rng_type_line()
-        )),
+    let line = match what.map(|item| item.to_bytes()) {
         Some(b"version") => Some(version_line()),
+        Some(b"cc") => Some(cc_line()),
+        Some(b"ciphers") => Some(ciphers_line()),
+        Some(b"pubkeys") => Some(pubkeys_line()),
+        Some(b"digests") => Some(digests_line()),
+        Some(b"rnd-mod") => Some(rnd_mod_line()),
         Some(b"cpu-arch") => Some(cpu_arch_line()),
+        Some(b"mpi-asm") => Some(mpi_asm_line()),
+        Some(b"hwflist") => Some(hwflist_line()),
+        Some(b"fips-mode") => Some(fips_mode_line()),
         Some(b"rng-type") => Some(rng_type_line()),
+        Some(b"compliance") => Some(compliance_line()),
         _ => None,
+    };
+
+    if what.is_some() {
+        return line;
     }
+
+    Some(
+        [
+            version_line(),
+            cc_line(),
+            ciphers_line(),
+            pubkeys_line(),
+            digests_line(),
+            rnd_mod_line(),
+            cpu_arch_line(),
+            mpi_asm_line(),
+            hwflist_line(),
+            fips_mode_line(),
+            rng_type_line(),
+            compliance_line(),
+        ]
+        .join("\n")
+            + "\n",
+    )
 }
 
 pub(crate) fn print_config_to_stream(stream: *mut FILE) {
