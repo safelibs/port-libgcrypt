@@ -27,6 +27,7 @@ enum Sexpr {
 pub struct gcry_sexp {
     root: Sexpr,
     secure: bool,
+    top_level_fragment: bool,
 }
 
 impl Drop for gcry_sexp {
@@ -37,9 +38,14 @@ impl Drop for gcry_sexp {
 
 impl gcry_sexp {
     fn new(root: Sexpr, secure: bool) -> *mut gcry_sexp {
+        Self::new_with_fragment(root, secure, false)
+    }
+
+    fn new_with_fragment(root: Sexpr, secure: bool, top_level_fragment: bool) -> *mut gcry_sexp {
         let raw = Box::into_raw(Box::new(Self {
             root,
             secure,
+            top_level_fragment,
         }));
         context::set_object_secure(raw.cast(), secure);
         raw
@@ -78,6 +84,11 @@ struct Parser<'a> {
     pos: usize,
 }
 
+struct ParsedRoot {
+    root: Sexpr,
+    top_level_fragment: bool,
+}
+
 impl<'a> Parser<'a> {
     fn new(input: &'a [u8]) -> Self {
         Self { input, pos: 0 }
@@ -99,14 +110,28 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_root(&mut self) -> Result<Sexpr, (usize, u32)> {
+    fn parse_root(&mut self) -> Result<ParsedRoot, (usize, u32)> {
         self.skip_ws();
-        let result = self.parse_element()?;
-        self.skip_ws();
-        match self.peek() {
-            None => Ok(result),
-            Some(b')') => Err((self.pos, error::GPG_ERR_SEXP_UNMATCHED_PAREN)),
-            Some(_) => Err((self.pos, error::GPG_ERR_SEXP_BAD_CHARACTER)),
+        let first = self.parse_element()?;
+        let mut items = vec![first];
+        loop {
+            self.skip_ws();
+            match self.peek() {
+                None => {
+                    if items.len() == 1 {
+                        return Ok(ParsedRoot {
+                            root: items.pop().expect("single root"),
+                            top_level_fragment: false,
+                        });
+                    }
+                    return Ok(ParsedRoot {
+                        root: Sexpr::List(items),
+                        top_level_fragment: true,
+                    });
+                }
+                Some(b')') => return Err((self.pos, error::GPG_ERR_SEXP_UNMATCHED_PAREN)),
+                Some(_) => items.push(self.parse_element()?),
+            }
         }
     }
 
@@ -518,6 +543,18 @@ fn sprint_canon(node: &Sexpr, out: &mut Vec<u8>) {
     }
 }
 
+fn sprint_canon_top(node: &Sexpr, top_level_fragment: bool, out: &mut Vec<u8>) {
+    if top_level_fragment {
+        if let Sexpr::List(items) = node {
+            for item in items {
+                sprint_canon(item, out);
+            }
+            return;
+        }
+    }
+    sprint_canon(node, out);
+}
+
 fn sprint_advanced(node: &Sexpr, out: &mut Vec<u8>) {
     match node {
         Sexpr::Atom(bytes) => append_advanced_atom(bytes, out),
@@ -532,6 +569,18 @@ fn sprint_advanced(node: &Sexpr, out: &mut Vec<u8>) {
             out.push(b')');
         }
     }
+}
+
+fn sprint_advanced_top(node: &Sexpr, top_level_fragment: bool, out: &mut Vec<u8>) {
+    if top_level_fragment {
+        if let Sexpr::List(items) = node {
+            for item in items {
+                sprint_advanced(item, out);
+            }
+            return;
+        }
+    }
+    sprint_advanced(node, out);
 }
 
 fn nth_element<'a>(sexp: &'a gcry_sexp, number: c_int) -> Option<&'a Sexpr> {
@@ -578,7 +627,7 @@ fn find_token_recursive(node: &Sexpr, token: &[u8], secure: bool) -> Option<*mut
     }
 }
 
-fn parse_bytes(buffer: *const c_void, length: usize) -> Result<Sexpr, (usize, u32)> {
+fn parse_bytes(buffer: *const c_void, length: usize) -> Result<ParsedRoot, (usize, u32)> {
     let input = unsafe { std::slice::from_raw_parts(buffer.cast::<u8>(), length) };
     let mut parser = Parser::new(input);
     parser.parse_root()
@@ -1006,7 +1055,7 @@ fn build_from_format(format: &CStr, args: &[usize]) -> Result<(*mut gcry_sexp, u
                 };
                 let sexp = unsafe { gcry_sexp::as_ref(raw as *const gcry_sexp) }
                     .ok_or(error::gcry_error_from_code(error::GPG_ERR_INV_ARG))?;
-                sprint_advanced(&sexp.root, &mut out);
+                sprint_advanced_top(&sexp.root, sexp.top_level_fragment, &mut out);
                 secure |= sexp.secure;
                 arg_index += 1;
             }
@@ -1015,8 +1064,11 @@ fn build_from_format(format: &CStr, args: &[usize]) -> Result<(*mut gcry_sexp, u
         idx += 1;
     }
 
-    let root = parse_bytes(out.as_ptr().cast(), out.len()).map_err(|(_, code)| error::gcry_error_from_code(code))?;
-    Ok((gcry_sexp::new(root, secure), arg_index))
+    let parsed = parse_bytes(out.as_ptr().cast(), out.len()).map_err(|(_, code)| error::gcry_error_from_code(code))?;
+    Ok((
+        gcry_sexp::new_with_fragment(parsed.root, secure, parsed.top_level_fragment),
+        arg_index,
+    ))
 }
 
 #[unsafe(export_name = "gcry_sexp_new")]
@@ -1043,10 +1095,10 @@ pub extern "C" fn gcry_sexp_new(
         input_length(buffer, length)
     };
     match parse_bytes(buffer, len) {
-        Ok(root) => {
+        Ok(parsed) => {
             let secure = alloc::gcry_is_secure(buffer) != 0;
             unsafe {
-                *retsexp = gcry_sexp::new(root, secure);
+                *retsexp = gcry_sexp::new_with_fragment(parsed.root, secure, parsed.top_level_fragment);
             }
             0
         }
@@ -1079,7 +1131,7 @@ pub extern "C" fn gcry_sexp_create(
         input_length(buffer, length)
     };
     match parse_bytes(buffer, len) {
-        Ok(root) => {
+        Ok(parsed) => {
             let secure = alloc::gcry_is_secure(buffer) != 0;
             if let Some(callback) = freefnc {
                 unsafe {
@@ -1087,7 +1139,7 @@ pub extern "C" fn gcry_sexp_create(
                 }
             }
             unsafe {
-                *retsexp = gcry_sexp::new(root, secure);
+                *retsexp = gcry_sexp::new_with_fragment(parsed.root, secure, parsed.top_level_fragment);
             }
             0
         }
@@ -1117,9 +1169,13 @@ pub extern "C" fn gcry_sexp_sscan(
     }
     let len = if length != 0 { length } else { unsafe { CStr::from_ptr(buffer) }.to_bytes().len() };
     match parse_bytes(buffer.cast(), len) {
-        Ok(root) => {
+        Ok(parsed) => {
             unsafe {
-                *retsexp = gcry_sexp::new(root, alloc::gcry_is_secure(buffer.cast()) != 0);
+                *retsexp = gcry_sexp::new_with_fragment(
+                    parsed.root,
+                    alloc::gcry_is_secure(buffer.cast()) != 0,
+                    parsed.top_level_fragment,
+                );
             }
             0
         }
@@ -1234,9 +1290,9 @@ pub extern "C" fn gcry_sexp_sprint(
     };
     let mut rendered = Vec::new();
     match mode {
-        1 => sprint_canon(&value.root, &mut rendered),
-        2 | 3 | 0 => sprint_advanced(&value.root, &mut rendered),
-        _ => sprint_advanced(&value.root, &mut rendered),
+        1 => sprint_canon_top(&value.root, value.top_level_fragment, &mut rendered),
+        2 | 3 | 0 => sprint_advanced_top(&value.root, value.top_level_fragment, &mut rendered),
+        _ => sprint_advanced_top(&value.root, value.top_level_fragment, &mut rendered),
     }
     let needed = rendered.len() + 1;
     if buffer.is_null() || maxlength == 0 {
@@ -1258,7 +1314,7 @@ pub extern "C" fn gcry_sexp_dump(a: *const gcry_sexp) {
         return;
     };
     let mut rendered = Vec::new();
-    sprint_advanced(&value.root, &mut rendered);
+    sprint_advanced_top(&value.root, value.top_level_fragment, &mut rendered);
     log::emit_message(log::GCRY_LOG_INFO, &String::from_utf8_lossy(&rendered));
 }
 
@@ -1309,7 +1365,7 @@ pub extern "C" fn gcry_sexp_append(a: *const gcry_sexp, n: *const gcry_sexp) -> 
     };
     let mut items = left.list().map(|list| list.to_vec()).unwrap_or_default();
     items.push(single_element(next));
-    gcry_sexp::new(Sexpr::List(items), left.secure || next.secure)
+    gcry_sexp::new_with_fragment(Sexpr::List(items), left.secure || next.secure, left.top_level_fragment)
 }
 
 #[unsafe(export_name = "gcry_sexp_prepend")]
@@ -1322,7 +1378,7 @@ pub extern "C" fn gcry_sexp_prepend(a: *const gcry_sexp, n: *const gcry_sexp) ->
     };
     let mut items = vec![single_element(next)];
     items.extend(left.list().map(|list| list.to_vec()).unwrap_or_default());
-    gcry_sexp::new(Sexpr::List(items), left.secure || next.secure)
+    gcry_sexp::new_with_fragment(Sexpr::List(items), left.secure || next.secure, left.top_level_fragment)
 }
 
 #[unsafe(export_name = "gcry_sexp_find_token")]
@@ -1376,7 +1432,7 @@ pub extern "C" fn gcry_sexp_cdr(list: *const gcry_sexp) -> *mut gcry_sexp {
         return null_mut();
     };
     let rest = if items.len() > 1 { items[1..].to_vec() } else { Vec::new() };
-    gcry_sexp::new(Sexpr::List(rest), value.secure)
+    gcry_sexp::new_with_fragment(Sexpr::List(rest), value.secure, value.top_level_fragment)
 }
 
 #[unsafe(export_name = "gcry_sexp_cadr")]
