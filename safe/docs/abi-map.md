@@ -119,114 +119,114 @@ Seeded from `safe/abi/libgcrypt.vers`, `safe/abi/gcrypt.h.in`, and `safe/abi/vis
 | `gcry_ecc_get_algo_keylen` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
 | `gcry_ecc_mul_point` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
 | `gcry_kdf_derive` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_prime_check` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_prime_generate` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_prime_group_generator` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_prime_release_factors` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
+| `gcry_prime_check` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed prime surface. |
+| `gcry_prime_generate` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed prime surface. |
+| `gcry_prime_group_generator` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed prime surface. |
+| `gcry_prime_release_factors` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed prime surface. |
 | `gcry_random_add_bytes` | header+visibility | `safe/src/alloc.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Implemented runtime-shell compatibility no-op. |
 | `gcry_random_bytes` | header+visibility | `safe/src/alloc.rs` + `safe/src/os_rng.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Implemented runtime-shell OS-backed random byte allocation. |
 | `gcry_random_bytes_secure` | header+visibility | `safe/src/alloc.rs` + `safe/src/os_rng.rs` + `safe/src/secmem.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Implemented runtime-shell secure random allocation. |
 | `gcry_randomize` | header+visibility | `safe/src/alloc.rs` + `safe/src/os_rng.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Implemented runtime-shell OS-backed buffer fill. |
 | `gcry_create_nonce` | header+visibility | `safe/src/alloc.rs` + `safe/src/os_rng.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Implemented runtime-shell nonce generation. |
-| `gcry_sexp_alist` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_sexp_append` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_sexp_build` | header+visibility | `safe/cabi/exports.c` -> `safe/src/ffi.rs` | `check-abi.sh` variadic smoke + export-set check | Bootstrap variadic shim. |
-| `gcry_sexp_build_array` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_sexp_cadr` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_sexp_canon_len` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_sexp_car` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_sexp_cdr` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_sexp_cons` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_sexp_create` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_sexp_dump` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_sexp_find_token` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_sexp_length` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_sexp_new` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_sexp_nth` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_sexp_nth_buffer` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_sexp_nth_data` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_sexp_nth_mpi` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_sexp_prepend` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_sexp_release` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_sexp_sprint` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_sexp_sscan` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_sexp_vlist` | header+visibility | `safe/cabi/exports.c` -> `safe/src/ffi.rs` | `check-abi.sh` variadic smoke + export-set check | Bootstrap variadic shim. |
-| `gcry_sexp_nth_string` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_sexp_extract_param` | header+visibility | `safe/cabi/exports.c` -> `safe/src/ffi.rs` | `check-abi.sh` variadic smoke + export-set check | Bootstrap variadic shim. |
-| `gcry_mpi_is_neg` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_neg` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_abs` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_add` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_add_ui` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_addm` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_aprint` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_clear_bit` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_clear_flag` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_clear_highbit` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_cmp` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_cmp_ui` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_copy` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_div` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_dump` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_gcd` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_get_flag` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_get_nbits` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_get_opaque` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_invm` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_mod` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_mul` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_mul_2exp` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_mul_ui` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_mulm` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_new` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_powm` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_print` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_randomize` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_release` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_rshift` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_scan` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_set` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_set_bit` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_set_flag` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_set_highbit` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_set_opaque` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_set_opaque_copy` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_set_ui` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_snew` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_sub` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_sub_ui` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_subm` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_swap` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_test_bit` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_lshift` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_snatch` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_point_new` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_point_release` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_point_get` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_point_snatch_get` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_point_set` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_point_snatch_set` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_ec_new` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_ec_get_mpi` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_ec_get_point` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_ec_set_mpi` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_ec_set_point` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_ec_get_affine` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_ec_dup` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_ec_add` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_ec_sub` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_ec_mul` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_ec_curve_point` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_ec_decode_point` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_point_copy` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_mpi_get_ui` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
+| `gcry_sexp_alist` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_append` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_build` | header+visibility | `safe/cabi/exports.c` -> `safe/src/ffi.rs` | `check-abi.sh` variadic smoke + export-set check | Implemented Rust-backed variadic shim. |
+| `gcry_sexp_build_array` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_cadr` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_canon_len` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_car` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_cdr` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_cons` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_create` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_dump` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_find_token` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_length` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_new` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_nth` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_nth_buffer` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_nth_data` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_nth_mpi` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_prepend` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_release` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_sprint` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_sscan` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_vlist` | header+visibility | `safe/cabi/exports.c` -> `safe/src/ffi.rs` | `check-abi.sh` variadic smoke + export-set check | Implemented Rust-backed variadic shim. |
+| `gcry_sexp_nth_string` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_extract_param` | header+visibility | `safe/cabi/exports.c` -> `safe/src/ffi.rs` | `check-abi.sh` variadic smoke + export-set check | Implemented Rust-backed variadic shim. |
+| `gcry_mpi_is_neg` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_neg` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_abs` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_add` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_add_ui` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_addm` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_aprint` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_clear_bit` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_clear_flag` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_clear_highbit` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_cmp` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_cmp_ui` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_copy` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_div` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_dump` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_gcd` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_get_flag` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_get_nbits` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_get_opaque` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_invm` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_mod` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_mul` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_mul_2exp` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_mul_ui` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_mulm` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_new` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_powm` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_print` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_randomize` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_release` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_rshift` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_scan` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_set` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_set_bit` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_set_flag` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_set_highbit` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_set_opaque` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_set_opaque_copy` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_set_ui` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_snew` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_sub` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_sub_ui` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_subm` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_swap` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_test_bit` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_lshift` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_snatch` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_point_new` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented ABI placeholder; full point/EC semantics remain phase 6 work. |
+| `gcry_mpi_point_release` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented ABI placeholder; full point/EC semantics remain phase 6 work. |
+| `gcry_mpi_point_get` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented ABI placeholder; full point/EC semantics remain phase 6 work. |
+| `gcry_mpi_point_snatch_get` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented ABI placeholder; full point/EC semantics remain phase 6 work. |
+| `gcry_mpi_point_set` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented ABI placeholder; full point/EC semantics remain phase 6 work. |
+| `gcry_mpi_point_snatch_set` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented ABI placeholder; full point/EC semantics remain phase 6 work. |
+| `gcry_mpi_ec_new` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented ABI placeholder; full point/EC semantics remain phase 6 work. |
+| `gcry_mpi_ec_get_mpi` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented ABI placeholder; full point/EC semantics remain phase 6 work. |
+| `gcry_mpi_ec_get_point` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented ABI placeholder; full point/EC semantics remain phase 6 work. |
+| `gcry_mpi_ec_set_mpi` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented ABI placeholder; full point/EC semantics remain phase 6 work. |
+| `gcry_mpi_ec_set_point` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented ABI placeholder; full point/EC semantics remain phase 6 work. |
+| `gcry_mpi_ec_get_affine` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented ABI placeholder; full point/EC semantics remain phase 6 work. |
+| `gcry_mpi_ec_dup` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented ABI placeholder; full point/EC semantics remain phase 6 work. |
+| `gcry_mpi_ec_add` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented ABI placeholder; full point/EC semantics remain phase 6 work. |
+| `gcry_mpi_ec_sub` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented ABI placeholder; full point/EC semantics remain phase 6 work. |
+| `gcry_mpi_ec_mul` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented ABI placeholder; full point/EC semantics remain phase 6 work. |
+| `gcry_mpi_ec_curve_point` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented ABI placeholder; full point/EC semantics remain phase 6 work. |
+| `gcry_mpi_ec_decode_point` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented ABI placeholder; full point/EC semantics remain phase 6 work. |
+| `gcry_mpi_point_copy` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented ABI placeholder; full point/EC semantics remain phase 6 work. |
+| `gcry_mpi_get_ui` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
 | `gcry_log_debug` | header+visibility | `safe/cabi/exports.c` -> `safe/src/log.rs` | `check-abi.sh` variadic smoke + export-set check | Implemented runtime-shell variadic log dispatch. |
 | `gcry_log_debughex` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
 | `gcry_log_debugmpi` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
 | `gcry_log_debugpnt` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
 | `gcry_log_debugsxp` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
 | `gcry_get_config` | header+visibility | `safe/src/config.rs` | `run-original-tests.sh` version + `check-abi.sh` export-set check | Implemented runtime-shell config surface, including `version`, `cpu-arch`, and `rng-type`. |
-| `_gcry_mpi_get_const` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
+| `_gcry_mpi_get_const` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI constant accessor. |
 | `gcry_ctx_release` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
 | `gcry_pk_hash_sign` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
 | `gcry_pk_hash_verify` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
