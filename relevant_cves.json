@@ -1,0 +1,234 @@
+{
+  "product": "libgcrypt",
+  "source_file": "/home/yans/safelibs/port-libgcrypt/all_cves.json",
+  "generated_at_utc": "2026-04-09T08:04:11Z",
+  "description": "Non-memory-corruption libgcrypt CVEs from all_cves.json that could still affect a Rust reimplementation.",
+  "selection_criteria": {
+    "include": "Keep CVEs whose root cause is side-channel leakage, cryptographic design failure, randomness weakness, or protocol/encoding logic that could recur in Rust even with memory safety.",
+    "exclude": "Drop CVEs whose primary root cause is memory corruption that a safe Rust rewrite is expected to mitigate directly."
+  },
+  "counts": {
+    "source_cves": 17,
+    "included_relevant_cves": 16,
+    "excluded_memory_corruption_cves": 1
+  },
+  "included_cve_ids": [
+    "CVE-2013-4242",
+    "CVE-2014-3591",
+    "CVE-2014-5270",
+    "CVE-2015-0837",
+    "CVE-2015-7511",
+    "CVE-2016-6313",
+    "CVE-2017-0379",
+    "CVE-2017-7526",
+    "CVE-2017-9526",
+    "CVE-2018-0495",
+    "CVE-2018-6829",
+    "CVE-2019-12904",
+    "CVE-2019-13627",
+    "CVE-2021-33560",
+    "CVE-2021-40528",
+    "CVE-2024-2236"
+  ],
+  "excluded_cves": [
+    {
+      "cve_id": "CVE-2021-3345",
+      "class": "heap-based buffer overflow",
+      "reason": "This is the only included libgcrypt CVE in all_cves.json whose primary failure mode is memory corruption. A Rust port should still test for logic bugs, but this specific class is the one most directly reduced by Rust's ownership and bounds-safety model."
+    }
+  ],
+  "relevant_cves": [
+    {
+      "cve_id": "CVE-2013-4242",
+      "relevance": "high",
+      "class": "cache side-channel",
+      "affected_area": "RSA private-key operations",
+      "summary": "Private RSA keys can be recovered via a Flush+Reload attack on L3 cache activity.",
+      "why_relevant_to_rust": "Rust memory safety does not make modular exponentiation or table access constant-time. A Rust MPI or RSA implementation can leak the same secrets if it performs secret-dependent cache accesses.",
+      "porting_implications": [
+        "Avoid secret-dependent table lookups and window schedules in RSA exponentiation.",
+        "Use blinding and side-channel-focused review for RSA and CRT code paths."
+      ]
+    },
+    {
+      "cve_id": "CVE-2014-3591",
+      "relevance": "high",
+      "class": "electromagnetic side-channel due to missing blinding",
+      "affected_area": "ElGamal decryption",
+      "summary": "ElGamal decryption lacked ciphertext blinding, enabling private-key extraction from electromagnetic leakage during multiplication.",
+      "why_relevant_to_rust": "Ciphertext blinding is an algorithmic countermeasure, not a memory-safety property. A Rust port that reproduces the same decryption flow without blinding stays vulnerable.",
+      "porting_implications": [
+        "Implement ciphertext blinding for ElGamal decrypt operations.",
+        "Treat secret-dependent multiplications as side-channel sensitive even in safe Rust."
+      ]
+    },
+    {
+      "cve_id": "CVE-2014-5270",
+      "relevance": "conditional",
+      "class": "power-analysis side-channel",
+      "affected_area": "public-key ciphertext normalization and randomization",
+      "summary": "Improper ciphertext normalization and ciphertext randomization made key-extraction attacks easier for physically proximate attackers collecting voltage data.",
+      "why_relevant_to_rust": "The weakness is in cryptographic countermeasures around ciphertext handling, not in memory management. Reproducing the same normalization or randomization behavior in Rust would preserve the leak.",
+      "porting_implications": [
+        "Preserve normalization and randomization countermeasures in affected public-key code paths.",
+        "Audit decrypt flows for resistance to power and electromagnetic observation, not only correctness."
+      ]
+    },
+    {
+      "cve_id": "CVE-2015-0837",
+      "relevance": "high",
+      "class": "cache timing side-channel",
+      "affected_area": "mpi_powm modular exponentiation",
+      "summary": "Timing differences while accessing a pre-computed table during modular exponentiation leak sensitive information.",
+      "why_relevant_to_rust": "A Rust rewrite of big-integer exponentiation can recreate the same timing leak if it keeps secret-indexed tables or variable-time exponentiation behavior.",
+      "porting_implications": [
+        "Make powm-style exponentiation constant-time with secret-independent memory access.",
+        "Test modular exponentiation for timing stability across key-dependent inputs."
+      ]
+    },
+    {
+      "cve_id": "CVE-2015-7511",
+      "relevance": "high",
+      "class": "electromagnetic side-channel",
+      "affected_area": "ECC point multiplication during ECDH decryption",
+      "summary": "Improper elliptic-point curve multiplication during decryption made ECDH key extraction easier through electromagnetic emanations.",
+      "why_relevant_to_rust": "Scalar multiplication leaks come from arithmetic structure and execution profile, not from unsafe memory use. Rust can still expose the same signal if the ladder or field operations are variable-time.",
+      "porting_implications": [
+        "Use constant-time scalar multiplication for secret ECC operations.",
+        "Consider scalar blinding and regular ladders for secret-dependent point multiplication."
+      ]
+    },
+    {
+      "cve_id": "CVE-2016-6313",
+      "relevance": "high",
+      "class": "randomness weakness",
+      "affected_area": "random number generator mixing functions",
+      "summary": "The RNG mixing design let attackers derive 160 bits of future state from knowledge of previous output bits.",
+      "why_relevant_to_rust": "Entropy accumulation and state mixing are cryptographic design problems. Rust ownership does not improve an unsound RNG construction.",
+      "porting_implications": [
+        "Use a proven DRBG or carefully reviewed entropy-pool design instead of re-creating legacy mixing logic.",
+        "Specify explicit backtracking and prediction-resistance goals for the Rust RNG."
+      ]
+    },
+    {
+      "cve_id": "CVE-2017-0379",
+      "relevance": "high",
+      "class": "Curve25519 side-channel",
+      "affected_area": "Curve25519 implementation",
+      "summary": "The Curve25519 code did not properly account for side-channel attacks, allowing secret-key recovery.",
+      "why_relevant_to_rust": "Safe Rust does not guarantee a constant-time ladder, field arithmetic, or scalar handling. The same issue can recur if the implementation is functionally correct but side-channel fragile.",
+      "porting_implications": [
+        "Use a constant-time Montgomery ladder and field operations for Curve25519.",
+        "Prefer established constant-time patterns over ad hoc big-integer reuse."
+      ]
+    },
+    {
+      "cve_id": "CVE-2017-7526",
+      "relevance": "high",
+      "class": "cache side-channel",
+      "affected_area": "RSA sliding-window exponentiation",
+      "summary": "A cache side-channel against the left-to-right sliding-window method can completely recover RSA private keys.",
+      "why_relevant_to_rust": "This is a direct warning against variable-time exponentiation strategies. Porting the same windowing method to Rust would reproduce the vulnerability.",
+      "porting_implications": [
+        "Do not use secret-dependent left-to-right sliding-window exponentiation for RSA private operations.",
+        "Prefer constant-time exponentiation plus blinding for RSA private-key use."
+      ]
+    },
+    {
+      "cve_id": "CVE-2017-9526",
+      "relevance": "high",
+      "class": "EdDSA side-channel via session-key handling",
+      "affected_area": "EdDSA signing and secret-memory handling",
+      "summary": "If an attacker learns the EdDSA session key during signing, the long-term secret key becomes recoverable. The fix moved the session key into secure memory so constant-time point operations are used.",
+      "why_relevant_to_rust": "The issue is about routing secrets through constant-time code paths and protecting ephemeral signing material, not about buffer safety. A Rust port still needs secret-aware arithmetic and memory handling.",
+      "porting_implications": [
+        "Keep ephemeral signing scalars in protected and zeroized storage.",
+        "Ensure secret operands select constant-time point and scalar operations throughout the signing path."
+      ]
+    },
+    {
+      "cve_id": "CVE-2018-0495",
+      "relevance": "high",
+      "class": "cache side-channel due to missing blinding",
+      "affected_area": "ECDSA signing",
+      "summary": "ECDSA signatures were vulnerable to a cache side-channel that can be mitigated by blinding during signing.",
+      "why_relevant_to_rust": "Blinding and constant-time signing are cryptographic countermeasures. A Rust implementation that signs with variable-time arithmetic or unblinded secrets can leak the same keys.",
+      "porting_implications": [
+        "Blind ECDSA signing operations or use a signing design with equivalent side-channel protections.",
+        "Audit nonce use, scalar multiplication, and inversion for secret-dependent timing behavior."
+      ]
+    },
+    {
+      "cve_id": "CVE-2018-6829",
+      "relevance": "high",
+      "class": "cryptographic design flaw",
+      "affected_area": "ElGamal plaintext encoding and direct encryption",
+      "summary": "Libgcrypt's direct ElGamal encryption improperly encoded plaintexts and lacked semantic security under ciphertext-only attack.",
+      "why_relevant_to_rust": "This is a scheme-level design error. Reimplementing the same encoding or direct-encryption interface in Rust would preserve the vulnerability exactly.",
+      "porting_implications": [
+        "Do not reproduce the legacy direct-message ElGamal interface without a secure encoding or KEM-DEM construction.",
+        "Add tests that assert semantic-security expectations rather than only round-trip correctness."
+      ]
+    },
+    {
+      "cve_id": "CVE-2019-12904",
+      "relevance": "conditional",
+      "class": "disputed cache side-channel",
+      "affected_area": "software AES fallback implementation",
+      "summary": "The portable AES implementation was reported as vulnerable to Flush+Reload on platforms without assembly acceleration. The CVE is disputed, but the report still highlights risk in table-based software AES.",
+      "why_relevant_to_rust": "A Rust port is only exposed if it ships a secret-indexed, table-based AES fallback on targets without constant-time hardware or bitsliced backends. Rust itself does not remove cache-timing leakage.",
+      "porting_implications": [
+        "Prefer constant-time AES backends such as AES-NI, VAES, or bitsliced software implementations.",
+        "Avoid portable fallbacks that use secret-indexed lookup tables."
+      ]
+    },
+    {
+      "cve_id": "CVE-2019-13627",
+      "relevance": "high",
+      "class": "ECDSA timing leak",
+      "affected_area": "ECDSA signing",
+      "summary": "The Minerva attack exploited timing leakage related to scalar bit length during ECDSA operations.",
+      "why_relevant_to_rust": "Bit-length leakage comes from arithmetic behavior and conditional execution, not from unsafe pointers. A Rust port can still leak key material if scalar handling is variable-time.",
+      "porting_implications": [
+        "Use fixed-shape scalar arithmetic and avoid loops or branches that depend on secret bit length.",
+        "Test ECDSA signing for timing correlation with nonce and key structure."
+      ]
+    },
+    {
+      "cve_id": "CVE-2021-33560",
+      "relevance": "high",
+      "class": "side-channel due to missing exponent blinding",
+      "affected_area": "ElGamal encryption and mpi_powm behavior",
+      "summary": "ElGamal encryption lacked exponent blinding and used an inappropriate window size, enabling side-channel attacks.",
+      "why_relevant_to_rust": "This is again about constant-time exponentiation strategy and blinding. Porting the same exponentiation choices into Rust would keep the attack surface.",
+      "porting_implications": [
+        "Blind ElGamal exponents and choose windowing strategies that do not leak through cache or timing behavior.",
+        "Centralize constant-time powm behavior so higher-level public-key code cannot bypass it."
+      ]
+    },
+    {
+      "cve_id": "CVE-2021-40528",
+      "relevance": "high",
+      "class": "cross-configuration cryptographic attack",
+      "affected_area": "ElGamal and OpenPGP interoperability",
+      "summary": "A dangerous combination of public-key parameters and ephemeral exponents enabled plaintext recovery during interaction with another cryptographic library.",
+      "why_relevant_to_rust": "This is a protocol and parameter-validation flaw. Memory safety does not protect against unsafe interoperability rules or invalid parameter combinations.",
+      "porting_implications": [
+        "Validate ElGamal parameter combinations and reproduce the fixed interoperability rules for OpenPGP.",
+        "Add cross-implementation tests that exercise edge-case public keys and ephemeral exponent choices."
+      ]
+    },
+    {
+      "cve_id": "CVE-2024-2236",
+      "relevance": "high",
+      "class": "timing side-channel",
+      "affected_area": "RSA decryption",
+      "summary": "A timing-based side-channel in RSA enables a Bleichenbacher-style attack that can decrypt RSA ciphertexts.",
+      "why_relevant_to_rust": "Bleichenbacher oracles arise from timing and behavioral differences in padding checks and private-key operations. A Rust port must still make decryption failures indistinguishable in timing and observable behavior.",
+      "porting_implications": [
+        "Implement constant-time RSA decryption and PKCS#1 v1.5 error handling with uniform timing and outputs.",
+        "Test for remote oracle behavior, not just local constant-time properties."
+      ]
+    }
+  ]
+}
