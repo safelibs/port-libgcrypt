@@ -18,6 +18,7 @@ mod log;
 mod mac;
 mod mpi;
 mod os_rng;
+mod pubkey;
 mod random;
 mod secmem;
 mod sexp;

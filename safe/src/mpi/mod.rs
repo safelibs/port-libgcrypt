@@ -11,6 +11,7 @@ use crate::random;
 
 pub(crate) mod arith;
 pub(crate) mod consts;
+pub(crate) mod ec;
 pub(crate) mod opaque;
 pub(crate) mod prime;
 pub(crate) mod scan;

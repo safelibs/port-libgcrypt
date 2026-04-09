@@ -59,6 +59,7 @@ prepare_harness_tree() {
 
   while IFS= read -r -d '' file; do
     ln -s "${file}" "${tests_stage}/$(basename "${file}")"
+    ln -s "${file}" "${build_stage}/$(basename "${file}")"
   done < <(find "${ORIGINAL_DIR}/tests" -maxdepth 1 -type f ! -name '*.c' -print0)
 
   ln -s "${WRAPPER_BASIC}" "${tests_stage}/basic-disable-all-hwf"

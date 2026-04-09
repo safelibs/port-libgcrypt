@@ -101,7 +101,7 @@ impl<'a> Parser<'a> {
 
     fn parse_root(&mut self) -> Result<Sexpr, (usize, u32)> {
         self.skip_ws();
-        let result = self.parse_list()?;
+        let result = self.parse_element()?;
         self.skip_ws();
         match self.peek() {
             None => Ok(result),
@@ -538,7 +538,11 @@ fn nth_element<'a>(sexp: &'a gcry_sexp, number: c_int) -> Option<&'a Sexpr> {
     if number < 0 {
         return None;
     }
-    sexp.list()?.get(number as usize)
+    match &sexp.root {
+        Sexpr::Atom(_) if number == 0 => Some(&sexp.root),
+        Sexpr::Atom(_) => None,
+        Sexpr::List(items) => items.get(number as usize),
+    }
 }
 
 fn nth_atom<'a>(sexp: &'a gcry_sexp, number: c_int) -> Option<&'a [u8]> {
@@ -928,26 +932,36 @@ fn build_from_format(format: &CStr, args: &[usize]) -> Result<(*mut gcry_sexp, u
                 };
                 let mpi = unsafe { gcry_mpi::as_ref(raw as *const gcry_mpi) }
                     .ok_or(error::gcry_error_from_code(error::GPG_ERR_INV_ARG))?;
-                let mut rendered = vec![0u8; 0];
-                let mut nwritten = 0usize;
-                let format = if spec == b'm' { GCRYMPI_FMT_STD } else { GCRYMPI_FMT_USG };
-                let needed = mpi::scan::gcry_mpi_print(format, null_mut(), 0, &mut nwritten, raw as *const gcry_mpi);
-                if needed != 0 {
-                    return Err(needed);
-                }
-                rendered.resize(nwritten.max(1), 0);
-                let err = mpi::scan::gcry_mpi_print(format, rendered.as_mut_ptr(), rendered.len(), &mut nwritten, raw as *const gcry_mpi);
-                if err != 0 {
-                    return Err(err);
-                }
-                rendered.truncate(nwritten);
                 if spec == b'M' && mpi::gcry_mpi_is_neg((raw as *mut gcry_mpi)) != 0 {
                     return Err(error::gcry_error_from_code(error::GPG_ERR_INV_ARG));
                 }
+                let rendered = if mpi.is_opaque() {
+                    mpi.opaque().map_or_else(Vec::new, |opaque| opaque.as_slice().to_vec())
+                } else {
+                    let mut rendered = vec![0u8; 0];
+                    let mut nwritten = 0usize;
+                    let format = if spec == b'm' { GCRYMPI_FMT_STD } else { GCRYMPI_FMT_USG };
+                    let needed =
+                        mpi::scan::gcry_mpi_print(format, null_mut(), 0, &mut nwritten, raw as *const gcry_mpi);
+                    if needed != 0 {
+                        return Err(needed);
+                    }
+                    rendered.resize(nwritten.max(1), 0);
+                    let err = mpi::scan::gcry_mpi_print(
+                        format,
+                        rendered.as_mut_ptr(),
+                        rendered.len(),
+                        &mut nwritten,
+                        raw as *const gcry_mpi,
+                    );
+                    if err != 0 {
+                        return Err(err);
+                    }
+                    rendered.truncate(nwritten);
+                    rendered
+                };
                 secure |= mpi.secure;
-                out.extend_from_slice(nwritten.to_string().as_bytes());
-                out.push(b':');
-                out.extend_from_slice(&rendered);
+                append_advanced_atom(&rendered, &mut out);
                 arg_index += 1;
             }
             b's' => {
@@ -955,9 +969,7 @@ fn build_from_format(format: &CStr, args: &[usize]) -> Result<(*mut gcry_sexp, u
                     return Err(error::gcry_error_from_code(error::GPG_ERR_MISSING_VALUE));
                 };
                 let text = unsafe { CStr::from_ptr(raw as *const c_char) }.to_bytes();
-                out.extend_from_slice(text.len().to_string().as_bytes());
-                out.push(b':');
-                out.extend_from_slice(text);
+                append_advanced_atom(text, &mut out);
                 arg_index += 1;
             }
             b'b' => {
@@ -973,9 +985,7 @@ fn build_from_format(format: &CStr, args: &[usize]) -> Result<(*mut gcry_sexp, u
                 }
                 let slice = unsafe { std::slice::from_raw_parts(ptr_raw as *const u8, len as usize) };
                 secure |= alloc::gcry_is_secure(ptr_raw as *const c_void) != 0;
-                out.extend_from_slice(slice.len().to_string().as_bytes());
-                out.push(b':');
-                out.extend_from_slice(slice);
+                append_advanced_atom(slice, &mut out);
                 arg_index += 2;
             }
             b'd' | b'u' => {
@@ -987,9 +997,7 @@ fn build_from_format(format: &CStr, args: &[usize]) -> Result<(*mut gcry_sexp, u
                 } else {
                     raw.to_string()
                 };
-                out.extend_from_slice(text.len().to_string().as_bytes());
-                out.push(b':');
-                out.extend_from_slice(text.as_bytes());
+                append_advanced_atom(text.as_bytes(), &mut out);
                 arg_index += 1;
             }
             b'S' => {
@@ -998,9 +1006,7 @@ fn build_from_format(format: &CStr, args: &[usize]) -> Result<(*mut gcry_sexp, u
                 };
                 let sexp = unsafe { gcry_sexp::as_ref(raw as *const gcry_sexp) }
                     .ok_or(error::gcry_error_from_code(error::GPG_ERR_INV_ARG))?;
-                let mut rendered = Vec::new();
-                sprint_canon(&sexp.root, &mut rendered);
-                out.extend_from_slice(&rendered);
+                sprint_advanced(&sexp.root, &mut out);
                 secure |= sexp.secure;
                 arg_index += 1;
             }

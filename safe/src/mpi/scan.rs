@@ -154,7 +154,13 @@ fn scan_hex(buffer: *const c_void, buflen: usize) -> Result<(Mpz, bool, usize), 
         negative = true;
         start = 1;
     }
-    let digits = &bytes[start..];
+    let digits = if bytes.get(start) == Some(&b'0')
+        && matches!(bytes.get(start + 1), Some(b'x' | b'X'))
+    {
+        &bytes[start + 2..]
+    } else {
+        &bytes[start..]
+    };
     if digits.is_empty() {
         return Err(error::gcry_error_from_code(error::GPG_ERR_INV_OBJ));
     }
