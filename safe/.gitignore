@@ -1,1 +1,11 @@
 /target/
+/dist/
+/debian/.debhelper/
+/debian/cargo-home/
+/debian/tmp/
+/debian/libgcrypt20/
+/debian/libgcrypt20-dev/
+/debian/*.debhelper.log
+/debian/*.substvars
+/debian/debhelper-build-stamp
+/debian/files

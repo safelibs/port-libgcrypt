@@ -1,0 +1,6 @@
+/libgcrypt20_*.buildinfo
+/libgcrypt20_*.changes
+/libgcrypt20_*.deb
+/libgcrypt20_*.ddeb
+/libgcrypt20-dev_*.deb
+/libgcrypt20-dev_*.ddeb
