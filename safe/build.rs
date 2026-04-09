@@ -1,0 +1,324 @@
+use std::collections::BTreeSet;
+use std::env;
+use std::ffi::OsString;
+use std::fs;
+use std::io;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+
+const PACKAGE_VERSION: &str = "1.10.3";
+const VERSION_NUMBER_HEX: &str = "0x010a03";
+const LIBGCRYPT_CONFIG_API_VERSION: &str = "1";
+const LIBGCRYPT_CONFIG_HOST: &str = "x86_64-linux-gnu";
+const PREFIX: &str = "/usr";
+const EXEC_PREFIX: &str = "/usr";
+const INCLUDEDIR: &str = "/usr/include";
+const LIBDIR: &str = "/usr/lib/x86_64-linux-gnu";
+const BUILD_REVISION: &str = "aa161086";
+const BUILD_TIMESTAMP: &str = "<none>";
+const LIBGCRYPT_CIPHERS: &str =
+    "arcfour blowfish cast5 des aes twofish serpent rfc2268 seed camellia idea salsa20 gost28147 chacha20 sm4";
+const LIBGCRYPT_PUBKEY_CIPHERS: &str = "dsa elgamal rsa ecc";
+const LIBGCRYPT_DIGESTS: &str =
+    "crc gostr3411-94 md2 md4 md5 rmd160 sha1 sha256 sha512 sha3 tiger whirlpool stribog blake2 sm3";
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?);
+    let out_dir = PathBuf::from(env::var("OUT_DIR")?);
+    let abi_dir = manifest_dir.join("abi");
+    let cabi_dir = manifest_dir.join("cabi");
+    let bootstrap_dir = manifest_dir.join("target").join("bootstrap");
+    let generated_dir = bootstrap_dir.join("generated");
+    let include_dir = generated_dir.join("include");
+    let bin_dir = generated_dir.join("bin");
+    let pkgconfig_dir = generated_dir.join("pkgconfig");
+    let aclocal_dir = generated_dir.join("share").join("aclocal");
+
+    for path in [&include_dir, &bin_dir, &pkgconfig_dir, &aclocal_dir] {
+        fs::create_dir_all(path)?;
+    }
+
+    let gcrypt_h = render_gcrypt_header(&abi_dir.join("gcrypt.h.in"))?;
+    let libgcrypt_config = render_libgcrypt_config(&abi_dir.join("libgcrypt-config.in"))?;
+    let libgcrypt_pc = render_libgcrypt_pc(&abi_dir.join("libgcrypt.pc.in"))?;
+    let symbols = parse_version_script(&abi_dir.join("libgcrypt.vers"))?;
+    let c_stub_source = generate_c_stub_source(&symbols);
+
+    write_if_changed(&include_dir.join("gcrypt.h"), &gcrypt_h)?;
+    write_if_changed(&pkgconfig_dir.join("libgcrypt.pc"), &libgcrypt_pc)?;
+    write_if_changed(&bin_dir.join("libgcrypt-config"), &libgcrypt_config)?;
+    write_if_changed(&out_dir.join("generated_exports.c"), &c_stub_source)?;
+
+    let aclocal_target = aclocal_dir.join("libgcrypt.m4");
+    fs::copy(abi_dir.join("libgcrypt.m4"), &aclocal_target)?;
+    #[cfg(unix)]
+    {
+        fs::set_permissions(bin_dir.join("libgcrypt-config"), fs::Permissions::from_mode(0o755))?;
+        fs::set_permissions(aclocal_target, fs::Permissions::from_mode(0o644))?;
+    }
+
+    compile_c_exports(
+        &cabi_dir.join("exports.c"),
+        &cabi_dir.join("exports.h"),
+        &out_dir.join("generated_exports.c"),
+        &include_dir,
+        &out_dir,
+    )?;
+
+    println!("cargo:rerun-if-changed={}", abi_dir.join("gcrypt.h.in").display());
+    println!(
+        "cargo:rerun-if-changed={}",
+        abi_dir.join("libgcrypt-config.in").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        abi_dir.join("libgcrypt.pc.in").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        abi_dir.join("libgcrypt.vers").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        abi_dir.join("libgcrypt.m4").display()
+    );
+    println!("cargo:rerun-if-changed={}", cabi_dir.join("exports.c").display());
+    println!("cargo:rerun-if-changed={}", cabi_dir.join("exports.h").display());
+    println!("cargo:rustc-link-search=native={}", out_dir.display());
+    println!("cargo:rustc-link-lib=static:+whole-archive=safe_cabi");
+    println!(
+        "cargo:rustc-cdylib-link-arg=-Wl,--version-script={}",
+        abi_dir.join("libgcrypt.vers").display()
+    );
+    println!("cargo:rustc-cdylib-link-arg=-Wl,--no-gc-sections");
+    println!("cargo:rustc-cdylib-link-arg=-Wl,-soname,libgcrypt.so.20");
+
+    let build_manifest = format!(
+        "BUILD_REVISION={BUILD_REVISION}\nBUILD_TIMESTAMP={BUILD_TIMESTAMP}\nGENERATED_INCLUDE={}\nGENERATED_PKGCONFIG={}\nGENERATED_CONFIG={}\n",
+        include_dir.join("gcrypt.h").display(),
+        pkgconfig_dir.join("libgcrypt.pc").display(),
+        bin_dir.join("libgcrypt-config").display()
+    );
+    write_if_changed(&generated_dir.join("manifest.env"), &build_manifest)?;
+
+    Ok(())
+}
+
+fn render_gcrypt_header(path: &Path) -> io::Result<String> {
+    let template = fs::read_to_string(path)?;
+    Ok(template
+        .replace("@configure_input@", "safe/abi/gcrypt.h.in")
+        .replace("@VERSION@", PACKAGE_VERSION)
+        .replace("@VERSION_NUMBER@", VERSION_NUMBER_HEX))
+}
+
+fn render_libgcrypt_pc(path: &Path) -> io::Result<String> {
+    let template = fs::read_to_string(path)?;
+    Ok(template
+        .replace("@prefix@", PREFIX)
+        .replace("@exec_prefix@", EXEC_PREFIX)
+        .replace("@includedir@", INCLUDEDIR)
+        .replace("@libdir@", LIBDIR)
+        .replace("@LIBGCRYPT_CONFIG_HOST@", LIBGCRYPT_CONFIG_HOST)
+        .replace("@LIBGCRYPT_CONFIG_API_VERSION@", LIBGCRYPT_CONFIG_API_VERSION)
+        .replace("@LIBGCRYPT_CIPHERS@", LIBGCRYPT_CIPHERS)
+        .replace("@LIBGCRYPT_PUBKEY_CIPHERS@", LIBGCRYPT_PUBKEY_CIPHERS)
+        .replace("@LIBGCRYPT_DIGESTS@", LIBGCRYPT_DIGESTS)
+        .replace("@PACKAGE_VERSION@", PACKAGE_VERSION)
+        .replace("@LIBGCRYPT_CONFIG_CFLAGS@", "")
+        .replace("@LIBGCRYPT_CONFIG_LIBS@", "-lgcrypt")
+        .replace("@DL_LIBS@", ""))
+}
+
+fn render_libgcrypt_config(path: &Path) -> io::Result<String> {
+    let template = fs::read_to_string(path)?;
+    let rendered = template
+        .replace("@configure_input@", "safe/abi/libgcrypt-config.in")
+        .replace("@prefix@", PREFIX)
+        .replace("@exec_prefix@", EXEC_PREFIX)
+        .replace("@PACKAGE_VERSION@", PACKAGE_VERSION)
+        .replace("@includedir@", INCLUDEDIR)
+        .replace("@libdir@", LIBDIR)
+        .replace("@GPG_ERROR_LIBS@", "-lgpg-error")
+        .replace("@GPG_ERROR_CFLAGS@", "")
+        .replace("@LIBGCRYPT_CONFIG_LIBS@", "-lgcrypt")
+        .replace("@LIBGCRYPT_CONFIG_CFLAGS@", "")
+        .replace("@LIBGCRYPT_CONFIG_API_VERSION@", LIBGCRYPT_CONFIG_API_VERSION)
+        .replace("@LIBGCRYPT_CONFIG_HOST@", LIBGCRYPT_CONFIG_HOST)
+        .replace("@LIBGCRYPT_CIPHERS@", LIBGCRYPT_CIPHERS)
+        .replace("@LIBGCRYPT_PUBKEY_CIPHERS@", LIBGCRYPT_PUBKEY_CIPHERS)
+        .replace("@LIBGCRYPT_DIGESTS@", LIBGCRYPT_DIGESTS);
+
+    Ok(rendered
+        .replace(
+            "    libs_final=\"$libs\"\n\n    # Set up `libdirs'.\n",
+            "    libs_final=\"$libs\"\n    debianmultiarch=`if command -v dpkg-architecture > /dev/null ; then dpkg-architecture -qDEB_HOST_MULTIARCH ; fi`\n\n    # Set up `libdirs'.\n",
+        )
+        .replace(
+            "if test \"x$libdir\" != \"x/usr/lib\" -a \"x$libdir\" != \"x/lib\"; then",
+            "if test \"x$libdir\" != \"x/usr/lib\" -a \"x$libdir\" != \"x/lib\" -a \"x$libdir\" != \"x/usr/lib/${debianmultiarch}\" -a \"x$libdir\" != \"x/lib/${debianmultiarch}\" ; then",
+        )
+        .replace(
+            "if test \"x$libdir\" != \"x/usr/lib\" -a \"x$libdir\" != \"x/lib\" -a \"x$libdir\" != \"x/lib/${debianmultiarch}\" ; then",
+            "if test \"x$libdir\" != \"x/usr/lib\" -a \"x$libdir\" != \"x/lib\" -a \"x$libdir\" != \"x/usr/lib/${debianmultiarch}\" -a \"x$libdir\" != \"x/lib/${debianmultiarch}\" ; then",
+        )
+        .replace(
+            "    libs_final=\"$libs_final $gpg_error_libs\"",
+            "    #libs_final=\"$libs_final $gpg_error_libs\"\n    libs_final=\"-lgcrypt\"",
+        ))
+}
+
+fn parse_version_script(path: &Path) -> io::Result<Vec<String>> {
+    let text = fs::read_to_string(path)?;
+    let mut symbols = Vec::new();
+    let mut in_global = false;
+
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("global:") {
+            in_global = true;
+            continue;
+        }
+        if trimmed.starts_with("local:") {
+            break;
+        }
+        if !in_global || trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        for token in trimmed.split(';') {
+            let symbol = token.trim();
+            if !symbol.is_empty() {
+                symbols.push(symbol.to_string());
+            }
+        }
+    }
+
+    Ok(symbols)
+}
+
+fn generate_c_stub_source(symbols: &[String]) -> String {
+    let handwritten: BTreeSet<&str> = BTreeSet::from([
+        "gcry_check_version",
+        "gcry_control",
+        "gcry_set_outofcore_handler",
+        "gcry_err_code_from_errno",
+        "gcry_err_code_to_errno",
+        "gcry_err_make_from_errno",
+        "gcry_error_from_errno",
+        "gcry_strerror",
+        "gcry_strsource",
+        "gcry_free",
+        "gcry_malloc",
+        "gcry_malloc_secure",
+        "gcry_calloc",
+        "gcry_calloc_secure",
+        "gcry_realloc",
+        "gcry_strdup",
+        "gcry_is_secure",
+        "gcry_xcalloc",
+        "gcry_xcalloc_secure",
+        "gcry_xmalloc",
+        "gcry_xmalloc_secure",
+        "gcry_xrealloc",
+        "gcry_xstrdup",
+        "gcry_random_add_bytes",
+        "gcry_random_bytes",
+        "gcry_random_bytes_secure",
+        "gcry_randomize",
+        "gcry_create_nonce",
+        "gcry_get_config",
+        "gcry_md_get",
+        "gcry_sexp_build",
+        "gcry_sexp_vlist",
+        "gcry_sexp_extract_param",
+        "gcry_log_debug",
+    ]);
+
+    let mut output = String::from("/* @generated by build.rs */\n#include <stdint.h>\n\nextern uintptr_t safe_gcry_stub_zero(void);\n\n");
+    for symbol in symbols {
+        if handwritten.contains(symbol.as_str()) {
+            continue;
+        }
+
+        output.push_str(&format!("uintptr_t {symbol}() {{ return safe_gcry_stub_zero(); }}\n"));
+    }
+    output
+}
+
+fn compile_c_exports(
+    manual_src: &Path,
+    header: &Path,
+    generated_src: &Path,
+    include_dir: &Path,
+    out_dir: &Path,
+) -> io::Result<()> {
+    let cc = env::var_os("CC").unwrap_or_else(|| OsString::from("cc"));
+    let ar = env::var_os("AR").unwrap_or_else(|| OsString::from("ar"));
+    let manual_object = out_dir.join("exports.o");
+    let generated_object = out_dir.join("generated_exports.o");
+    let archive_file = out_dir.join("libsafe_cabi.a");
+
+    run(Command::new(&cc).args([
+        OsString::from("-std=c11"),
+        OsString::from("-fPIC"),
+        OsString::from("-c"),
+        manual_src.as_os_str().to_os_string(),
+        OsString::from("-o"),
+        manual_object.as_os_str().to_os_string(),
+        OsString::from("-I"),
+        include_dir.as_os_str().to_os_string(),
+        OsString::from("-I"),
+        header
+            .parent()
+            .expect("header has parent")
+            .as_os_str()
+            .to_os_string(),
+        OsString::from("-I"),
+        out_dir.as_os_str().to_os_string(),
+    ]))?;
+
+    run(Command::new(&cc).args([
+        OsString::from("-std=c11"),
+        OsString::from("-fPIC"),
+        OsString::from("-c"),
+        generated_src.as_os_str().to_os_string(),
+        OsString::from("-o"),
+        generated_object.as_os_str().to_os_string(),
+    ]))?;
+
+    if archive_file.exists() {
+        fs::remove_file(&archive_file)?;
+    }
+    run(Command::new(&ar).args([
+        OsString::from("crus"),
+        archive_file.as_os_str().to_os_string(),
+        manual_object.as_os_str().to_os_string(),
+        generated_object.as_os_str().to_os_string(),
+    ]))?;
+
+    Ok(())
+}
+
+fn run(command: &mut Command) -> io::Result<()> {
+    let status = command.status()?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(io::Error::other(format!("command failed: {command:?}")))
+    }
+}
+
+fn write_if_changed(path: &Path, contents: &str) -> io::Result<()> {
+    match fs::read_to_string(path) {
+        Ok(existing) if existing == contents => return Ok(()),
+        Ok(_) | Err(_) => {}
+    }
+
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(path, contents)
+}

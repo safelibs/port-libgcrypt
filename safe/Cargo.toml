@@ -1,0 +1,18 @@
+[workspace]
+members = ["."]
+resolver = "3"
+
+[package]
+name = "safe"
+version = "0.1.0"
+edition = "2024"
+build = "build.rs"
+
+[lib]
+name = "gcrypt"
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[dependencies]
+
+[profile.release]
+panic = "abort"
