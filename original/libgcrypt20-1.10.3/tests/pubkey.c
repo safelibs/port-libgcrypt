@@ -169,9 +169,9 @@ show_sexp (const char *prefix, gcry_sexp_t a)
   gcry_free (buf);
 }
 
-/* from ../cipher/pubkey-util.c */
+/* Extract the optional "(nbits ...)" parameter using public sexp helpers.  */
 static gpg_err_code_t
-_gcry_pk_util_get_nbits (gcry_sexp_t list, unsigned int *r_nbits)
+sexp_get_nbits (gcry_sexp_t list, unsigned int *r_nbits)
 {
   char buf[50];
   const char *s;
@@ -1040,7 +1040,7 @@ check_x931_derived_key (int what)
 
   {
     unsigned nbits;
-    err = _gcry_pk_util_get_nbits(key_spec, &nbits);
+    err = sexp_get_nbits (key_spec, &nbits);
     if (err)
       die ("nbits not found\n");
     if (in_fips_mode && nbits < 2048)

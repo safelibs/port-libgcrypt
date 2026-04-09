@@ -25,6 +25,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <assert.h>
+#include <stdint.h>
 #include <float.h>
 #include <time.h>
 #ifdef _WIN32
@@ -32,11 +33,12 @@
 #endif
 
 #ifdef _GCRYPT_IN_LIBGCRYPT
-# include "../src/gcrypt-int.h"
-# include "../compat/libcompat.h"
+# undef _GCRYPT_IN_LIBGCRYPT
+# include "gcrypt.h"
 #else
 # include <gcrypt.h>
 #endif
+#include "../compat/libcompat.h"
 
 #ifndef STR
 #define STR(v) #v
@@ -1167,7 +1169,7 @@ bench_ccm_encrypt_do_bench (struct bench_obj *obj, void *buf, size_t buflen)
   int err;
   char tag[8];
   char nonce[11] = { 0x80, 0x01, };
-  u64 params[3];
+  uint64_t params[3];
 
   gcry_cipher_setiv (hd, nonce, sizeof (nonce));
 
@@ -1211,7 +1213,7 @@ bench_ccm_decrypt_do_bench (struct bench_obj *obj, void *buf, size_t buflen)
   int err;
   char tag[8] = { 0, };
   char nonce[11] = { 0x80, 0x01, };
-  u64 params[3];
+  uint64_t params[3];
 
   gcry_cipher_setiv (hd, nonce, sizeof (nonce));
 
@@ -1258,7 +1260,7 @@ bench_ccm_authenticate_do_bench (struct bench_obj *obj, void *buf,
   int err;
   char tag[8] = { 0, };
   char nonce[11] = { 0x80, 0x01, };
-  u64 params[3];
+  uint64_t params[3];
   char data = 0xff;
 
   gcry_cipher_setiv (hd, nonce, sizeof (nonce));

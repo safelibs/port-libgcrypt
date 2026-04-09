@@ -23,13 +23,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <stdint.h>
 
 #ifdef _GCRYPT_IN_LIBGCRYPT
-# include "../src/gcrypt-int.h"
-# include "../compat/libcompat.h"
+# undef _GCRYPT_IN_LIBGCRYPT
+# include "gcrypt.h"
 #else
 # include <gcrypt.h>
 #endif
+#include "../compat/libcompat.h"
 
 #include "stopwatch.h"
 
@@ -718,7 +720,7 @@ static void ccm_aead_init(gcry_cipher_hd_t hd, size_t buflen, int authlen)
   const int _L = 4;
   const int noncelen = 15 - _L;
   char nonce[noncelen];
-  u64 params[3];
+  uint64_t params[3];
   gcry_error_t err = GPG_ERR_NO_ERROR;
 
   memset (nonce, 0x33, noncelen);

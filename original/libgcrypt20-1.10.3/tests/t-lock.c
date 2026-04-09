@@ -32,10 +32,16 @@
 # include <pthread.h>
 #endif
 
+#ifdef _GCRYPT_IN_LIBGCRYPT
+# undef _GCRYPT_IN_LIBGCRYPT
+# include "gcrypt.h"
+#else
+# include <gcrypt.h>
+#endif
+
 #define PGM "t-lock"
 
 #include "t-common.h"
-#include "../src/gcrypt-testapi.h"
 
 /* Mingw requires us to include windows.h after winsock2.h which is
    included by gcrypt.h.  */
@@ -91,46 +97,72 @@ struct thread_arg_s
 
 
 #if defined(HAVE_PTHREAD) || defined(_WIN32)
-/* Wrapper functions to access Libgcrypt's internal test lock.  */
+/* Private external-lock test hooks are not part of the public API.
+   Use a regular process-local mutex for this harness instead.  */
+#ifdef _WIN32
+static CRITICAL_SECTION external_lock_test_mutex;
+#else
+static pthread_mutex_t external_lock_test_mutex;
+#endif
+
 static void
 external_lock_test_init (int line)
 {
-  gpg_error_t err;
+#ifdef _WIN32
+  (void)line;
+  InitializeCriticalSection (&external_lock_test_mutex);
+#else
+  int rc;
 
-  err = gcry_control (PRIV_CTL_EXTERNAL_LOCK_TEST, EXTERNAL_LOCK_TEST_INIT);
-  if (err)
-    fail ("init lock failed at %d: %s", line, gpg_strerror (err));
+  rc = pthread_mutex_init (&external_lock_test_mutex, NULL);
+  if (rc)
+    fail ("init lock failed at %d: %s", line, strerror (rc));
+#endif
 }
 
 static void
 external_lock_test_lock (int line)
 {
-  gpg_error_t err;
+#ifdef _WIN32
+  (void)line;
+  EnterCriticalSection (&external_lock_test_mutex);
+#else
+  int rc;
 
-  err = gcry_control (PRIV_CTL_EXTERNAL_LOCK_TEST, EXTERNAL_LOCK_TEST_LOCK);
-  if (err)
-    fail ("taking lock failed at %d: %s", line, gpg_strerror (err));
+  rc = pthread_mutex_lock (&external_lock_test_mutex);
+  if (rc)
+    fail ("taking lock failed at %d: %s", line, strerror (rc));
+#endif
 }
 
 static void
 external_lock_test_unlock (int line)
 {
-  gpg_error_t err;
+#ifdef _WIN32
+  (void)line;
+  LeaveCriticalSection (&external_lock_test_mutex);
+#else
+  int rc;
 
-  err = gcry_control (PRIV_CTL_EXTERNAL_LOCK_TEST, EXTERNAL_LOCK_TEST_UNLOCK);
-  if (err)
-    fail ("releasing lock failed at %d: %s", line, gpg_strerror (err));
-
+  rc = pthread_mutex_unlock (&external_lock_test_mutex);
+  if (rc)
+    fail ("releasing lock failed at %d: %s", line, strerror (rc));
+#endif
 }
 
 static void
 external_lock_test_destroy (int line)
 {
-  gpg_error_t err;
+#ifdef _WIN32
+  (void)line;
+  DeleteCriticalSection (&external_lock_test_mutex);
+#else
+  int rc;
 
-  err = gcry_control (PRIV_CTL_EXTERNAL_LOCK_TEST, EXTERNAL_LOCK_TEST_DESTROY);
-  if (err)
-    fail ("destroying lock failed at %d: %s", line, gpg_strerror (err));
+  rc = pthread_mutex_destroy (&external_lock_test_mutex);
+  if (rc)
+    fail ("destroying lock failed at %d: %s", line, strerror (rc));
+#endif
 }
 #endif
 
@@ -440,9 +472,6 @@ main (int argc, char **argv)
   xgcry_control ((GCRYCTL_DISABLE_SECMEM, 0));
   if (!gcry_check_version (GCRYPT_VERSION))
     die ("version mismatch");
-  /* We are using non-public interfaces - check the exact version.  */
-  if (strcmp (gcry_check_version (NULL), GCRYPT_VERSION))
-    die ("exact version match failed");
   xgcry_control ((GCRYCTL_ENABLE_QUICK_RANDOM, 0));
   xgcry_control ((GCRYCTL_INITIALIZATION_FINISHED, 0));
 

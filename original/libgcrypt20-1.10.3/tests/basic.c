@@ -27,8 +27,14 @@
 #include <string.h>
 #include <stdarg.h>
 #include <assert.h>
+#include <stdint.h>
 
-#include "../src/gcrypt-int.h"
+#ifdef _GCRYPT_IN_LIBGCRYPT
+# undef _GCRYPT_IN_LIBGCRYPT
+# include "gcrypt.h"
+#else
+# include <gcrypt.h>
+#endif
 
 #define PGM "basic"
 #include "t-common.h"
@@ -7278,7 +7284,7 @@ check_ccm_cipher (void)
   static const int cut[] = { 0, 1, 8, 10, 16, 19, -1 };
   gcry_cipher_hd_t hde, hdd;
   unsigned char out[MAX_DATA_LEN];
-  u64 ctl_params[3];
+  uint64_t ctl_params[3];
   int split, aadsplit;
   size_t j, i, keylen, blklen, authlen, taglen2;
   gcry_error_t err = 0;
@@ -10903,7 +10909,7 @@ check_one_cipher_core_reset (gcry_cipher_hd_t hd, int algo, int mode, int pass,
                              int nplain)
 {
   static const unsigned char iv[8] = { 0, 1, 2, 3, 4, 5, 6, 7 };
-  u64 ctl_params[3];
+  uint64_t ctl_params[3];
   int err;
 
   gcry_cipher_reset (hd);
@@ -11356,13 +11362,13 @@ err_out_free:
 
 static int
 check_one_cipher_ctr_reset (gcry_cipher_hd_t hd, int algo, int mode,
-			    u32 ctr_high_bits, int be_ctr,
+			    uint32_t ctr_high_bits, int be_ctr,
 			    int pass)
 {
   unsigned char iv[16] = { 0 };
   unsigned char swap;
   unsigned int ivlen;
-  u32 ctr_low_bits;
+  uint32_t ctr_low_bits;
   int err;
   int i;
 

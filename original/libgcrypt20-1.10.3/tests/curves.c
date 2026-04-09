@@ -26,7 +26,12 @@
 #include <string.h>
 #include <stdarg.h>
 
-#include "../src/gcrypt-int.h"
+#ifdef _GCRYPT_IN_LIBGCRYPT
+# undef _GCRYPT_IN_LIBGCRYPT
+# include "gcrypt.h"
+#else
+# include <gcrypt.h>
+#endif
 
 
 #define PGM "curves"

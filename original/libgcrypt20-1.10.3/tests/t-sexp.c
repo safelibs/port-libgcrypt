@@ -26,7 +26,13 @@
 #include <string.h>
 #include <stdarg.h>
 #include <assert.h>
-#include "../src/gcrypt-int.h"
+
+#ifdef _GCRYPT_IN_LIBGCRYPT
+# undef _GCRYPT_IN_LIBGCRYPT
+# include "gcrypt.h"
+#else
+# include <gcrypt.h>
+#endif
 
 #define PGM "t-sexp"
 #include "t-common.h"
@@ -1322,10 +1328,6 @@ main (int argc, char **argv)
     }
   if (!gcry_check_version (GCRYPT_VERSION))
     die ("version mismatch");
-  /* #include "../src/gcrypt-int.h" indicates that internal interfaces
-     may be used; thus better do an exact version check. */
-  if (strcmp (gcry_check_version (NULL), GCRYPT_VERSION))
-    die ("exact version match failed");
   xgcry_control ((GCRYCTL_ENABLE_QUICK_RANDOM, 0));
   xgcry_control ((GCRYCTL_INITIALIZATION_FINISHED, 0));
 

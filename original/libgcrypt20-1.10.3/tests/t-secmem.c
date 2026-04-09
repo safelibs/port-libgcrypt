@@ -27,10 +27,16 @@
 #include <errno.h>
 #include <unistd.h>
 
+#ifdef _GCRYPT_IN_LIBGCRYPT
+# undef _GCRYPT_IN_LIBGCRYPT
+# include "gcrypt.h"
+#else
+# include <gcrypt.h>
+#endif
+
 #define PGM "t-secmem"
 
 #include "t-common.h"
-#include "../src/gcrypt-testapi.h"
 
 
 #define DEFAULT_PAGE_SIZE 4096
@@ -84,8 +90,6 @@ test_secmem_overflow (void)
         xgcry_control ((GCRYCTL_DUMP_SECMEM_STATS, 0 , 0));
     }
 
-  if (debug)
-    xgcry_control ((PRIV_CTL_DUMP_SECMEM_STATS, 0 , 0));
   if (verbose)
     xgcry_control ((GCRYCTL_DUMP_SECMEM_STATS, 0 , 0));
   for (i=0; i < DIM(a); i++)
@@ -108,7 +112,7 @@ outofcore_handler (void *opaque, size_t req_n, unsigned int flags)
   been_here = 1;
 
   info ("outofcore handler invoked");
-  xgcry_control ((PRIV_CTL_DUMP_SECMEM_STATS, 0 , 0));
+  xgcry_control ((GCRYCTL_DUMP_SECMEM_STATS, 0 , 0));
   fail ("out of core%s while allocating %lu bytes",
        (flags & 1)?" in secure memory":"", (unsigned long)req_n);
 
@@ -204,11 +208,10 @@ main (int argc, char **argv)
     test_secmem_overflow ();
   /* FIXME: We need to improve the tests, for example by registering
    * our own log handler and comparing the output of
-   * PRIV_CTL_DUMP_SECMEM_STATS to expected pattern.  */
+   * GCRYCTL_DUMP_SECMEM_STATS to expected pattern.  */
 
   if (verbose)
     {
-      xgcry_control ((PRIV_CTL_DUMP_SECMEM_STATS, 0 , 0));
       xgcry_control ((GCRYCTL_DUMP_SECMEM_STATS, 0 , 0));
     }
 

@@ -34,12 +34,14 @@
 #include <assert.h>
 #include <unistd.h>
 
-#ifndef _GCRYPT_IN_LIBGCRYPT
+#ifdef _GCRYPT_IN_LIBGCRYPT
+# undef _GCRYPT_IN_LIBGCRYPT
+# include "gcrypt.h"
+#else
 # include <gcrypt.h>
 # define PACKAGE_BUGREPORT "devnull@example.org"
 # define PACKAGE_VERSION "[build on " __DATE__ " " __TIME__ "]"
 #endif
-#include "../src/gcrypt-testapi.h"
 
 #define PGM "fipsdrv"
 #include "t-common.h"
@@ -146,35 +148,6 @@ showhex (const char *prefix, const void *buffer, size_t length)
 /*   fprintf (stderr, "%.*s", (int)size, buf); */
 /*   gcry_free (buf); */
 /* } */
-
-
-/* Convert STRING consisting of hex characters into its binary
-   representation and store that at BUFFER.  BUFFER needs to be of
-   LENGTH bytes.  The function checks that the STRING will convert
-   exactly to LENGTH bytes. The string is delimited by either end of
-   string or a white space character.  The function returns -1 on
-   error or the length of the parsed string.  */
-static int
-hex2bin (const char *string, void *buffer, size_t length)
-{
-  int i;
-  const char *s = string;
-
-  for (i=0; i < length; )
-    {
-      if (!hexdigitp (s) || !hexdigitp (s+1))
-        return -1;           /* Invalid hex digits. */
-      ((unsigned char*)buffer)[i++] = xtoi_2 (s);
-      s += 2;
-    }
-  if (*s && (!my_isascii (*s) || !isspace (*s)) )
-    return -1;             /* Not followed by Nul or white space.  */
-  if (i != length)
-    return -1;             /* Not of expected length.  */
-  if (*s)
-    s++; /* Skip the delimiter. */
-  return s - string;
-}
 
 
 /* Convert STRING consisting of hex characters into its binary
@@ -903,36 +876,6 @@ print_sexp (gcry_sexp_t a, FILE *fp)
   gcry_free (buf);
 }
 
-
-
-
-static gcry_error_t
-init_external_rng_test (void **r_context,
-                    unsigned int flags,
-                    const void *key, size_t keylen,
-                    const void *seed, size_t seedlen,
-                    const void *dt, size_t dtlen)
-{
-  return gcry_control (PRIV_CTL_INIT_EXTRNG_TEST,
-                       r_context, flags,
-                       key, keylen,
-                       seed, seedlen,
-                       dt, dtlen);
-}
-
-static gcry_error_t
-run_external_rng_test (void *context, void *buffer, size_t buflen)
-{
-  return gcry_control (PRIV_CTL_RUN_EXTRNG_TEST, context, buffer, buflen);
-}
-
-static void
-deinit_external_rng_test (void *context)
-{
-  xgcry_control ((PRIV_CTL_DEINIT_EXTRNG_TEST, context));
-}
-
-
 /* Given an OpenSSL cipher name NAME, return the Libgcrypt algirithm
    identified and store the libgcrypt mode at R_MODE.  Returns 0 on
    error.  */
@@ -1005,6 +948,18 @@ map_openssl_cipher_name (const char *name, int *r_mode)
 }
 
 
+static void
+allow_weak_keys (gcry_cipher_hd_t hd)
+{
+  gpg_error_t err;
+
+  err = gcry_cipher_ctl (hd, GCRYCTL_SET_ALLOW_WEAK_KEY, NULL, 1);
+  if (err)
+    die ("gcry_cipher_ctl(GCRYCTL_SET_ALLOW_WEAK_KEY) failed: %s\n",
+         gpg_strerror (err));
+}
+
+
 
 /* Run an encrypt or decryption operations.  If DATA is NULL the
    function reads its input in chunks of size DATALEN from fp and
@@ -1032,7 +987,7 @@ run_encrypt_decrypt (int encrypt_mode,
   blocklen = gcry_cipher_get_algo_blklen (cipher_algo);
   assert (blocklen);
 
-  gcry_cipher_ctl (hd, PRIV_CIPHERCTL_DISABLE_WEAK_KEY, NULL, 0);
+  allow_weak_keys (hd);
 
   err = gcry_cipher_setkey (hd, key_buffer, key_buflen);
   if (err)
@@ -1083,15 +1038,29 @@ run_encrypt_decrypt (int encrypt_mode,
 
 
 static void
-get_current_iv (gcry_cipher_hd_t hd, void *buffer, size_t buflen)
+update_current_iv (int encrypt_mode, int cipher_mode,
+                   unsigned char *current_iv,
+                   const unsigned char *input,
+                   const unsigned char *output,
+                   size_t blocklen)
 {
-  unsigned char tmp[17];
+  size_t i;
 
-  if (gcry_cipher_ctl (hd, PRIV_CIPHERCTL_GET_INPUT_VECTOR, tmp, sizeof tmp))
-    die ("error getting current input vector\n");
-  if (buflen > *tmp)
-    die ("buffer too short to store the current input vector\n");
-  memcpy (buffer, tmp+1, *tmp);
+  switch (cipher_mode)
+    {
+    case GCRY_CIPHER_MODE_CBC:
+    case GCRY_CIPHER_MODE_CFB:
+      memcpy (current_iv, encrypt_mode ? output : input, blocklen);
+      break;
+
+    case GCRY_CIPHER_MODE_OFB:
+      for (i = 0; i < blocklen; i++)
+        current_iv[i] = input[i] ^ output[i];
+      break;
+
+    default:
+      break;
+    }
 }
 
 /* Run the inner loop of the CAVS monte carlo test.  */
@@ -1110,6 +1079,7 @@ run_cipher_mct_loop (int encrypt_mode, int cipher_algo, int cipher_mode,
   char last_output[16];
   char last_last_output[16];
   char last_iv[16];
+  char current_iv[16];
 
 
   err = gcry_cipher_open (&hd, cipher_algo, cipher_mode, 0);
@@ -1122,7 +1092,7 @@ run_cipher_mct_loop (int encrypt_mode, int cipher_algo, int cipher_mode,
     die ("invalid block length %d\n", (int)blocklen);
 
 
-  gcry_cipher_ctl (hd, PRIV_CIPHERCTL_DISABLE_WEAK_KEY, NULL, 0);
+  allow_weak_keys (hd);
 
   err = gcry_cipher_setkey (hd, key_buffer, key_buflen);
   if (err)
@@ -1136,6 +1106,10 @@ run_cipher_mct_loop (int encrypt_mode, int cipher_algo, int cipher_mode,
         die ("gcry_cipher_setiv failed with ivlen %u: %s\n",
              (unsigned int)iv_buflen, gpg_strerror (err));
     }
+  if (iv_buffer)
+    memcpy (current_iv, iv_buffer, blocklen);
+  else
+    memset (current_iv, 0, sizeof current_iv);
 
   if (datalen != blocklen)
     die ("length of input (%u) does not match block length (%u)\n",
@@ -1147,7 +1121,7 @@ run_cipher_mct_loop (int encrypt_mode, int cipher_algo, int cipher_mode,
       memcpy (last_last_output, last_output, sizeof last_output);
       memcpy (last_output, output, sizeof output);
 
-      get_current_iv (hd, last_iv, blocklen);
+      memcpy (last_iv, current_iv, blocklen);
 
       if (encrypt_mode)
         err = gcry_cipher_encrypt (hd, output, blocklen, input, blocklen);
@@ -1156,6 +1130,12 @@ run_cipher_mct_loop (int encrypt_mode, int cipher_algo, int cipher_mode,
       if (err)
         die ("gcry_cipher_%scrypt failed: %s\n",
              encrypt_mode? "en":"de", gpg_strerror (err));
+
+      update_current_iv (encrypt_mode, cipher_mode,
+                         (unsigned char *)current_iv,
+                         (const unsigned char *)input,
+                         (const unsigned char *)output,
+                         blocklen);
 
 
       if (encrypt_mode && (cipher_mode == GCRY_CIPHER_MODE_CFB
@@ -1180,8 +1160,7 @@ run_cipher_mct_loop (int encrypt_mode, int cipher_algo, int cipher_mode,
   putchar ('\n');
   print_buffer (last_last_output, blocklen);
   putchar ('\n');
-  get_current_iv (hd, last_iv, blocklen);
-  print_buffer (last_iv, blocklen); /* Last output vector.  */
+  print_buffer (current_iv, blocklen); /* Last output vector.  */
   putchar ('\n');
   print_buffer (input, blocklen);   /* Next input text. */
   putchar ('\n');
@@ -2275,7 +2254,6 @@ usage (int show_help)
      "  --no-fips        Do not force FIPS mode\n"
      "  --key KEY        Use the hex encoded KEY\n"
      "  --iv IV          Use the hex encoded IV\n"
-     "  --dt DT          Use the hex encoded DT for the RNG\n"
      "  --algo NAME      Use algorithm NAME\n"
      "  --curve NAME     Select ECC curve spec NAME\n"
      "  --keysize N      Use a keysize of N bits\n"
@@ -2285,7 +2263,6 @@ usage (int show_help)
      "  --pss            Use PSS encoding with a zero length salt\n"
      "  --mct-server     Run a monte carlo test server\n"
      "  --loop           Enable random loop mode\n"
-     "  --progress       Print pogress indicators\n"
      "  --help           Print this text\n"
      "With no FILE, or when FILE is -, read standard input.\n"
      "Report bugs to " PACKAGE_BUGREPORT ".\n" , stdout);
@@ -2296,16 +2273,13 @@ int
 main (int argc, char **argv)
 {
   int last_argc = -1;
-  gpg_error_t err;
   int no_fips = 0;
-  int progress = 0;
   int use_pkcs1 = 0;
   int use_pss = 0;
   const char *mode_string;
   const char *curve_string = NULL;
   const char *key_string = NULL;
   const char *iv_string = NULL;
-  const char *dt_string = NULL;
   const char *algo_string = NULL;
   const char *keysize_string = NULL;
   const char *signature_string = NULL;
@@ -2356,11 +2330,6 @@ main (int argc, char **argv)
           loop_mode = 1;
           argc--; argv++;
         }
-      else if (!strcmp (*argv, "--progress"))
-        {
-          progress = 1;
-          argc--; argv++;
-        }
       else if (!strcmp (*argv, "--key"))
         {
           argc--; argv++;
@@ -2375,14 +2344,6 @@ main (int argc, char **argv)
           if (!argc)
             usage (0);
           iv_string = *argv;
-          argc--; argv++;
-        }
-      else if (!strcmp (*argv, "--dt"))
-        {
-          argc--; argv++;
-          if (!argc)
-            usage (0);
-          dt_string = *argv;
           argc--; argv++;
         }
       else if (!strcmp (*argv, "--algo"))
@@ -2607,46 +2568,7 @@ main (int argc, char **argv)
     }
   else if (!strcmp (mode_string, "random"))
     {
-      void *context;
-      unsigned char key[16];
-      unsigned char seed[16];
-      unsigned char dt[16];
-      unsigned char buffer[16];
-      size_t count = 0;
-
-      if (!key_string || hex2bin (key_string, key, 16) < 0 )
-        die ("value for --key are not 32 hex digits\n");
-      if (!iv_string || hex2bin (iv_string, seed, 16) < 0 )
-        die ("value for --iv are not 32 hex digits\n");
-      if (!dt_string || hex2bin (dt_string, dt, 16) < 0 )
-        die ("value for --dt are not 32 hex digits\n");
-
-      /* The flag value 1 disables the dup check, so that the RNG
-         returns all generated data.  */
-      err = init_external_rng_test (&context, 1, key, 16, seed, 16, dt, 16);
-      if (err)
-        die ("init external RNG test failed: %s\n", gpg_strerror (err));
-
-      do
-        {
-          err = run_external_rng_test (context, buffer, sizeof buffer);
-          if (err)
-            die ("running external RNG test failed: %s\n", gpg_strerror (err));
-          print_buffer (buffer, sizeof buffer);
-          if (progress)
-            {
-              if (!(++count % 1000))
-                fprintf (stderr, PGM ": %lu random bytes so far\n",
-                         (unsigned long int)(count * sizeof buffer));
-            }
-        }
-      while (loop_mode);
-
-      if (progress)
-        fprintf (stderr, PGM ": %lu random bytes\n",
-                 (unsigned long int)(count * sizeof buffer));
-
-      deinit_external_rng_test (context);
+      die ("mode `random' is not available with the public libgcrypt API\n");
     }
   else if (!strcmp (mode_string, "hmac-sha"))
     {
