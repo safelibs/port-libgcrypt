@@ -48,11 +48,17 @@ char *safe_gcry_get_config(int mode, const char *what);
 gcry_error_t safe_gcry_md_get(gcry_md_hd_t hd, int algo, unsigned char *buffer, int buflen);
 gcry_error_t safe_gcry_sexp_build_dispatch(gcry_sexp_t *retsexp,
                                            size_t *erroff,
-                                           const char *format);
-gcry_sexp_t safe_gcry_sexp_vlist_dispatch(const gcry_sexp_t a);
+                                           const char *format,
+                                           const uintptr_t *args,
+                                           size_t argc);
+gcry_sexp_t safe_gcry_sexp_vlist_dispatch(const gcry_sexp_t a,
+                                          const gcry_sexp_t *rest,
+                                          size_t count);
 gpg_error_t safe_gcry_sexp_extract_param_dispatch(gcry_sexp_t sexp,
                                                   const char *path,
-                                                  const char *list);
+                                                  const char *list,
+                                                  void *const *args,
+                                                  size_t argc);
 void safe_gcry_log_debug_dispatch(const char *message);
 uintptr_t safe_gcry_stub_zero(void);
 void safe_cabi_set_log_handler(gcry_handler_log_t handler, void *opaque);

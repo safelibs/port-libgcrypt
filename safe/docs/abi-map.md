@@ -5,6 +5,16 @@ Seeded from `safe/abi/libgcrypt.vers`, `safe/abi/gcrypt.h.in`, and `safe/abi/vis
 - `gcry_md_get` is a Linux version-script export that is not declared by installed `gcrypt.h`; it is classified as `visibility-only` and owned by phase 4.
 - `gcry_pk_register` is a Linux version-script export that is not declared by installed `gcrypt.h`; it is classified as `abi-only` and owned by phase 6.
 - `gcry_ctx_release` remains outside phase 2 scope and still resolves to the generic export stub until the later context/public-key work lands.
+- Phase 3 supersedes the stale row-level `Bootstrap compatibility stub` notes for the `gcry_sexp_*`, `gcry_mpi_*`, `gcry_prime_*`, and `_gcry_mpi_get_const` families listed below.
+
+## Phase 3 Status Override
+
+| Family | Status | Implementation | Verification | Notes |
+| --- | --- | --- | --- | --- |
+| `gcry_sexp_*` | Implemented | `safe/src/sexp.rs` + `safe/cabi/exports.c` | `cargo build --manifest-path safe/Cargo.toml --release --offline` + `safe/scripts/run-original-tests.sh mpitests t-sexp t-convert t-mpi-bit prime` | Rust-backed parser, serializer, builders, traversal helpers, canonical-length handling, dump/sprint, and `extract_param` surface. |
+| `gcry_mpi_*` | Implemented for phase 3 ownership | `safe/src/mpi/mod.rs`, `safe/src/mpi/arith.rs`, `safe/src/mpi/scan.rs`, `safe/src/mpi/opaque.rs`, `safe/src/mpi/prime.rs`, `safe/src/mpi/consts.rs` | `cargo build --manifest-path safe/Cargo.toml --release --offline` + `safe/scripts/run-original-tests.sh mpitests t-sexp t-convert t-mpi-bit prime` | Core numeric, opaque, import/export, print, flag, bit, const, and prime-adjacent MPI APIs are Rust-backed. The `gcry_mpi_point_*` and `gcry_mpi_ec_*` ABI slots remain compatibility placeholders pending phase 6 semantics, but the family is now tracked as phase-3-owned instead of phase-1 bootstrap-owned. |
+| `gcry_prime_*` | Implemented | `safe/src/mpi/prime.rs` | `cargo build --manifest-path safe/Cargo.toml --release --offline` + `safe/scripts/run-original-tests.sh mpitests t-sexp t-convert t-mpi-bit prime` | Prime generation, prime checking, group-generator derivation, and factor release are Rust-backed. |
+| `_gcry_mpi_get_const` | Implemented | `safe/src/mpi/consts.rs` | `cargo build --manifest-path safe/Cargo.toml --release --offline` + `safe/scripts/run-original-tests.sh mpitests t-sexp t-convert t-mpi-bit prime` | Returns singleton immutable MPI constants for the public header macros. |
 
 | Symbol | Classification | Planned Location | Planned Coverage | Notes |
 | --- | --- | --- | --- | --- |

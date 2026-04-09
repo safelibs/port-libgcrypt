@@ -3,7 +3,6 @@
 #![allow(non_upper_case_globals)]
 
 use std::ffi::{c_char, c_int, c_uint, c_void};
-use std::ptr::null_mut;
 
 mod alloc;
 mod config;
@@ -11,8 +10,10 @@ mod context;
 mod error;
 mod global;
 mod log;
+mod mpi;
 mod os_rng;
 mod secmem;
+mod sexp;
 
 pub(crate) type gcry_handler_progress_t =
     Option<unsafe extern "C" fn(*mut c_void, *const c_char, c_int, c_int, c_int)>;
@@ -62,39 +63,6 @@ pub extern "C" fn gcry_md_get(
     _algo: c_int,
     _buffer: *mut u8,
     _buflen: c_int,
-) -> u32 {
-    error::gcry_error_from_code(error::GPG_ERR_NOT_IMPLEMENTED)
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn safe_gcry_sexp_build_dispatch(
-    retsexp: *mut *mut c_void,
-    erroff: *mut usize,
-    _format: *const c_char,
-) -> u32 {
-    if !retsexp.is_null() {
-        unsafe {
-            *retsexp = null_mut();
-        }
-    }
-    if !erroff.is_null() {
-        unsafe {
-            *erroff = 0;
-        }
-    }
-    error::gcry_error_from_code(error::GPG_ERR_NOT_IMPLEMENTED)
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn safe_gcry_sexp_vlist_dispatch(_a: *mut c_void) -> *mut c_void {
-    null_mut()
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn safe_gcry_sexp_extract_param_dispatch(
-    _sexp: *mut c_void,
-    _path: *const c_char,
-    _list: *const c_char,
 ) -> u32 {
     error::gcry_error_from_code(error::GPG_ERR_NOT_IMPLEMENTED)
 }

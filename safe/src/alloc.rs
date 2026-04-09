@@ -2,6 +2,7 @@ use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr::{copy_nonoverlapping, null_mut, write_bytes};
 
 use crate::error;
+use crate::context;
 use crate::global::{AllocationHandlers, OutOfCoreHandler, lock_runtime_state};
 use crate::log;
 use crate::os_rng;
@@ -98,6 +99,10 @@ fn try_allocate(size: usize, secure: bool, zeroed: bool, xhint: bool) -> *mut c_
 fn is_secure_internal(ptr: *const c_void) -> bool {
     if ptr.is_null() {
         return false;
+    }
+
+    if context::is_registered_secure_object(ptr) {
+        return true;
     }
 
     let state = lock_runtime_state();

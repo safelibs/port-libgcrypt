@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+use std::ffi::c_void;
 use std::sync::{Mutex, OnceLock};
 
 use crate::error;
@@ -6,6 +8,7 @@ use crate::error;
 struct ExternalLockState {
     initialized: bool,
     locked: bool,
+    secure_objects: HashSet<usize>,
 }
 
 fn state() -> &'static Mutex<ExternalLockState> {
@@ -52,4 +55,33 @@ pub(crate) fn external_lock_test(cmd: i32) -> u32 {
         }
         _ => error::GPG_ERR_INV_OP,
     }
+}
+
+pub(crate) fn set_object_secure(ptr: *const c_void, secure: bool) {
+    if ptr.is_null() {
+        return;
+    }
+
+    let mut state = lock_state();
+    if secure {
+        state.secure_objects.insert(ptr as usize);
+    } else {
+        state.secure_objects.remove(&(ptr as usize));
+    }
+}
+
+pub(crate) fn remove_object(ptr: *const c_void) {
+    if ptr.is_null() {
+        return;
+    }
+
+    lock_state().secure_objects.remove(&(ptr as usize));
+}
+
+pub(crate) fn is_registered_secure_object(ptr: *const c_void) -> bool {
+    if ptr.is_null() {
+        return false;
+    }
+
+    lock_state().secure_objects.contains(&(ptr as usize))
 }

@@ -1,7 +1,9 @@
 #include "exports.h"
 
+#include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define FORWARD0(ret, name) \
@@ -190,30 +192,193 @@ gcry_error_t
 gcry_sexp_build(gcry_sexp_t *retsexp, size_t *erroff, const char *format, ...)
 {
   va_list ap;
+  uintptr_t *args = NULL;
+  size_t argc = 0;
+  const char *p;
+  gcry_error_t rc;
 
   va_start(ap, format);
+  for (p = format; p && *p; p++)
+    {
+      if (*p != '%')
+        continue;
+      p++;
+      if (!*p)
+        break;
+      switch (*p)
+        {
+        case 'm':
+        case 'M':
+        case 's':
+        case 'S':
+          argc += 1;
+          break;
+        case 'b':
+          argc += 2;
+          break;
+        case 'd':
+        case 'u':
+          argc += 1;
+          break;
+        default:
+          break;
+        }
+    }
+  if (argc)
+    {
+      args = malloc (argc * sizeof *args);
+      if (!args)
+        {
+          va_end (ap);
+          errno = ENOMEM;
+          return safe_gcry_error_from_errno (errno);
+        }
+    }
+  argc = 0;
+  for (p = format; p && *p; p++)
+    {
+      if (*p != '%')
+        continue;
+      p++;
+      if (!*p)
+        break;
+      switch (*p)
+        {
+        case 'm':
+        case 'M':
+        case 's':
+        case 'S':
+          args[argc++] = (uintptr_t)va_arg (ap, void *);
+          break;
+        case 'b':
+          args[argc++] = (uintptr_t)(intptr_t)va_arg (ap, int);
+          args[argc++] = (uintptr_t)va_arg (ap, void *);
+          break;
+        case 'd':
+          args[argc++] = (uintptr_t)(intptr_t)va_arg (ap, int);
+          break;
+        case 'u':
+          args[argc++] = (uintptr_t)va_arg (ap, unsigned int);
+          break;
+        default:
+          break;
+        }
+    }
   va_end(ap);
-  return safe_gcry_sexp_build_dispatch(retsexp, erroff, format);
+  rc = safe_gcry_sexp_build_dispatch(retsexp, erroff, format, args, argc);
+  free (args);
+  return rc;
 }
 
 gcry_sexp_t
 gcry_sexp_vlist(const gcry_sexp_t a, ...)
 {
   va_list ap;
+  gcry_sexp_t *items = NULL;
+  size_t count = 0;
+  size_t idx;
+  gcry_sexp_t item;
+  gcry_sexp_t result;
 
   va_start(ap, a);
+  while ((item = va_arg (ap, gcry_sexp_t)))
+    count++;
   va_end(ap);
-  return safe_gcry_sexp_vlist_dispatch(a);
+
+  if (count)
+    {
+      items = malloc (count * sizeof *items);
+      if (!items)
+        {
+          errno = ENOMEM;
+          return NULL;
+        }
+    }
+
+  va_start (ap, a);
+  for (idx = 0; idx < count; idx++)
+    items[idx] = va_arg (ap, gcry_sexp_t);
+  (void)va_arg (ap, gcry_sexp_t);
+  va_end (ap);
+
+  result = safe_gcry_sexp_vlist_dispatch(a, items, count);
+  free (items);
+  return result;
 }
 
 gpg_error_t
 gcry_sexp_extract_param(gcry_sexp_t sexp, const char *path, const char *list, ...)
 {
   va_list ap;
+  void **args = NULL;
+  size_t argc = 0;
+  const char *p;
+  gpg_error_t rc;
+  void *term;
 
   va_start(ap, list);
+  for (p = list; p && *p; p++)
+    {
+      if (*p == '&' || *p == '+' || *p == '-' || *p == '/' || *p == '?')
+        continue;
+      if (*p == '%')
+        {
+          p++;
+          if (!*p)
+            break;
+          if (*p == 'l' && (p[1] == 'u' || p[1] == 'd'))
+            p++;
+          else if ((*p == 'z' && p[1] == 'u')
+                   || (*p == '#' && p[1] == 's'))
+            p++;
+          continue;
+        }
+      if (*p == '\'' )
+        {
+          const char *end = strchr (p + 1, '\'');
+          if (!end || end == p + 1)
+            {
+              va_end (ap);
+              return GPG_ERR_SYNTAX;
+            }
+          p = end;
+        }
+      else if (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n' || *p == '\f' || *p == '\v')
+        continue;
+      argc++;
+    }
+  if (argc)
+    {
+      args = malloc (argc * sizeof *args);
+      if (!args)
+        {
+          va_end (ap);
+          errno = ENOMEM;
+          return safe_gcry_error_from_errno (errno);
+        }
+    }
+  for (size_t i = 0; i < argc; i++)
+    {
+      args[i] = va_arg (ap, void *);
+      if (!args[i])
+        {
+          free (args);
+          va_end (ap);
+          return GPG_ERR_MISSING_VALUE;
+        }
+    }
+  term = va_arg (ap, void *);
   va_end(ap);
-  return safe_gcry_sexp_extract_param_dispatch(sexp, path, list);
+
+  if (term)
+    {
+      free (args);
+      return GPG_ERR_INV_ARG;
+    }
+
+  rc = safe_gcry_sexp_extract_param_dispatch(sexp, path, list, args, argc);
+  free (args);
+  return rc;
 }
 
 void
