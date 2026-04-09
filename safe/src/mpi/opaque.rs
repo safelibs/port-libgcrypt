@@ -1,9 +1,9 @@
-use std::ffi::{c_int, c_uint, c_void};
+use std::ffi::{c_uint, c_void};
 use std::ptr::null_mut;
 
 use crate::alloc;
 
-use super::{context, copy_opaque_value, gcry_mpi, OpaqueValue};
+use super::{OpaqueValue, gcry_mpi};
 
 fn replace_with_opaque(a: *mut gcry_mpi, ptr: *mut c_void, nbits: c_uint) -> *mut gcry_mpi {
     let raw = if a.is_null() {
@@ -22,7 +22,11 @@ fn replace_with_opaque(a: *mut gcry_mpi, ptr: *mut c_void, nbits: c_uint) -> *mu
 }
 
 #[unsafe(export_name = "gcry_mpi_set_opaque")]
-pub extern "C" fn gcry_mpi_set_opaque(a: *mut gcry_mpi, p: *mut c_void, nbits: c_uint) -> *mut gcry_mpi {
+pub extern "C" fn gcry_mpi_set_opaque(
+    a: *mut gcry_mpi,
+    p: *mut c_void,
+    nbits: c_uint,
+) -> *mut gcry_mpi {
     replace_with_opaque(a, p, nbits)
 }
 

@@ -29,10 +29,21 @@ const KNOWN_FEATURES: &[&str] = &[
 const KNOWN_FEATURES: &[&str] = &["arm-neon", "arm-aes", "arm-sha1", "arm-sha2", "arm-pmull"];
 
 #[cfg(any(target_arch = "powerpc", target_arch = "powerpc64"))]
-const KNOWN_FEATURES: &[&str] = &["ppc-vcrypto", "ppc-arch_3_00", "ppc-arch_2_07", "ppc-arch_3_10"];
+const KNOWN_FEATURES: &[&str] = &[
+    "ppc-vcrypto",
+    "ppc-arch_3_00",
+    "ppc-arch_2_07",
+    "ppc-arch_3_10",
+];
 
 #[cfg(target_arch = "s390x")]
-const KNOWN_FEATURES: &[&str] = &["s390x-msa", "s390x-msa-4", "s390x-msa-8", "s390x-msa-9", "s390x-vx"];
+const KNOWN_FEATURES: &[&str] = &[
+    "s390x-msa",
+    "s390x-msa-4",
+    "s390x-msa-8",
+    "s390x-msa-9",
+    "s390x-vx",
+];
 
 #[cfg(not(any(
     target_arch = "x86",
@@ -46,14 +57,18 @@ const KNOWN_FEATURES: &[&str] = &["s390x-msa", "s390x-msa-4", "s390x-msa-8", "s3
 const KNOWN_FEATURES: &[&str] = &[];
 
 fn validate_token(token: &str) -> Result<(), u32> {
-    if token == "all" || KNOWN_FEATURES.iter().any(|known| *known == token) {
+    if token == "all" || KNOWN_FEATURES.contains(&token) {
         Ok(())
     } else {
         Err(error::GPG_ERR_INV_NAME)
     }
 }
 
-fn retain_constant_time_floor(token: &str, saw_all: bool, explicit_tokens: &BTreeSet<String>) -> bool {
+fn retain_constant_time_floor(
+    token: &str,
+    saw_all: bool,
+    explicit_tokens: &BTreeSet<String>,
+) -> bool {
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     {
         if saw_all && token == "intel-ssse3" && !explicit_tokens.contains("intel-ssse3") {

@@ -1,6 +1,6 @@
 use std::sync::OnceLock;
 
-use super::{gcry_mpi, GCRYMPI_FLAG_CONST, GCRYMPI_FLAG_IMMUTABLE, Mpz};
+use super::{Mpz, gcry_mpi};
 
 fn init_const(value: u64) -> *mut gcry_mpi {
     let raw = gcry_mpi::from_numeric(Mpz::from_ui(value as _), false);

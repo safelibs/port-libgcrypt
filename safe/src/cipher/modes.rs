@@ -6,12 +6,7 @@ use super::gcry_cipher_hd_t;
 use super::stream;
 use crate::upstream;
 
-pub(crate) fn open(
-    handle: *mut gcry_cipher_hd_t,
-    algo: c_int,
-    mode: c_int,
-    flags: c_uint,
-) -> u32 {
+pub(crate) fn open(handle: *mut gcry_cipher_hd_t, algo: c_int, mode: c_int, flags: c_uint) -> u32 {
     debug_assert!(
         aead::is_aead_mode(mode) || block::is_block_mode(mode) || stream::is_stream_mode(mode)
     );

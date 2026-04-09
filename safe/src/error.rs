@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::ffi::{c_char, c_int};
 
 pub(crate) const GPG_ERR_SOURCE_SHIFT: u32 = 24;

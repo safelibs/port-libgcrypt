@@ -7,7 +7,6 @@ unsafe extern "C" {
     static mut stdout: *mut c_void;
 
     fn gcry_control(cmd: c_uint, ...) -> u32;
-    fn gcry_mpi_new(nbits: c_uint) -> *mut c_void;
     fn gcry_mpi_release(a: *mut c_void);
     fn gcry_mpi_copy(a: *mut c_void) -> *mut c_void;
     fn gcry_mpi_scan(

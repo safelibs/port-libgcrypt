@@ -84,10 +84,7 @@ pub extern "C" fn gcry_kdf_open(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn gcry_kdf_compute(
-    hd: gcry_kdf_hd_t,
-    ops: *const gcry_kdf_thread_ops_t,
-) -> u32 {
+pub extern "C" fn gcry_kdf_compute(hd: gcry_kdf_hd_t, ops: *const gcry_kdf_thread_ops_t) -> u32 {
     unsafe { (upstream::lib().kdf_compute)(hd.cast(), ops) }
 }
 

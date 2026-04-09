@@ -172,7 +172,9 @@ pub extern "C" fn safe_gcry_md_get(
     };
 
     if algorithms::is_xof(algo) {
-        return unsafe { (upstream::lib().md_extract)(hd.cast(), algo, buffer.cast(), buflen as usize) };
+        return unsafe {
+            (upstream::lib().md_extract)(hd.cast(), algo, buffer.cast(), buflen as usize)
+        };
     }
 
     let digest_len = gcry_md_get_algo_dlen(algo) as usize;

@@ -6,12 +6,13 @@ use crate::error;
 use crate::os_rng;
 
 use super::{
-    __gmpz_add_ui, __gmpz_cmp_ui, __gmpz_mod, __gmpz_mul, __gmpz_mul_2exp, __gmpz_nextprime,
-    __gmpz_powm, __gmpz_probab_prime_p, __gmpz_set, __gmpz_set_ui, __gmpz_sub_ui, alloc_output_bytes,
-    gcry_mpi, GCRY_PRIME_FLAG_SECRET, GCRY_PRIME_FLAG_SPECIAL_FACTOR, MpiKind, Mpz,
+    __gmpz_add_ui, __gmpz_cmp_ui, __gmpz_mul, __gmpz_mul_2exp, __gmpz_nextprime, __gmpz_powm,
+    __gmpz_probab_prime_p, __gmpz_sub_ui, GCRY_PRIME_FLAG_SECRET, GCRY_PRIME_FLAG_SPECIAL_FACTOR,
+    MpiKind, Mpz, gcry_mpi,
 };
 
-type gcry_prime_check_func_t = Option<unsafe extern "C" fn(*mut c_void, c_int, *mut gcry_mpi) -> c_int>;
+type gcry_prime_check_func_t =
+    Option<unsafe extern "C" fn(*mut c_void, c_int, *mut gcry_mpi) -> c_int>;
 
 fn probable_prime(number: &Mpz) -> bool {
     unsafe { __gmpz_probab_prime_p(number.as_ptr(), 32) != 0 }
@@ -22,7 +23,7 @@ fn random_odd_with_bits(bits: usize) -> Mpz {
     let mut bytes = vec![0u8; nbytes.max(1)];
     os_rng::fill_random(&mut bytes);
     if let Some(first) = bytes.first_mut() {
-        let top_mask = if bits % 8 == 0 {
+        let top_mask = if bits.is_multiple_of(8) {
             0xff
         } else {
             ((1u16 << (bits % 8)) - 1) as u8
@@ -44,7 +45,8 @@ fn generate_prime_bits(bits: usize) -> Mpz {
         unsafe {
             __gmpz_nextprime(prime.as_mut_ptr(), candidate.as_ptr());
         }
-        if unsafe { super::__gmpz_sizeinbase(prime.as_ptr(), 2) } == bits && probable_prime(&prime) {
+        if unsafe { super::__gmpz_sizeinbase(prime.as_ptr(), 2) } == bits && probable_prime(&prime)
+        {
             return prime;
         }
     }
@@ -87,14 +89,14 @@ pub extern "C" fn gcry_prime_generate(
     }
 
     let secure = flags & GCRY_PRIME_FLAG_SECRET != 0;
-    let mut q = if factor_bits != 0 {
+    let q = if factor_bits != 0 {
         generate_prime_bits(factor_bits as usize)
     } else {
         Mpz::from_ui(2)
     };
 
     let p = loop {
-        let mut candidate = if factor_bits != 0 && flags & GCRY_PRIME_FLAG_SPECIAL_FACTOR != 0 {
+        let candidate = if factor_bits != 0 && flags & GCRY_PRIME_FLAG_SPECIAL_FACTOR != 0 {
             let cofactor_bits = (prime_bits.saturating_sub(factor_bits + 1)) as usize;
             let cofactor = random_odd_with_bits(cofactor_bits.max(2));
             let mut tmp = Mpz::new(prime_bits as usize);
@@ -208,11 +210,21 @@ pub extern "C" fn gcry_prime_group_generator(
             };
             let mut exp = Mpz::new(0);
             unsafe {
-                super::__gmpz_tdiv_qr(exp.as_mut_ptr(), Mpz::new(0).as_mut_ptr(), p_minus_1.as_ptr(), factor_num.as_ptr());
+                super::__gmpz_tdiv_qr(
+                    exp.as_mut_ptr(),
+                    Mpz::new(0).as_mut_ptr(),
+                    p_minus_1.as_ptr(),
+                    factor_num.as_ptr(),
+                );
             }
             let mut residue = Mpz::new(0);
             unsafe {
-                __gmpz_powm(residue.as_mut_ptr(), candidate.as_ptr(), exp.as_ptr(), prime_num.as_ptr());
+                __gmpz_powm(
+                    residue.as_mut_ptr(),
+                    candidate.as_ptr(),
+                    exp.as_ptr(),
+                    prime_num.as_ptr(),
+                );
             }
             if unsafe { __gmpz_cmp_ui(residue.as_ptr(), 1) } == 0 {
                 ok = false;

@@ -1,14 +1,13 @@
-use std::ffi::{c_int, c_uint, c_ulong, c_void, CStr};
+use std::ffi::{CStr, c_int, c_void};
 use std::ptr::{copy_nonoverlapping, null_mut};
 
 use crate::alloc;
 use crate::error;
 
 use super::{
-    __gmpz_abs, __gmpz_cmp_ui, __gmpz_neg, __gmpz_set_ui, export_unsigned, gcry_mpi,
-    import_unsigned_bytes, mpz_sgn, set_errno_oom, GCRYMPI_FMT_HEX, GCRYMPI_FMT_OPAQUE,
-    GCRYMPI_FMT_PGP, GCRYMPI_FMT_SSH, GCRYMPI_FMT_STD, GCRYMPI_FMT_USG, MAX_EXTERN_MPI_BYTES,
-    MAX_EXTERN_PGP_BITS, MpiKind, Mpz,
+    __gmpz_abs, __gmpz_neg, __gmpz_set_ui, GCRYMPI_FMT_HEX, GCRYMPI_FMT_OPAQUE, GCRYMPI_FMT_PGP,
+    GCRYMPI_FMT_SSH, GCRYMPI_FMT_STD, GCRYMPI_FMT_USG, MAX_EXTERN_MPI_BYTES, MAX_EXTERN_PGP_BITS,
+    MpiKind, Mpz, export_unsigned, gcry_mpi, import_unsigned_bytes, mpz_sgn, set_errno_oom,
 };
 
 fn std_bytes_from_numeric(value: &gcry_mpi) -> Vec<u8> {
@@ -36,7 +35,11 @@ fn std_bytes_from_numeric(value: &gcry_mpi) -> Vec<u8> {
     let abs_bits = unsafe { super::__gmpz_sizeinbase(abs_value.as_ptr(), 2) };
     let mut limit = Mpz::from_ui(1);
     unsafe {
-        super::__gmpz_mul_2exp(limit.as_mut_ptr(), limit.as_ptr(), abs_bits.saturating_sub(1));
+        super::__gmpz_mul_2exp(
+            limit.as_mut_ptr(),
+            limit.as_ptr(),
+            abs_bits.saturating_sub(1),
+        );
     }
     let exact_boundary = unsafe { super::__gmpz_cmp(abs_value.as_ptr(), limit.as_ptr()) } == 0;
     let nbytes = if exact_boundary {
@@ -74,7 +77,8 @@ fn usg_bytes_from_numeric(value: &gcry_mpi) -> Vec<u8> {
 }
 
 pub(crate) fn mpi_to_hex_bytes(value: &gcry_mpi) -> Vec<u8> {
-    let negative = matches!(&value.kind, MpiKind::Numeric(number) if unsafe { mpz_sgn(number.as_ptr()) } < 0);
+    let negative =
+        matches!(&value.kind, MpiKind::Numeric(number) if unsafe { mpz_sgn(number.as_ptr()) } < 0);
     let mut magnitude = usg_bytes_from_numeric(value);
     if magnitude.is_empty() || magnitude.first().is_some_and(|byte| byte & 0x80 != 0) {
         magnitude.insert(0, 0);
@@ -154,13 +158,12 @@ fn scan_hex(buffer: *const c_void, buflen: usize) -> Result<(Mpz, bool, usize), 
         negative = true;
         start = 1;
     }
-    let digits = if bytes.get(start) == Some(&b'0')
-        && matches!(bytes.get(start + 1), Some(b'x' | b'X'))
-    {
-        &bytes[start + 2..]
-    } else {
-        &bytes[start..]
-    };
+    let digits =
+        if bytes.get(start) == Some(&b'0') && matches!(bytes.get(start + 1), Some(b'x' | b'X')) {
+            &bytes[start + 2..]
+        } else {
+            &bytes[start..]
+        };
     if digits.is_empty() {
         return Err(error::gcry_error_from_code(error::GPG_ERR_INV_OBJ));
     }

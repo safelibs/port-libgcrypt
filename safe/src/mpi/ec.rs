@@ -347,8 +347,16 @@ pub extern "C" fn gcry_mpi_ec_get_affine(
         return -1;
     }
 
-    let up_x = if x.is_null() { null_mut() } else { new_upstream_mpi() };
-    let up_y = if y.is_null() { null_mut() } else { new_upstream_mpi() };
+    let up_x = if x.is_null() {
+        null_mut()
+    } else {
+        new_upstream_mpi()
+    };
+    let up_y = if y.is_null() {
+        null_mut()
+    } else {
+        new_upstream_mpi()
+    };
     let rc = unsafe { (encoding::api().ec_get_affine)(up_x, up_y, point, ctx) };
     if rc == 0 {
         if !up_x.is_null() {
@@ -366,11 +374,7 @@ pub extern "C" fn gcry_mpi_ec_get_affine(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn gcry_mpi_ec_dup(
-    w: *mut c_void,
-    u: *mut c_void,
-    ctx: *mut c_void,
-) {
+pub extern "C" fn gcry_mpi_ec_dup(w: *mut c_void, u: *mut c_void, ctx: *mut c_void) {
     if !w.is_null() && !u.is_null() && !ctx.is_null() {
         unsafe {
             (encoding::api().ec_dup)(w, u, ctx);

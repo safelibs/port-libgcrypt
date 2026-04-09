@@ -319,6 +319,9 @@ main() {
       --long)
         INCLUDE_LONG=1
         ;;
+      --all)
+        INCLUDE_LONG=1
+        ;;
       --)
         shift
         while [[ "$#" -gt 0 ]]; do

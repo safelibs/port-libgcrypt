@@ -39,7 +39,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let gcrypt_h = render_gcrypt_header(&abi_dir.join("gcrypt.h.in"))?;
-    let libgcrypt_config = render_libgcrypt_config(&abi_dir.join("libgcrypt-config.in"), &multiarch)?;
+    let libgcrypt_config =
+        render_libgcrypt_config(&abi_dir.join("libgcrypt-config.in"), &multiarch)?;
     let libgcrypt_pc = render_libgcrypt_pc(&abi_dir.join("libgcrypt.pc.in"), &multiarch)?;
     let symbols = parse_version_script(&abi_dir.join("libgcrypt.vers"))?;
     let c_stub_source = generate_c_stub_source(&symbols);

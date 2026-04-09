@@ -1,11 +1,12 @@
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
+
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr::{copy_nonoverlapping, null_mut, write_bytes};
 
-use crate::error;
 use crate::context;
+use crate::error;
 use crate::global::{AllocationHandlers, OutOfCoreHandler, lock_runtime_state};
 use crate::log;
-use crate::os_rng;
 use crate::secmem;
 use crate::{
     EINVAL_VALUE, ENOMEM_VALUE, gcry_handler_alloc_t, gcry_handler_free_t, gcry_handler_no_mem_t,
@@ -160,19 +161,6 @@ pub(crate) fn copy_bytes(bytes: &[u8], secure: bool, xhint: bool) -> *mut c_char
         copy_nonoverlapping(bytes.as_ptr(), ptr.cast::<u8>(), bytes.len());
     }
     ptr.cast()
-}
-
-pub(crate) fn fill_random_allocation(nbytes: usize, secure: bool) -> *mut c_void {
-    let ptr = try_allocate(nbytes.max(1), secure, false, secure);
-    if ptr.is_null() {
-        return null_mut();
-    }
-
-    unsafe {
-        let slice = std::slice::from_raw_parts_mut(ptr.cast::<u8>(), nbytes.max(1));
-        os_rng::fill_random(slice);
-    }
-    ptr
 }
 
 #[unsafe(export_name = "safe_gcry_set_allocation_handler")]

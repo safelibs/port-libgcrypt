@@ -1,7 +1,7 @@
 mod dsa;
-pub(crate) mod encoding;
 mod ecc;
 mod elgamal;
+pub(crate) mod encoding;
 mod keygrip;
 mod rsa;
 
@@ -73,7 +73,8 @@ pub extern "C" fn gcry_pk_encrypt(
     };
 
     let mut upstream_result = null_mut();
-    let rc = unsafe { (encoding::api().pk_encrypt)(&mut upstream_result, upstream_data, upstream_key) };
+    let rc =
+        unsafe { (encoding::api().pk_encrypt)(&mut upstream_result, upstream_data, upstream_key) };
     unsafe {
         encoding::release_upstream_sexp(upstream_data);
         encoding::release_upstream_sexp(upstream_key);
@@ -110,7 +111,8 @@ pub extern "C" fn gcry_pk_decrypt(
     };
 
     let mut upstream_result = null_mut();
-    let rc = unsafe { (encoding::api().pk_decrypt)(&mut upstream_result, upstream_data, upstream_key) };
+    let rc =
+        unsafe { (encoding::api().pk_decrypt)(&mut upstream_result, upstream_data, upstream_key) };
     unsafe {
         encoding::release_upstream_sexp(upstream_data);
         encoding::release_upstream_sexp(upstream_key);
@@ -147,7 +149,8 @@ pub extern "C" fn gcry_pk_sign(
     };
 
     let mut upstream_result = null_mut();
-    let rc = unsafe { (encoding::api().pk_sign)(&mut upstream_result, upstream_data, upstream_key) };
+    let rc =
+        unsafe { (encoding::api().pk_sign)(&mut upstream_result, upstream_data, upstream_key) };
     unsafe {
         encoding::release_upstream_sexp(upstream_data);
         encoding::release_upstream_sexp(upstream_key);
@@ -296,8 +299,15 @@ pub extern "C" fn gcry_pk_hash_sign(
         Err(err) => return err,
     };
     let mut upstream_result = null_mut();
-    let rc =
-        unsafe { (encoding::api().pk_hash_sign)(&mut upstream_result, data_tmpl, upstream_key, hd.cast(), ctx) };
+    let rc = unsafe {
+        (encoding::api().pk_hash_sign)(
+            &mut upstream_result,
+            data_tmpl,
+            upstream_key,
+            hd.cast(),
+            ctx,
+        )
+    };
     unsafe {
         encoding::release_upstream_sexp(upstream_key);
     }

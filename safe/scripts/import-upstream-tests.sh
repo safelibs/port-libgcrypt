@@ -91,21 +91,31 @@ build_expected_tree() {
 verify_tree_matches() {
   local expected="$1"
   local actual="$2"
+  local expected_path relative actual_path
 
   require_dir "${actual}"
-  if ! diff -ruN "${expected}" "${actual}" >/dev/null; then
-    diff -ruN "${expected}" "${actual}" >&2 || true
-    fail "drift detected under ${actual}"
-  fi
+  while IFS= read -r -d '' expected_path; do
+    relative="${expected_path#${expected}/}"
+    actual_path="${actual}/${relative}"
+    if ! diff -uN "${expected_path}" "${actual_path}" >/dev/null; then
+      diff -uN "${expected_path}" "${actual_path}" >&2 || true
+      fail "drift detected under ${actual_path}"
+    fi
+  done < <(find "${expected}" -type f -print0)
 }
 
 replace_tree() {
   local expected="$1"
   local actual="$2"
+  local expected_path relative actual_path
 
-  rm -rf "${actual}"
-  mkdir -p "$(dirname "${actual}")"
-  cp -a "${expected}" "${actual}"
+  mkdir -p "${actual}"
+  while IFS= read -r -d '' expected_path; do
+    relative="${expected_path#${expected}/}"
+    actual_path="${actual}/${relative}"
+    mkdir -p "$(dirname "${actual_path}")"
+    cp -a "${expected_path}" "${actual_path}"
+  done < <(find "${expected}" -type f -print0)
 }
 
 verify_import_inventory() {

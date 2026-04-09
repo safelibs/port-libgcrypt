@@ -1,4 +1,4 @@
-use std::ffi::{c_char, c_int, c_uint, c_void, CString};
+use std::ffi::{CString, c_char, c_int, c_uint, c_void};
 use std::ptr::{null, null_mut};
 use std::sync::OnceLock;
 
@@ -47,14 +47,21 @@ type PkGetCurveFn = unsafe extern "C" fn(*mut c_void, c_int, *mut c_uint) -> *co
 type PkGetParamFn = unsafe extern "C" fn(c_int, *const c_char) -> *mut c_void;
 type PubkeyGetSexpFn = unsafe extern "C" fn(*mut *mut c_void, c_int, *mut c_void) -> gcry_error_t;
 type EccGetAlgoKeylenFn = unsafe extern "C" fn(c_int) -> c_uint;
-type EccMulPointFn =
-    unsafe extern "C" fn(c_int, *mut u8, *const u8, *const u8) -> gcry_error_t;
-type PkHashSignFn =
-    unsafe extern "C" fn(*mut *mut c_void, *const c_char, *mut c_void, *mut c_void, *mut c_void)
-        -> gcry_error_t;
-type PkHashVerifyFn =
-    unsafe extern "C" fn(*mut c_void, *const c_char, *mut c_void, *mut c_void, *mut c_void)
-        -> gcry_error_t;
+type EccMulPointFn = unsafe extern "C" fn(c_int, *mut u8, *const u8, *const u8) -> gcry_error_t;
+type PkHashSignFn = unsafe extern "C" fn(
+    *mut *mut c_void,
+    *const c_char,
+    *mut c_void,
+    *mut c_void,
+    *mut c_void,
+) -> gcry_error_t;
+type PkHashVerifyFn = unsafe extern "C" fn(
+    *mut c_void,
+    *const c_char,
+    *mut c_void,
+    *mut c_void,
+    *mut c_void,
+) -> gcry_error_t;
 type PkRandomOverrideNewFn =
     unsafe extern "C" fn(*mut *mut c_void, *const u8, usize) -> gcry_error_t;
 
@@ -65,15 +72,14 @@ type PointGetFn = unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, *m
 type PointSetFn =
     unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, *mut c_void) -> *mut c_void;
 
-type EcNewFn =
-    unsafe extern "C" fn(*mut *mut c_void, *mut c_void, *const c_char) -> gcry_error_t;
+type EcNewFn = unsafe extern "C" fn(*mut *mut c_void, *mut c_void, *const c_char) -> gcry_error_t;
 type EcGetMpiFn = unsafe extern "C" fn(*const c_char, *mut c_void, c_int) -> *mut c_void;
 type EcGetPointFn = unsafe extern "C" fn(*const c_char, *mut c_void, c_int) -> *mut c_void;
 type EcSetMpiFn = unsafe extern "C" fn(*const c_char, *mut c_void, *mut c_void) -> gcry_error_t;
-type EcSetPointFn =
-    unsafe extern "C" fn(*const c_char, *mut c_void, *mut c_void) -> gcry_error_t;
+type EcSetPointFn = unsafe extern "C" fn(*const c_char, *mut c_void, *mut c_void) -> gcry_error_t;
 type EcDecodePointFn = unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void) -> gcry_error_t;
-type EcGetAffineFn = unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, *mut c_void) -> c_int;
+type EcGetAffineFn =
+    unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, *mut c_void) -> c_int;
 type EcDupFn = unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void);
 type EcPointVoidFn = unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, *mut c_void);
 type EcMulFn = unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, *mut c_void);
@@ -160,7 +166,10 @@ where
     let name_c = CString::new(name).expect("symbol name without NUL");
     let symbol = unsafe { dlsym(handle, name_c.as_ptr()) };
     if symbol.is_null() {
-        panic!("failed to load upstream libgcrypt symbol {name}: {}", describe_dlerror());
+        panic!(
+            "failed to load upstream libgcrypt symbol {name}: {}",
+            describe_dlerror()
+        );
     }
     unsafe { std::mem::transmute_copy::<*mut c_void, T>(&symbol) }
 }
@@ -194,7 +203,10 @@ unsafe fn open_upstream_handle() -> *mut c_void {
         }
     }
 
-    panic!("unable to load upstream libgcrypt.so.20: {}", describe_dlerror());
+    panic!(
+        "unable to load upstream libgcrypt.so.20: {}",
+        describe_dlerror()
+    );
 }
 
 fn init() -> PubkeyApi {
@@ -308,14 +320,8 @@ pub(crate) fn sexp_to_upstream(local: *mut gcry_sexp) -> Result<*mut c_void, u32
     let datalen = if written == 0 { needed - 1 } else { written };
 
     let mut upstream = null_mut();
-    let rc = unsafe {
-        (api().sexp_sscan)(
-            &mut upstream,
-            null_mut(),
-            rendered.as_ptr().cast(),
-            datalen,
-        )
-    };
+    let rc =
+        unsafe { (api().sexp_sscan)(&mut upstream, null_mut(), rendered.as_ptr().cast(), datalen) };
     if rc != 0 {
         return Err(rc);
     }
@@ -344,12 +350,7 @@ pub(crate) fn sexp_from_upstream(upstream: *mut c_void) -> Result<*mut gcry_sexp
     let datalen = if written == 0 { needed - 1 } else { written };
 
     let mut local = null_mut();
-    let rc = sexp::gcry_sexp_sscan(
-        &mut local,
-        null_mut(),
-        rendered.as_ptr().cast(),
-        datalen,
-    );
+    let rc = sexp::gcry_sexp_sscan(&mut local, null_mut(), rendered.as_ptr().cast(), datalen);
     if rc != 0 {
         return Err(rc);
     }
@@ -395,12 +396,16 @@ pub(crate) fn local_to_upstream_mpi(local: *mut gcry_mpi) -> Result<*mut c_void,
         }
     } else {
         let mut upstream = null_mut();
-        let rc = unsafe { (api().mpi_scan)(&mut upstream, GCRYMPI_FMT_STD, data.cast(), datalen, null_mut()) };
-        if rc != 0 {
-            Err(rc)
-        } else {
-            Ok(upstream)
-        }
+        let rc = unsafe {
+            (api().mpi_scan)(
+                &mut upstream,
+                GCRYMPI_FMT_STD,
+                data.cast(),
+                datalen,
+                null_mut(),
+            )
+        };
+        if rc != 0 { Err(rc) } else { Ok(upstream) }
     };
 
     alloc::gcry_free(data.cast());

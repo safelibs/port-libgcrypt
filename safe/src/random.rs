@@ -9,7 +9,9 @@ use crate::os_rng;
 use crate::upstream::gcry_buffer_t;
 
 pub(crate) const GCRY_WEAK_RANDOM: c_int = 0;
+#[allow(dead_code)]
 pub(crate) const GCRY_STRONG_RANDOM: c_int = 1;
+#[allow(dead_code)]
 pub(crate) const GCRY_VERY_STRONG_RANDOM: c_int = 2;
 
 #[repr(C)]
@@ -231,7 +233,11 @@ pub(crate) fn run_extrng_test(test: *const gcry_drbg_test_vector, output: *mut u
 }
 
 #[unsafe(export_name = "safe_gcry_random_add_bytes")]
-pub extern "C" fn gcry_random_add_bytes(buffer: *const c_void, length: usize, quality: c_int) -> u32 {
+pub extern "C" fn gcry_random_add_bytes(
+    buffer: *const c_void,
+    length: usize,
+    quality: c_int,
+) -> u32 {
     add_random_bytes(buffer, length, quality)
 }
 

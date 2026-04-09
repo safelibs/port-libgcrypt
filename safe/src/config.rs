@@ -1,3 +1,5 @@
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
+
 use std::ffi::{CStr, CString, c_char, c_int, c_void};
 use std::ptr::null_mut;
 
@@ -12,11 +14,9 @@ unsafe extern "C" {
     fn fwrite(ptr: *const c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
 }
 
-const LIBGCRYPT_CIPHERS: &str =
-    "arcfour blowfish cast5 des aes twofish serpent rfc2268 seed camellia idea salsa20 gost28147 chacha20 sm4";
+const LIBGCRYPT_CIPHERS: &str = "arcfour blowfish cast5 des aes twofish serpent rfc2268 seed camellia idea salsa20 gost28147 chacha20 sm4";
 const LIBGCRYPT_PUBKEY_CIPHERS: &str = "dsa elgamal rsa ecc";
-const LIBGCRYPT_DIGESTS: &str =
-    "crc gostr3411-94 md2 md4 md5 rmd160 sha1 sha256 sha512 sha3 tiger whirlpool stribog blake2 sm3";
+const LIBGCRYPT_DIGESTS: &str = "crc gostr3411-94 md2 md4 md5 rmd160 sha1 sha256 sha512 sha3 tiger whirlpool stribog blake2 sm3";
 
 fn cpu_arch_name() -> &'static str {
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]

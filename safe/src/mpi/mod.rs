@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
-use std::ffi::{c_char, c_int, c_long, c_uint, c_ulong, c_void};
-use std::mem::{MaybeUninit, size_of};
-use std::ptr::{copy_nonoverlapping, null, null_mut};
+use std::ffi::{c_char, c_int, c_uint, c_ulong, c_void};
+use std::mem::MaybeUninit;
+use std::ptr::{copy_nonoverlapping, null_mut};
 
 use crate::alloc;
 use crate::context;
@@ -36,7 +36,6 @@ pub(crate) const MAX_EXTERN_MPI_BYTES: usize = 16 * 1024 * 1024;
 pub(crate) const MAX_EXTERN_PGP_BITS: usize = 16_384;
 
 type mp_bitcnt_t = usize;
-type mp_size_t = c_long;
 type mp_limb_t = c_ulong;
 
 #[derive(Debug)]
@@ -127,7 +126,7 @@ impl Mpz {
     }
 
     pub(crate) fn from_ui(value: c_ulong) -> Self {
-        let mut result = Self::new(size_of::<c_ulong>() * 8);
+        let mut result = Self::new(c_ulong::BITS as usize);
         unsafe {
             __gmpz_set_ui(result.as_mut_ptr(), value);
         }
@@ -364,21 +363,6 @@ pub(crate) fn alloc_output_bytes(bytes: &[u8], secure: bool) -> *mut c_void {
     ptr
 }
 
-pub(crate) fn abs_to_bytes(value: &gcry_mpi) -> Vec<u8> {
-    match &value.kind {
-        MpiKind::Opaque(opaque) => opaque.as_slice().to_vec(),
-        MpiKind::Numeric(number) => numeric_abs_to_bytes(number.as_ptr()),
-    }
-}
-
-pub(crate) fn numeric_abs_to_bytes(value: mpz_srcptr) -> Vec<u8> {
-    let mut tmp = Mpz::new(0);
-    unsafe {
-        __gmpz_abs(tmp.as_mut_ptr(), value);
-    }
-    export_unsigned(tmp.as_ptr())
-}
-
 pub(crate) fn export_unsigned(value: mpz_srcptr) -> Vec<u8> {
     if unsafe { mpz_sgn(value) } == 0 {
         return Vec::new();
@@ -389,15 +373,7 @@ pub(crate) fn export_unsigned(value: mpz_srcptr) -> Vec<u8> {
     let mut out = vec![0u8; nbytes];
     let mut written = 0usize;
     unsafe {
-        __gmpz_export(
-            out.as_mut_ptr().cast(),
-            &mut written,
-            1,
-            1,
-            1,
-            0,
-            value,
-        );
+        __gmpz_export(out.as_mut_ptr().cast(), &mut written, 1, 1, 1, 0, value);
     }
     out.truncate(written);
     out
@@ -473,24 +449,11 @@ pub(crate) fn maybe_secret_powm(exponent: &gcry_mpi, modu: &gcry_mpi) -> bool {
     exponent.secret_sensitive || exponent.secure || modu.secret_sensitive || modu.secure
 }
 
-pub(crate) fn cmp_zero(value: &gcry_mpi) -> Ordering {
-    match &value.kind {
-        MpiKind::Opaque(opaque) => {
-            if opaque.nbits == 0 || opaque.as_slice().iter().all(|byte| *byte == 0) {
-                Ordering::Equal
-            } else {
-                Ordering::Greater
-            }
-        }
-        MpiKind::Numeric(number) => match unsafe { mpz_sgn(number.as_ptr()) }.cmp(&0) {
-            Ordering::Less => Ordering::Less,
-            Ordering::Equal => Ordering::Equal,
-            Ordering::Greater => Ordering::Greater,
-        },
-    }
-}
-
-pub(crate) fn set_numeric_from_u64(dest: *mut gcry_mpi, value: c_ulong, secure_hint: bool) -> *mut gcry_mpi {
+pub(crate) fn set_numeric_from_u64(
+    dest: *mut gcry_mpi,
+    value: c_ulong,
+    secure_hint: bool,
+) -> *mut gcry_mpi {
     let dest = make_result_numeric(dest, secure_hint);
     unsafe {
         if let Some(dest_ref) = gcry_mpi::as_mut(dest) {
@@ -576,7 +539,9 @@ pub extern "C" fn gcry_mpi_set(w: *mut gcry_mpi, u: *const gcry_mpi) -> *mut gcr
 
 #[unsafe(export_name = "gcry_mpi_set_ui")]
 pub extern "C" fn gcry_mpi_set_ui(w: *mut gcry_mpi, u: c_ulong) -> *mut gcry_mpi {
-    set_numeric_from_u64(w, u, unsafe { gcry_mpi::as_ref(w).is_some_and(|mpi| mpi.secure) })
+    set_numeric_from_u64(w, u, unsafe {
+        gcry_mpi::as_ref(w).is_some_and(|mpi| mpi.secure)
+    })
 }
 
 #[unsafe(export_name = "gcry_mpi_get_ui")]
@@ -610,7 +575,7 @@ pub extern "C" fn gcry_mpi_swap(a: *mut gcry_mpi, b: *mut gcry_mpi) {
         return;
     }
     unsafe {
-        std::mem::swap(&mut *a, &mut *b);
+        std::ptr::swap(a, b);
         (*a).sync_secure_registration();
         (*b).sync_secure_registration();
     }
@@ -658,7 +623,9 @@ pub extern "C" fn gcry_mpi_abs(w: *mut gcry_mpi) {
     unsafe {
         if let Some(dest) = gcry_mpi::as_mut(w) {
             match &src.kind {
-                MpiKind::Numeric(value) => __gmpz_abs(dest.numeric_mut().as_mut_ptr(), value.as_ptr()),
+                MpiKind::Numeric(value) => {
+                    __gmpz_abs(dest.numeric_mut().as_mut_ptr(), value.as_ptr())
+                }
                 MpiKind::Opaque(_) => __gmpz_set_ui(dest.numeric_mut().as_mut_ptr(), 0),
             }
         }
@@ -668,7 +635,9 @@ pub extern "C" fn gcry_mpi_abs(w: *mut gcry_mpi) {
 
 #[unsafe(export_name = "gcry_mpi_cmp")]
 pub extern "C" fn gcry_mpi_cmp(u: *const gcry_mpi, v: *const gcry_mpi) -> c_int {
-    match (unsafe { gcry_mpi::as_ref(u) }, unsafe { gcry_mpi::as_ref(v) }) {
+    match (unsafe { gcry_mpi::as_ref(u) }, unsafe {
+        gcry_mpi::as_ref(v)
+    }) {
         (Some(left), Some(right)) => compare(left, right),
         (Some(_), None) => 1,
         (None, Some(_)) => -1,
@@ -722,7 +691,10 @@ pub extern "C" fn gcry_mpi_test_bit(a: *mut gcry_mpi, n: c_uint) -> c_int {
             }
             let byte_index = opaque.len().saturating_sub(1 + bit / 8);
             let mask = 1u8 << (bit % 8);
-            opaque.as_slice().get(byte_index).map_or(0, |byte| ((byte & mask) != 0) as c_int)
+            opaque
+                .as_slice()
+                .get(byte_index)
+                .map_or(0, |byte| ((byte & mask) != 0) as c_int)
         }
         MpiKind::Numeric(number) => {
             let mut tmp = Mpz::clone_from(number.as_ptr());
@@ -791,7 +763,11 @@ pub extern "C" fn gcry_mpi_rshift(x: *mut gcry_mpi, a: *mut gcry_mpi, n: c_uint)
             match &src.kind {
                 MpiKind::Opaque(_) => __gmpz_set_ui(dest_ref.numeric_mut().as_mut_ptr(), 0),
                 MpiKind::Numeric(value) => {
-                    __gmpz_tdiv_q_2exp(dest_ref.numeric_mut().as_mut_ptr(), value.as_ptr(), n as usize);
+                    __gmpz_tdiv_q_2exp(
+                        dest_ref.numeric_mut().as_mut_ptr(),
+                        value.as_ptr(),
+                        n as usize,
+                    );
                 }
             }
         }
@@ -811,7 +787,11 @@ pub extern "C" fn gcry_mpi_lshift(x: *mut gcry_mpi, a: *mut gcry_mpi, n: c_uint)
             match &src.kind {
                 MpiKind::Opaque(_) => __gmpz_set_ui(dest_ref.numeric_mut().as_mut_ptr(), 0),
                 MpiKind::Numeric(value) => {
-                    __gmpz_mul_2exp(dest_ref.numeric_mut().as_mut_ptr(), value.as_ptr(), n as usize);
+                    __gmpz_mul_2exp(
+                        dest_ref.numeric_mut().as_mut_ptr(),
+                        value.as_ptr(),
+                        n as usize,
+                    );
                 }
             }
         }
@@ -831,7 +811,9 @@ pub extern "C" fn gcry_mpi_set_flag(a: *mut gcry_mpi, flag: c_int) {
             value.const_flag = true;
             value.immutable = true;
         }
-        bits if bits & GCRYMPI_FLAG_USER_MASK != 0 => value.user_flags |= bits & GCRYMPI_FLAG_USER_MASK,
+        bits if bits & GCRYMPI_FLAG_USER_MASK != 0 => {
+            value.user_flags |= bits & GCRYMPI_FLAG_USER_MASK
+        }
         _ => {}
     }
 }
@@ -843,7 +825,9 @@ pub extern "C" fn gcry_mpi_clear_flag(a: *mut gcry_mpi, flag: c_int) {
     };
     match flag as c_uint {
         GCRYMPI_FLAG_IMMUTABLE if !value.const_flag => value.immutable = false,
-        bits if bits & GCRYMPI_FLAG_USER_MASK != 0 => value.user_flags &= !(bits & GCRYMPI_FLAG_USER_MASK),
+        bits if bits & GCRYMPI_FLAG_USER_MASK != 0 => {
+            value.user_flags &= !(bits & GCRYMPI_FLAG_USER_MASK)
+        }
         _ => {}
     }
 }

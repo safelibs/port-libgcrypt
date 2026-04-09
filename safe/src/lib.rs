@@ -37,6 +37,7 @@ pub(crate) type gcry_handler_error_t =
     Option<unsafe extern "C" fn(*mut c_void, c_int, *const c_char)>;
 pub(crate) type gcry_gettext_handler_t =
     Option<unsafe extern "C" fn(*const c_char) -> *const c_char>;
+#[allow(clippy::upper_case_acronyms)]
 pub(crate) type FILE = c_void;
 
 pub(crate) const PACKAGE_VERSION: &str = "1.10.3";

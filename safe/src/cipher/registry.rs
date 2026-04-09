@@ -4,19 +4,15 @@ use crate::upstream;
 
 #[allow(dead_code)]
 pub(crate) const IMPLEMENTED_ALGORITHMS: &[c_int] = &[
-    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 301, 302, 303, 304, 305, 306, 307, 308, 309, 310, 311,
-    312, 313, 314, 315, 316, 317, 318,
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 301, 302, 303, 304, 305, 306, 307, 308, 309, 310, 311, 312,
+    313, 314, 315, 316, 317, 318,
 ];
 
 #[allow(dead_code)]
-pub(crate) const IMPLEMENTED_MODES: &[c_int] = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+pub(crate) const IMPLEMENTED_MODES: &[c_int] =
+    &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 
-pub(crate) fn algo_info(
-    algo: c_int,
-    what: c_int,
-    buffer: *mut c_void,
-    nbytes: *mut usize,
-) -> u32 {
+pub(crate) fn algo_info(algo: c_int, what: c_int, buffer: *mut c_void, nbytes: *mut usize) -> u32 {
     unsafe { (upstream::lib().cipher_algo_info)(algo, what, buffer, nbytes) }
 }
 

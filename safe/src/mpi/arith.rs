@@ -2,17 +2,13 @@ use std::ffi::{c_int, c_ulong};
 use std::ptr::null_mut;
 
 use super::{
-    __gmpz_add, __gmpz_add_ui, __gmpz_abs, __gmpz_fdiv_qr, __gmpz_fdiv_r, __gmpz_gcd,
-    __gmpz_invert, __gmpz_mod, __gmpz_mul, __gmpz_mul_2exp, __gmpz_mul_ui, __gmpz_powm,
-    __gmpz_powm_sec, __gmpz_set_ui, __gmpz_sub, __gmpz_sub_ui, __gmpz_tdiv_qr, cmp_zero,
-    compare, gcry_mpi, gcry_mpi_copy, gcry_mpi_release, make_result_numeric, maybe_secret_powm,
-    MpiKind, Mpz, __gmpz_set,
+    __gmpz_add, __gmpz_add_ui, __gmpz_fdiv_qr, __gmpz_fdiv_r, __gmpz_gcd, __gmpz_invert,
+    __gmpz_mod, __gmpz_mul, __gmpz_mul_2exp, __gmpz_mul_ui, __gmpz_powm, __gmpz_powm_sec,
+    __gmpz_set, __gmpz_set_ui, __gmpz_sub, __gmpz_sub_ui, __gmpz_tdiv_qr, MpiKind, Mpz, compare,
+    gcry_mpi, gcry_mpi_copy, gcry_mpi_release, make_result_numeric, maybe_secret_powm,
 };
 
-fn numeric_pair<'a>(
-    u: *mut gcry_mpi,
-    v: *mut gcry_mpi,
-) -> Option<(&'a gcry_mpi, &'a gcry_mpi)> {
+fn numeric_pair<'a>(u: *mut gcry_mpi, v: *mut gcry_mpi) -> Option<(&'a gcry_mpi, &'a gcry_mpi)> {
     unsafe { Some((gcry_mpi::as_ref(u)?, gcry_mpi::as_ref(v)?)) }
 }
 
@@ -20,7 +16,11 @@ fn assign_binary_op(
     w: *mut gcry_mpi,
     u: *mut gcry_mpi,
     v: *mut gcry_mpi,
-    op: unsafe extern "C" fn(*mut super::__mpz_struct, *const super::__mpz_struct, *const super::__mpz_struct),
+    op: unsafe extern "C" fn(
+        *mut super::__mpz_struct,
+        *const super::__mpz_struct,
+        *const super::__mpz_struct,
+    ),
 ) {
     let left_copy = gcry_mpi_copy(u);
     let right_copy = gcry_mpi_copy(v);
@@ -69,7 +69,9 @@ pub extern "C" fn gcry_mpi_add_ui(w: *mut gcry_mpi, u: *mut gcry_mpi, v: c_ulong
     unsafe {
         if let Some(dest_ref) = gcry_mpi::as_mut(dest) {
             match &src.kind {
-                MpiKind::Numeric(number) => __gmpz_add_ui(dest_ref.numeric_mut().as_mut_ptr(), number.as_ptr(), v),
+                MpiKind::Numeric(number) => {
+                    __gmpz_add_ui(dest_ref.numeric_mut().as_mut_ptr(), number.as_ptr(), v)
+                }
                 MpiKind::Opaque(_) => __gmpz_set_ui(dest_ref.numeric_mut().as_mut_ptr(), 0),
             }
         }
@@ -87,7 +89,9 @@ pub extern "C" fn gcry_mpi_sub_ui(w: *mut gcry_mpi, u: *mut gcry_mpi, v: c_ulong
     unsafe {
         if let Some(dest_ref) = gcry_mpi::as_mut(dest) {
             match &src.kind {
-                MpiKind::Numeric(number) => __gmpz_sub_ui(dest_ref.numeric_mut().as_mut_ptr(), number.as_ptr(), v),
+                MpiKind::Numeric(number) => {
+                    __gmpz_sub_ui(dest_ref.numeric_mut().as_mut_ptr(), number.as_ptr(), v)
+                }
                 MpiKind::Opaque(_) => __gmpz_set_ui(dest_ref.numeric_mut().as_mut_ptr(), 0),
             }
         }
@@ -105,7 +109,9 @@ pub extern "C" fn gcry_mpi_mul_ui(w: *mut gcry_mpi, u: *mut gcry_mpi, v: c_ulong
     unsafe {
         if let Some(dest_ref) = gcry_mpi::as_mut(dest) {
             match &src.kind {
-                MpiKind::Numeric(number) => __gmpz_mul_ui(dest_ref.numeric_mut().as_mut_ptr(), number.as_ptr(), v),
+                MpiKind::Numeric(number) => {
+                    __gmpz_mul_ui(dest_ref.numeric_mut().as_mut_ptr(), number.as_ptr(), v)
+                }
                 MpiKind::Opaque(_) => __gmpz_set_ui(dest_ref.numeric_mut().as_mut_ptr(), 0),
             }
         }
@@ -118,7 +124,11 @@ fn assign_mod_op(
     u: *mut gcry_mpi,
     v: *mut gcry_mpi,
     m: *mut gcry_mpi,
-    op: unsafe extern "C" fn(*mut super::__mpz_struct, *const super::__mpz_struct, *const super::__mpz_struct),
+    op: unsafe extern "C" fn(
+        *mut super::__mpz_struct,
+        *const super::__mpz_struct,
+        *const super::__mpz_struct,
+    ),
 ) {
     let base_copy = gcry_mpi_copy(u);
     let other_copy = gcry_mpi_copy(v);
@@ -140,7 +150,11 @@ fn assign_mod_op(
             {
                 let mut tmp = Mpz::new(0);
                 op(tmp.as_mut_ptr(), lhs.as_ptr(), rhs.as_ptr());
-                __gmpz_mod(dest_ref.numeric_mut().as_mut_ptr(), tmp.as_ptr(), modn.as_ptr());
+                __gmpz_mod(
+                    dest_ref.numeric_mut().as_mut_ptr(),
+                    tmp.as_ptr(),
+                    modn.as_ptr(),
+                );
             } else {
                 __gmpz_set_ui(dest_ref.numeric_mut().as_mut_ptr(), 0);
             }
@@ -192,7 +206,11 @@ pub extern "C" fn gcry_mpi_mul_2exp(w: *mut gcry_mpi, u: *mut gcry_mpi, cnt: c_u
         if let Some(dest_ref) = gcry_mpi::as_mut(dest) {
             match &src.kind {
                 MpiKind::Numeric(number) => {
-                    __gmpz_mul_2exp(dest_ref.numeric_mut().as_mut_ptr(), number.as_ptr(), cnt as usize);
+                    __gmpz_mul_2exp(
+                        dest_ref.numeric_mut().as_mut_ptr(),
+                        number.as_ptr(),
+                        cnt as usize,
+                    );
                 }
                 MpiKind::Opaque(_) => __gmpz_set_ui(dest_ref.numeric_mut().as_mut_ptr(), 0),
             }
@@ -217,7 +235,10 @@ pub extern "C" fn gcry_mpi_div(
     let Some(den) = (unsafe { gcry_mpi::as_ref(den_copy) }) else {
         return;
     };
-    if !matches!((&num.kind, &den.kind), (MpiKind::Numeric(_), MpiKind::Numeric(_))) {
+    if !matches!(
+        (&num.kind, &den.kind),
+        (MpiKind::Numeric(_), MpiKind::Numeric(_))
+    ) {
         return;
     }
 
@@ -233,14 +254,30 @@ pub extern "C" fn gcry_mpi_div(
     };
 
     unsafe {
-        let lhs = match &num.kind { MpiKind::Numeric(value) => value, _ => unreachable!() };
-        let rhs = match &den.kind { MpiKind::Numeric(value) => value, _ => unreachable!() };
+        let lhs = match &num.kind {
+            MpiKind::Numeric(value) => value,
+            _ => unreachable!(),
+        };
+        let rhs = match &den.kind {
+            MpiKind::Numeric(value) => value,
+            _ => unreachable!(),
+        };
         let mut qtmp = Mpz::new(0);
         let mut rtmp = Mpz::new(0);
         if round < 0 {
-            __gmpz_fdiv_qr(qtmp.as_mut_ptr(), rtmp.as_mut_ptr(), lhs.as_ptr(), rhs.as_ptr());
+            __gmpz_fdiv_qr(
+                qtmp.as_mut_ptr(),
+                rtmp.as_mut_ptr(),
+                lhs.as_ptr(),
+                rhs.as_ptr(),
+            );
         } else {
-            __gmpz_tdiv_qr(qtmp.as_mut_ptr(), rtmp.as_mut_ptr(), lhs.as_ptr(), rhs.as_ptr());
+            __gmpz_tdiv_qr(
+                qtmp.as_mut_ptr(),
+                rtmp.as_mut_ptr(),
+                lhs.as_ptr(),
+                rhs.as_ptr(),
+            );
         }
         if let Some(dest) = gcry_mpi::as_mut(qdest) {
             __gmpz_set(dest.numeric_mut().as_mut_ptr(), qtmp.as_ptr());
@@ -267,7 +304,11 @@ pub extern "C" fn gcry_mpi_mod(r: *mut gcry_mpi, dividend: *mut gcry_mpi, diviso
     unsafe {
         if let Some(dest_ref) = gcry_mpi::as_mut(dest) {
             if let (MpiKind::Numeric(lhs), MpiKind::Numeric(rhs)) = (&num.kind, &den.kind) {
-                __gmpz_fdiv_r(dest_ref.numeric_mut().as_mut_ptr(), lhs.as_ptr(), rhs.as_ptr());
+                __gmpz_fdiv_r(
+                    dest_ref.numeric_mut().as_mut_ptr(),
+                    lhs.as_ptr(),
+                    rhs.as_ptr(),
+                );
             } else {
                 __gmpz_set_ui(dest_ref.numeric_mut().as_mut_ptr(), 0);
             }
@@ -302,10 +343,22 @@ pub extern "C" fn gcry_mpi_powm(
             if let (MpiKind::Numeric(bn), MpiKind::Numeric(en), MpiKind::Numeric(mn)) =
                 (&base.kind, &exp.kind, &modulus.kind)
             {
-                if maybe_secret_powm(exp, modulus) && compare(modulus, super::consts::const_value(1)) > 0 {
-                    __gmpz_powm_sec(dest_ref.numeric_mut().as_mut_ptr(), bn.as_ptr(), en.as_ptr(), mn.as_ptr());
+                if maybe_secret_powm(exp, modulus)
+                    && compare(modulus, super::consts::const_value(1)) > 0
+                {
+                    __gmpz_powm_sec(
+                        dest_ref.numeric_mut().as_mut_ptr(),
+                        bn.as_ptr(),
+                        en.as_ptr(),
+                        mn.as_ptr(),
+                    );
                 } else {
-                    __gmpz_powm(dest_ref.numeric_mut().as_mut_ptr(), bn.as_ptr(), en.as_ptr(), mn.as_ptr());
+                    __gmpz_powm(
+                        dest_ref.numeric_mut().as_mut_ptr(),
+                        bn.as_ptr(),
+                        en.as_ptr(),
+                        mn.as_ptr(),
+                    );
                 }
             } else {
                 __gmpz_set_ui(dest_ref.numeric_mut().as_mut_ptr(), 0);
@@ -331,7 +384,11 @@ pub extern "C" fn gcry_mpi_gcd(g: *mut gcry_mpi, a: *mut gcry_mpi, b: *mut gcry_
     unsafe {
         if let Some(dest_ref) = gcry_mpi::as_mut(dest) {
             if let (MpiKind::Numeric(lhs), MpiKind::Numeric(rhs)) = (&left.kind, &right.kind) {
-                __gmpz_gcd(dest_ref.numeric_mut().as_mut_ptr(), lhs.as_ptr(), rhs.as_ptr());
+                __gmpz_gcd(
+                    dest_ref.numeric_mut().as_mut_ptr(),
+                    lhs.as_ptr(),
+                    rhs.as_ptr(),
+                );
             } else {
                 __gmpz_set_ui(dest_ref.numeric_mut().as_mut_ptr(), 0);
             }
@@ -360,7 +417,11 @@ pub extern "C" fn gcry_mpi_invm(x: *mut gcry_mpi, a: *mut gcry_mpi, m: *mut gcry
     unsafe {
         if let Some(dest_ref) = gcry_mpi::as_mut(dest) {
             if let (MpiKind::Numeric(lhs), MpiKind::Numeric(rhs)) = (&value.kind, &modulus.kind) {
-                let result = __gmpz_invert(dest_ref.numeric_mut().as_mut_ptr(), lhs.as_ptr(), rhs.as_ptr()) as c_int;
+                let result = __gmpz_invert(
+                    dest_ref.numeric_mut().as_mut_ptr(),
+                    lhs.as_ptr(),
+                    rhs.as_ptr(),
+                ) as c_int;
                 gcry_mpi_release(value_copy);
                 gcry_mpi_release(mod_copy);
                 return result;

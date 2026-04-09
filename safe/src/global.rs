@@ -1,3 +1,5 @@
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
+
 use std::collections::BTreeSet;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::{Mutex, OnceLock};
@@ -448,11 +450,7 @@ pub extern "C" fn safe_gcry_control_dispatch(
         }
         GCRYCTL_SELFTEST => {
             prefer_default_rng(&mut state);
-            if arg0 != 0 {
-                error::GPG_ERR_INV_ARG
-            } else {
-                0
-            }
+            if arg0 != 0 { error::GPG_ERR_INV_ARG } else { 0 }
         }
         GCRYCTL_NO_FIPS_MODE => {
             prefer_default_rng(&mut state);

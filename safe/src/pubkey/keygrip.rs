@@ -6,10 +6,7 @@ use crate::sexp;
 use super::{KEYGRIP_LEN, encoding};
 
 #[unsafe(no_mangle)]
-pub extern "C" fn gcry_pk_get_keygrip(
-    key: *mut sexp::gcry_sexp,
-    array: *mut u8,
-) -> *mut u8 {
+pub extern "C" fn gcry_pk_get_keygrip(key: *mut sexp::gcry_sexp, array: *mut u8) -> *mut u8 {
     let upstream_key = match encoding::sexp_to_upstream(key) {
         Ok(value) => value,
         Err(_) => return null_mut(),

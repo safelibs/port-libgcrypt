@@ -25,7 +25,10 @@ struct Options {
 }
 
 fn usage(mut out: impl Write) -> io::Result<()> {
-    writeln!(out, "Usage: hmac256 [--binary] [--stdkey|key] [filename ...]")?;
+    writeln!(
+        out,
+        "Usage: hmac256 [--binary] [--stdkey|key] [filename ...]"
+    )?;
     writeln!(out, "Compute HMAC-SHA256 digests with libgcrypt")?;
     Ok(())
 }
@@ -67,7 +70,7 @@ fn parse_args() -> Result<Options, i32> {
 
     let key = if stdkey {
         STANDARD_KEY.as_bytes().to_vec()
-    } else if let Some(key) = positional.first() {
+    } else if !positional.is_empty() {
         positional.remove(0).into_bytes()
     } else {
         let _ = usage(io::stderr());
@@ -118,7 +121,10 @@ fn compute_hmac(mut reader: impl Read, key: &[u8]) -> Result<[u8; 32], String> {
     let err = unsafe { gcry_md_ctl(handle, GCRYCTL_FINALIZE, null_mut(), 0) };
     if err != 0 {
         unsafe { gcry_md_close(handle) };
-        return Err(format!("gcry_md_ctl(FINALIZE) failed: {}", format_error(err)));
+        return Err(format!(
+            "gcry_md_ctl(FINALIZE) failed: {}",
+            format_error(err)
+        ));
     }
 
     let mut digest = [0u8; 32];
@@ -136,7 +142,10 @@ fn compute_hmac(mut reader: impl Read, key: &[u8]) -> Result<[u8; 32], String> {
 
 fn process_path(path: Option<&str>, options: &Options) -> Result<(), String> {
     let digest = match path {
-        Some(path) => compute_hmac(File::open(path).map_err(|err| err.to_string())?, &options.key)?,
+        Some(path) => compute_hmac(
+            File::open(path).map_err(|err| err.to_string())?,
+            &options.key,
+        )?,
         None => compute_hmac(io::stdin().lock(), &options.key)?,
     };
 

@@ -65,7 +65,7 @@ Phase 8 adds two compatibility-specific harnesses on top of the imported upstrea
 
 | Harness / surface | First enabled phase | Coverage type | Execution |
 | --- | --- | --- | --- |
-| Imported upstream suite | Phase 7 | source- and runtime-compatibility | `safe/scripts/run-upstream-tests.sh` covers the `testdrv` inventory plus the shell-backed `basic-disable-all-hwf` and `hashtest-256g` wrappers |
+| Imported upstream suite | Phase 7 | source- and runtime-compatibility | `safe/scripts/run-upstream-tests.sh --all` covers the full `testdrv` inventory plus the shell-backed `basic-disable-all-hwf` and `hashtest-256g` wrappers, including the long-running `benchmark`, `bench-slope`, and `hashtest-256g` cases |
 | Original-object relink | Phase 8 | link-compatibility | `safe/scripts/relink-original-objects.sh --all` rebuilds original test objects and relinks every compiled regression binary against the safe shared library |
 | Public thread-callback path | Phase 8 | targeted compatibility smoke | `safe/scripts/run-compat-smoke.sh --all` covers `GCRY_THREAD_OPTION_PTHREAD_IMPL`, `GCRY_THREAD_OPTION_PTH_IMPL`, and `gcry_control(GCRYCTL_SET_THREAD_CBS, &gcry_threads_pthread)` |
 | Header-visible macro surface | Phase 8 | targeted compatibility smoke | `safe/scripts/run-compat-smoke.sh --all` compiles and runs `gcry_md_putc`, `gcry_fast_random_poll`, and `gcry_fips_mode_active` against the generated and staged headers |
@@ -75,3 +75,15 @@ Phase 8 adds two compatibility-specific harnesses on top of the imported upstrea
 | Installed `pkg-config` surface | Phase 8 | development-metadata smoke | `safe/scripts/run-compat-smoke.sh --all` compiles the public smoke probe using the staged `libgcrypt.pc` file |
 | Installed `libgcrypt-config` surface | Phase 8 | development-metadata smoke | `safe/scripts/run-compat-smoke.sh --all` compiles the public smoke probe using the staged `libgcrypt-config` output |
 | Installed `libgcrypt.m4` surface | Phase 8 | development-metadata smoke | `safe/scripts/run-compat-smoke.sh --all` runs an Autoconf configure smoke using the staged `libgcrypt.m4` macro |
+
+## Phase 10 Final Sweep Overlay
+
+Phase 10 closes the remaining verification ownership for committed imported artifacts, packaged helper tools, Debian metadata, and downstream dependents.
+
+| Harness / surface | First enabled phase | Coverage type | Execution |
+| --- | --- | --- | --- |
+| Imported test-tree drift guard | Phase 10 | committed-artifact verification | `safe/scripts/import-upstream-tests.sh --verify` compares the committed `safe/tests/upstream/` tree and the imported subset of `safe/tests/compat/` against `original/libgcrypt20-1.10.3`, while preserving local compat-smoke assets |
+| Upstream harness plumbing | Phase 10 | committed-artifact verification | `safe/scripts/run-upstream-tests.sh --verify-plumbing` proves the run used the committed imported `config.h`, rendered wrapper scripts, generated header, and committed `compat/` support tree instead of files from `original/` |
+| Debian symbol contract | Phase 10 | packaging verification | `safe/scripts/build-debs.sh` plus `safe/scripts/check-deb-metadata.sh --dist safe/dist` reconcile `safe/debian/libgcrypt20.symbols` against `safe/abi/libgcrypt.vers`, allowing only Debian's `GCRYPT_1.6` sentinel line as an extra non-symbol entry |
+| Installed helper CLI surface | Phase 10 | package-image smoke | `safe/scripts/check-installed-tools.sh --dist safe/dist` runs `dumpsexp`, `hmac256`, `mpicalc`, `libgcrypt-config`, and `pkg-config` from the extracted package image rather than cargo-built binaries |
+| Downstream dependent matrix | Phase 10 | packaged runtime compatibility | `./test-original.sh --implementation safe` validates the packaged safe build against `libapt-pkg`, `gpg`, `gnome-keyring`, `libssh-gcrypt`, `xmlsec1`, `munge`, `aircrack-ng`, and `wireshark` |

@@ -45,11 +45,7 @@ pub extern "C" fn gcry_mac_algo_info(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn gcry_mac_setkey(
-    handle: gcry_mac_hd_t,
-    key: *const c_void,
-    keylen: usize,
-) -> u32 {
+pub extern "C" fn gcry_mac_setkey(handle: gcry_mac_hd_t, key: *const c_void, keylen: usize) -> u32 {
     unsafe { (upstream::lib().mac_setkey)(handle.cast(), key, keylen) }
 }
 

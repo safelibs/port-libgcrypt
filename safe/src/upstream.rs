@@ -191,7 +191,10 @@ where
     let name_c = CString::new(name).expect("symbol name without NUL");
     let symbol = unsafe { dlsym(handle, name_c.as_ptr()) };
     if symbol.is_null() {
-        panic!("failed to load upstream libgcrypt symbol {name}: {}", describe_dlerror());
+        panic!(
+            "failed to load upstream libgcrypt symbol {name}: {}",
+            describe_dlerror()
+        );
     }
     unsafe { std::mem::transmute_copy::<*mut c_void, T>(&symbol) }
 }
@@ -225,7 +228,10 @@ unsafe fn open_upstream_handle() -> *mut c_void {
         }
     }
 
-    panic!("unable to load upstream libgcrypt.so.20: {}", describe_dlerror());
+    panic!(
+        "unable to load upstream libgcrypt.so.20: {}",
+        describe_dlerror()
+    );
 }
 
 struct UpstreamRawApi {
