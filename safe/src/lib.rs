@@ -2,6 +2,104 @@
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]
 
-pub mod ffi;
+use std::ffi::{c_char, c_int, c_uint, c_void};
+use std::ptr::null_mut;
 
-pub use ffi::*;
+mod alloc;
+mod config;
+mod context;
+mod error;
+mod global;
+mod log;
+mod os_rng;
+mod secmem;
+
+pub(crate) type gcry_handler_progress_t =
+    Option<unsafe extern "C" fn(*mut c_void, *const c_char, c_int, c_int, c_int)>;
+pub(crate) type gcry_handler_alloc_t = Option<unsafe extern "C" fn(usize) -> *mut c_void>;
+pub(crate) type gcry_handler_secure_check_t = Option<unsafe extern "C" fn(*const c_void) -> c_int>;
+pub(crate) type gcry_handler_realloc_t =
+    Option<unsafe extern "C" fn(*mut c_void, usize) -> *mut c_void>;
+pub(crate) type gcry_handler_free_t = Option<unsafe extern "C" fn(*mut c_void)>;
+pub(crate) type gcry_handler_no_mem_t =
+    Option<unsafe extern "C" fn(*mut c_void, usize, c_uint) -> c_int>;
+pub(crate) type gcry_handler_error_t =
+    Option<unsafe extern "C" fn(*mut c_void, c_int, *const c_char)>;
+pub(crate) type gcry_gettext_handler_t =
+    Option<unsafe extern "C" fn(*const c_char) -> *const c_char>;
+pub(crate) type FILE = c_void;
+
+pub(crate) const PACKAGE_VERSION: &str = "1.10.3";
+pub(crate) const PACKAGE_VERSION_BYTES: &[u8] = b"1.10.3\0";
+pub(crate) const GCRYPT_VERSION_NUMBER: u32 = 0x010a03;
+
+pub(crate) const EINVAL_VALUE: c_int = 22;
+pub(crate) const ENOMEM_VALUE: c_int = 12;
+
+unsafe extern "C" {
+    fn __errno_location() -> *mut c_int;
+}
+
+pub(crate) fn set_errno(value: c_int) {
+    unsafe {
+        *__errno_location() = value;
+    }
+}
+
+pub(crate) fn get_errno() -> c_int {
+    unsafe { *__errno_location() }
+}
+
+pub use alloc::*;
+pub use config::*;
+pub use error::*;
+pub use global::*;
+pub use log::*;
+
+#[unsafe(export_name = "safe_gcry_md_get")]
+pub extern "C" fn gcry_md_get(
+    _hd: *mut c_void,
+    _algo: c_int,
+    _buffer: *mut u8,
+    _buflen: c_int,
+) -> u32 {
+    error::gcry_error_from_code(error::GPG_ERR_NOT_IMPLEMENTED)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn safe_gcry_sexp_build_dispatch(
+    retsexp: *mut *mut c_void,
+    erroff: *mut usize,
+    _format: *const c_char,
+) -> u32 {
+    if !retsexp.is_null() {
+        unsafe {
+            *retsexp = null_mut();
+        }
+    }
+    if !erroff.is_null() {
+        unsafe {
+            *erroff = 0;
+        }
+    }
+    error::gcry_error_from_code(error::GPG_ERR_NOT_IMPLEMENTED)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn safe_gcry_sexp_vlist_dispatch(_a: *mut c_void) -> *mut c_void {
+    null_mut()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn safe_gcry_sexp_extract_param_dispatch(
+    _sexp: *mut c_void,
+    _path: *const c_char,
+    _list: *const c_char,
+) -> u32 {
+    error::gcry_error_from_code(error::GPG_ERR_NOT_IMPLEMENTED)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn safe_gcry_stub_zero() -> usize {
+    0
+}

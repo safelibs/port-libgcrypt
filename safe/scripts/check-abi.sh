@@ -127,6 +127,73 @@ EOF
   rm -rf "${tmpdir}"
 }
 
+check_thread_cbs_noop() {
+  local tmpdir probe_c probe_bin
+  tmpdir="$(mktemp -d "${SAFE_DIR}/target/bootstrap/check-abi-thread-cbs.XXXXXX")"
+  probe_c="${tmpdir}/thread-cbs-noop.c"
+  probe_bin="${tmpdir}/thread-cbs-noop"
+
+  cat >"${probe_c}" <<'EOF'
+#include <gcrypt.h>
+#include <stdio.h>
+#include <string.h>
+
+GCRY_THREAD_OPTION_PTHREAD_IMPL;
+
+static int
+die(const char *message, int value)
+{
+  fprintf(stderr, "thread-cbs-noop: %s (%d)\n", message, value);
+  return 1;
+}
+
+int
+main(void)
+{
+  int rng = -1;
+
+  if (gcry_control(GCRYCTL_ANY_INITIALIZATION_P))
+    return die("unexpected initialization before probe", 0);
+
+  if (gcry_control(GCRYCTL_SET_PREFERRED_RNG_TYPE, GCRY_RNG_TYPE_SYSTEM))
+    return die("SET_PREFERRED_RNG_TYPE failed", 0);
+
+  if (gcry_control(GCRYCTL_GET_CURRENT_RNG_TYPE, &rng))
+    return die("GET_CURRENT_RNG_TYPE before noop failed", 0);
+  if (rng != GCRY_RNG_TYPE_SYSTEM)
+    return die("preferred RNG type was not applied", rng);
+
+  if (gcry_control(GCRYCTL_SET_THREAD_CBS, &gcry_threads_pthread))
+    return die("SET_THREAD_CBS failed", 0);
+
+  if (!gcry_control(GCRYCTL_ANY_INITIALIZATION_P))
+    return die("SET_THREAD_CBS did not force initialization", 0);
+
+  rng = -1;
+  if (gcry_control(GCRYCTL_GET_CURRENT_RNG_TYPE, &rng))
+    return die("GET_CURRENT_RNG_TYPE after noop failed", 0);
+  if (rng != GCRY_RNG_TYPE_STANDARD)
+    return die("SET_THREAD_CBS did not reset preferred RNG type", rng);
+
+  if (strcmp(GCRYPT_VERSION, gcry_check_version(NULL)))
+    return die("header/library version mismatch", 0);
+
+  return 0;
+}
+EOF
+
+  cc \
+    -I"${STAGE_INCLUDEDIR}" \
+    "${probe_c}" \
+    -L"${STAGE_LIBDIR}" \
+    -Wl,-rpath,"${STAGE_LIBDIR}" \
+    -lgcrypt -lgpg-error \
+    -o "${probe_bin}"
+
+  LD_LIBRARY_PATH="${STAGE_LIBDIR}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" "${probe_bin}"
+  rm -rf "${tmpdir}"
+}
+
 check_symbol_inventory() {
   python3 - "${ORIGINAL_DIR}/src/libgcrypt.vers" "${STAGE_LIBDIR}/libgcrypt.so.20" <<'PY'
 import re
@@ -170,7 +237,13 @@ PY
 }
 
 main() {
+  local thread_cbs_noop_mode=0
+
   if [[ "${1:-}" == "--bootstrap" ]]; then
+    shift
+  fi
+  if [[ "${1:-}" == "--thread-cbs-noop" ]]; then
+    thread_cbs_noop_mode=1
     shift
   fi
 
@@ -200,6 +273,12 @@ main() {
     || fail "generated header lost gcry_md_handle layout"
   grep -q 'gcry_kdf_thread_ops_t' "${STAGE_INCLUDEDIR}/gcrypt.h" \
     || fail "generated header lost gcry_kdf_thread_ops_t"
+
+  if [[ "${thread_cbs_noop_mode}" -eq 1 ]]; then
+    check_thread_cbs_noop
+    echo "check-abi: ok"
+    return 0
+  fi
 
   check_thread_header_smoke
   check_variadic_smoke

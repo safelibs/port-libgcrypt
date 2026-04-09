@@ -1,40 +1,41 @@
 # ABI Map
 
-Seeded from `safe/abi/libgcrypt.vers`, `safe/abi/gcrypt.h.in`, and `safe/abi/visibility.h`. This phase exports all 217 `GCRYPT_1.6` symbols immediately; early behavior is intentionally skeletal outside the bootstrap-tested version, config, allocation, randomness, and secure-memory paths.
+Seeded from `safe/abi/libgcrypt.vers`, `safe/abi/gcrypt.h.in`, and `safe/abi/visibility.h`. This phase still exports all 217 `GCRYPT_1.6` symbols immediately, but the runtime shell now owns the version/control/config/error/allocation/randomness/secure-memory surface instead of the old bootstrap shim. Remaining crypto families stay skeletal until their owning phases land.
 
 - `gcry_md_get` is a Linux version-script export that is not declared by installed `gcrypt.h`; it is classified as `visibility-only` and owned by phase 4.
 - `gcry_pk_register` is a Linux version-script export that is not declared by installed `gcrypt.h`; it is classified as `abi-only` and owned by phase 6.
+- `gcry_ctx_release` remains outside phase 2 scope and still resolves to the generic export stub until the later context/public-key work lands.
 
 | Symbol | Classification | Planned Location | Planned Coverage | Notes |
 | --- | --- | --- | --- | --- |
-| `gcry_check_version` | header+visibility | `safe/src/ffi.rs` | `run-original-tests.sh` version + `check-abi.sh` export-set check | Bootstrap functional path. |
-| `gcry_control` | header+visibility | `safe/cabi/exports.c` -> `safe/src/ffi.rs` | `check-abi.sh` variadic smoke + export-set check | Bootstrap variadic shim. |
-| `gcry_set_allocation_handler` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_set_fatalerror_handler` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_set_gettext_handler` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_set_log_handler` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_set_outofcore_handler` | header+visibility | `safe/src/ffi.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Bootstrap functional path. |
-| `gcry_set_progress_handler` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_err_code_from_errno` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_err_code_to_errno` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_err_make_from_errno` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_error_from_errno` | header+visibility | `safe/src/ffi.rs` | `run-original-tests.sh` version + `check-abi.sh` export-set check | Bootstrap functional path. |
-| `gcry_strerror` | header+visibility | `safe/src/ffi.rs` | `run-original-tests.sh` version + `check-abi.sh` export-set check | Bootstrap functional path. |
-| `gcry_strsource` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_free` | header+visibility | `safe/src/ffi.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Bootstrap functional path. |
-| `gcry_malloc` | header+visibility | `safe/src/ffi.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Bootstrap functional path. |
-| `gcry_malloc_secure` | header+visibility | `safe/src/ffi.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Bootstrap functional path. |
-| `gcry_calloc` | header+visibility | `safe/src/ffi.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Bootstrap functional path. |
-| `gcry_calloc_secure` | header+visibility | `safe/src/ffi.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Bootstrap functional path. |
-| `gcry_realloc` | header+visibility | `safe/src/ffi.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Bootstrap functional path. |
-| `gcry_strdup` | header+visibility | `safe/src/ffi.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Bootstrap functional path. |
-| `gcry_is_secure` | header+visibility | `safe/src/ffi.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Bootstrap functional path. |
-| `gcry_xcalloc` | header+visibility | `safe/src/ffi.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Bootstrap functional path. |
-| `gcry_xcalloc_secure` | header+visibility | `safe/src/ffi.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Bootstrap functional path. |
-| `gcry_xmalloc` | header+visibility | `safe/src/ffi.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Bootstrap functional path. |
-| `gcry_xmalloc_secure` | header+visibility | `safe/src/ffi.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Bootstrap functional path. |
-| `gcry_xrealloc` | header+visibility | `safe/src/ffi.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Bootstrap functional path. |
-| `gcry_xstrdup` | header+visibility | `safe/src/ffi.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Bootstrap functional path. |
+| `gcry_check_version` | header+visibility | `safe/src/global.rs` | `run-original-tests.sh` version + `check-abi.sh` export-set check | Implemented runtime-shell path with upstream-style version negotiation. |
+| `gcry_control` | header+visibility | `safe/cabi/exports.c` -> `safe/src/global.rs` | `check-abi.sh` variadic smoke + `check-abi.sh --thread-cbs-noop` + export-set check | Implemented runtime-shell control plane, including `GCRYCTL_SET_THREAD_CBS` compatibility behavior. |
+| `gcry_set_allocation_handler` | header+visibility | `safe/src/alloc.rs` | `check-abi.sh` export-set check | Implemented runtime-shell handler registration. |
+| `gcry_set_fatalerror_handler` | header+visibility | `safe/src/log.rs` | `check-abi.sh` export-set check | Implemented runtime-shell handler registration and fatal-path dispatch. |
+| `gcry_set_gettext_handler` | header+visibility | `safe/src/log.rs` | `check-abi.sh` export-set check | Implemented runtime-shell handler registration and translated fatal/log text dispatch. |
+| `gcry_set_log_handler` | header+visibility | `safe/cabi/exports.c` + `safe/src/log.rs` | `check-abi.sh` export-set check | Implemented runtime-shell handler registration with C va_list bridge for log dispatch. |
+| `gcry_set_outofcore_handler` | header+visibility | `safe/src/alloc.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Implemented runtime-shell handler registration and xmalloc retry path. |
+| `gcry_set_progress_handler` | header+visibility | `safe/src/log.rs` | `check-abi.sh` export-set check | Implemented runtime-shell registration surface; producers remain phase-local. |
+| `gcry_err_code_from_errno` | header+visibility | `safe/src/error.rs` | `check-abi.sh` export-set check | Implemented libgpg-error wrapper surface. |
+| `gcry_err_code_to_errno` | header+visibility | `safe/src/error.rs` | `check-abi.sh` export-set check | Implemented libgpg-error wrapper surface. |
+| `gcry_err_make_from_errno` | header+visibility | `safe/src/error.rs` | `check-abi.sh` export-set check | Implemented libgpg-error wrapper surface. |
+| `gcry_error_from_errno` | header+visibility | `safe/src/error.rs` | `run-original-tests.sh` version + `check-abi.sh` export-set check | Implemented libgpg-error wrapper surface. |
+| `gcry_strerror` | header+visibility | `safe/src/error.rs` | `run-original-tests.sh` version + `check-abi.sh` export-set check | Implemented libgpg-error wrapper surface. |
+| `gcry_strsource` | header+visibility | `safe/src/error.rs` | `check-abi.sh` export-set check | Implemented libgpg-error wrapper surface. |
+| `gcry_free` | header+visibility | `safe/src/alloc.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Implemented runtime-shell allocation path. |
+| `gcry_malloc` | header+visibility | `safe/src/alloc.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Implemented runtime-shell allocation path. |
+| `gcry_malloc_secure` | header+visibility | `safe/src/alloc.rs` + `safe/src/secmem.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Implemented runtime-shell secure allocation path with locked-page attempts and pool accounting. |
+| `gcry_calloc` | header+visibility | `safe/src/alloc.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Implemented runtime-shell allocation path. |
+| `gcry_calloc_secure` | header+visibility | `safe/src/alloc.rs` + `safe/src/secmem.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Implemented runtime-shell secure allocation path. |
+| `gcry_realloc` | header+visibility | `safe/src/alloc.rs` + `safe/src/secmem.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Implemented runtime-shell realloc path for plain and secure allocations. |
+| `gcry_strdup` | header+visibility | `safe/src/alloc.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Implemented runtime-shell duplication path, preserving secure memory when applicable. |
+| `gcry_is_secure` | header+visibility | `safe/src/alloc.rs` + `safe/src/secmem.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Implemented runtime-shell secure-pointer query. |
+| `gcry_xcalloc` | header+visibility | `safe/src/alloc.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Implemented runtime-shell xalloc path with out-of-core handling. |
+| `gcry_xcalloc_secure` | header+visibility | `safe/src/alloc.rs` + `safe/src/secmem.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Implemented runtime-shell secure xalloc path with overflow support. |
+| `gcry_xmalloc` | header+visibility | `safe/src/alloc.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Implemented runtime-shell xalloc path with out-of-core handling. |
+| `gcry_xmalloc_secure` | header+visibility | `safe/src/alloc.rs` + `safe/src/secmem.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Implemented runtime-shell secure xalloc path with overflow support. |
+| `gcry_xrealloc` | header+visibility | `safe/src/alloc.rs` + `safe/src/secmem.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Implemented runtime-shell xrealloc path with out-of-core handling. |
+| `gcry_xstrdup` | header+visibility | `safe/src/alloc.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Implemented runtime-shell xstrdup path with secure-memory preservation. |
 | `gcry_md_algo_info` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
 | `gcry_md_algo_name` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
 | `gcry_md_close` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
@@ -112,11 +113,11 @@ Seeded from `safe/abi/libgcrypt.vers`, `safe/abi/gcrypt.h.in`, and `safe/abi/vis
 | `gcry_prime_generate` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
 | `gcry_prime_group_generator` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
 | `gcry_prime_release_factors` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_random_add_bytes` | header+visibility | `safe/src/ffi.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Bootstrap functional path. |
-| `gcry_random_bytes` | header+visibility | `safe/src/ffi.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Bootstrap functional path. |
-| `gcry_random_bytes_secure` | header+visibility | `safe/src/ffi.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Bootstrap functional path. |
-| `gcry_randomize` | header+visibility | `safe/src/ffi.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Bootstrap functional path. |
-| `gcry_create_nonce` | header+visibility | `safe/src/ffi.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Bootstrap functional path. |
+| `gcry_random_add_bytes` | header+visibility | `safe/src/alloc.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Implemented runtime-shell compatibility no-op. |
+| `gcry_random_bytes` | header+visibility | `safe/src/alloc.rs` + `safe/src/os_rng.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Implemented runtime-shell OS-backed random byte allocation. |
+| `gcry_random_bytes_secure` | header+visibility | `safe/src/alloc.rs` + `safe/src/os_rng.rs` + `safe/src/secmem.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Implemented runtime-shell secure random allocation. |
+| `gcry_randomize` | header+visibility | `safe/src/alloc.rs` + `safe/src/os_rng.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Implemented runtime-shell OS-backed buffer fill. |
+| `gcry_create_nonce` | header+visibility | `safe/src/alloc.rs` + `safe/src/os_rng.rs` | `run-original-tests.sh` t-secmem + `check-abi.sh` export-set check | Implemented runtime-shell nonce generation. |
 | `gcry_sexp_alist` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
 | `gcry_sexp_append` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
 | `gcry_sexp_build` | header+visibility | `safe/cabi/exports.c` -> `safe/src/ffi.rs` | `check-abi.sh` variadic smoke + export-set check | Bootstrap variadic shim. |
@@ -209,12 +210,12 @@ Seeded from `safe/abi/libgcrypt.vers`, `safe/abi/gcrypt.h.in`, and `safe/abi/vis
 | `gcry_mpi_ec_decode_point` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
 | `gcry_mpi_point_copy` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
 | `gcry_mpi_get_ui` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_log_debug` | header+visibility | `safe/cabi/exports.c` -> `safe/src/ffi.rs` | `check-abi.sh` variadic smoke + export-set check | Bootstrap variadic shim. |
+| `gcry_log_debug` | header+visibility | `safe/cabi/exports.c` -> `safe/src/log.rs` | `check-abi.sh` variadic smoke + export-set check | Implemented runtime-shell variadic log dispatch. |
 | `gcry_log_debughex` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
 | `gcry_log_debugmpi` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
 | `gcry_log_debugpnt` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
 | `gcry_log_debugsxp` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_get_config` | header+visibility | `safe/src/ffi.rs` | `run-original-tests.sh` version + `check-abi.sh` export-set check | Bootstrap functional path. |
+| `gcry_get_config` | header+visibility | `safe/src/config.rs` | `run-original-tests.sh` version + `check-abi.sh` export-set check | Implemented runtime-shell config surface, including `version`, `cpu-arch`, and `rng-type`. |
 | `_gcry_mpi_get_const` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
 | `gcry_ctx_release` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
 | `gcry_pk_hash_sign` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |

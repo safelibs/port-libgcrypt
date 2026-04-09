@@ -10,6 +10,14 @@ gcry_error_t safe_gcry_control_dispatch(enum gcry_ctl_cmds cmd,
                                         uintptr_t arg1,
                                         uintptr_t arg2);
 const char *safe_gcry_check_version(const char *req_version);
+void safe_gcry_set_progress_handler(gcry_handler_progress_t cb, void *cb_data);
+void safe_gcry_set_allocation_handler(gcry_handler_alloc_t func_alloc,
+                                      gcry_handler_alloc_t func_alloc_secure,
+                                      gcry_handler_secure_check_t func_secure_check,
+                                      gcry_handler_realloc_t func_realloc,
+                                      gcry_handler_free_t func_free);
+void safe_gcry_set_fatalerror_handler(gcry_handler_error_t fnc, void *opaque);
+void safe_gcry_set_gettext_handler(const char *(*f)(const char *));
 gcry_err_code_t safe_gcry_err_code_from_errno(int err);
 int safe_gcry_err_code_to_errno(gcry_err_code_t code);
 gcry_error_t safe_gcry_err_make_from_errno(gcry_err_source_t source, int err);
@@ -47,5 +55,7 @@ gpg_error_t safe_gcry_sexp_extract_param_dispatch(gcry_sexp_t sexp,
                                                   const char *list);
 void safe_gcry_log_debug_dispatch(const char *message);
 uintptr_t safe_gcry_stub_zero(void);
+void safe_cabi_set_log_handler(gcry_handler_log_t handler, void *opaque);
+void safe_cabi_dispatch_log_message(int level, const char *message);
 
 #endif /* SAFE_CABI_EXPORTS_H */

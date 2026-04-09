@@ -2,6 +2,7 @@
 
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 
 #define FORWARD0(ret, name) \
   ret name(void) { return safe_##name(); }
@@ -13,6 +14,8 @@
   ret name(t1 a1, t2 a2, t3 a3) { return safe_##name(a1, a2, a3); }
 #define FORWARD4(ret, name, t1, a1, t2, a2, t3, a3, t4, a4) \
   ret name(t1 a1, t2 a2, t3 a3, t4 a4) { return safe_##name(a1, a2, a3, a4); }
+#define FORWARD5(ret, name, t1, a1, t2, a2, t3, a3, t4, a4, t5, a5) \
+  ret name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5) { return safe_##name(a1, a2, a3, a4, a5); }
 #define FORWARDV(name, t1, a1, t2, a2) \
   void name(t1 a1, t2 a2) { safe_##name(a1, a2); }
 #define FORWARDV1(name, t1, a1) \
@@ -20,7 +23,77 @@
 #define FORWARDV3(name, t1, a1, t2, a2, t3, a3) \
   void name(t1 a1, t2 a2, t3 a3) { safe_##name(a1, a2, a3); }
 
+static gcry_handler_log_t registered_log_handler;
+static void *registered_log_opaque;
+
+static void
+invoke_registered_log_handler(gcry_handler_log_t handler,
+                              void *opaque,
+                              int level,
+                              const char *fmt,
+                              ...)
+{
+  va_list ap;
+
+  va_start(ap, fmt);
+  handler(opaque, level, fmt, ap);
+  va_end(ap);
+}
+
+void
+safe_cabi_set_log_handler(gcry_handler_log_t handler, void *opaque)
+{
+  registered_log_handler = handler;
+  registered_log_opaque = opaque;
+}
+
+void
+safe_cabi_dispatch_log_message(int level, const char *message)
+{
+  const char *prefix = "";
+
+  if (!message)
+    message = "";
+
+  if (registered_log_handler)
+    {
+      invoke_registered_log_handler(registered_log_handler,
+                                    registered_log_opaque,
+                                    level,
+                                    "%s",
+                                    message);
+      return;
+    }
+
+  switch (level)
+    {
+    case GCRY_LOG_FATAL:
+      prefix = "Fatal: ";
+      break;
+    case GCRY_LOG_DEBUG:
+      prefix = "DBG: ";
+      break;
+    default:
+      break;
+    }
+
+  if (*prefix)
+    fputs(prefix, stderr);
+  fputs(message, stderr);
+  if (!*message || message[strlen(message) - 1] != '\n')
+    fputc('\n', stderr);
+}
+
 FORWARD1(const char *, gcry_check_version, const char *, req_version)
+FORWARDV(gcry_set_progress_handler, gcry_handler_progress_t, cb, void *, cb_data)
+FORWARD5(void,
+         gcry_set_allocation_handler,
+         gcry_handler_alloc_t, func_alloc,
+         gcry_handler_alloc_t, func_alloc_secure,
+         gcry_handler_secure_check_t, func_secure_check,
+         gcry_handler_realloc_t, func_realloc,
+         gcry_handler_free_t, func_free)
+FORWARDV(gcry_set_fatalerror_handler, gcry_handler_error_t, fnc, void *, opaque)
 FORWARD1(gcry_err_code_t, gcry_err_code_from_errno, int, err)
 FORWARD1(int, gcry_err_code_to_errno, gcry_err_code_t, code)
 FORWARD2(gcry_error_t, gcry_err_make_from_errno, gcry_err_source_t, source, int, err)
@@ -66,21 +139,32 @@ gcry_control(enum gcry_ctl_cmds cmd, ...)
   va_start(ap, cmd);
   switch (cmd)
     {
+    case GCRYCTL_SET_PREFERRED_RNG_TYPE:
     case GCRYCTL_SET_VERBOSITY:
     case GCRYCTL_SET_DEBUG_FLAGS:
-    case GCRYCTL_DISABLE_SECMEM:
-    case GCRYCTL_INITIALIZATION_FINISHED:
     case GCRYCTL_ENABLE_QUICK_RANDOM:
-    case GCRYCTL_FIPS_MODE_P:
+    case GCRYCTL_FORCE_FIPS_MODE:
+    case GCRYCTL_NO_FIPS_MODE:
+    case GCRYCTL_AUTO_EXPAND_SECMEM:
+    case 61: /* PRIV_CTL_EXTERNAL_LOCK_TEST */
       arg0 = (uintptr_t)va_arg(ap, int);
       break;
     case GCRYCTL_INIT_SECMEM:
       arg0 = (uintptr_t)va_arg(ap, size_t);
       arg1 = (uintptr_t)va_arg(ap, int);
       break;
+    case GCRYCTL_SET_RANDOM_SEED_FILE:
+    case GCRYCTL_SET_RNDEGD_SOCKET:
+    case GCRYCTL_SET_RANDOM_DAEMON_SOCKET:
+    case GCRYCTL_SET_THREAD_CBS:
+      arg0 = (uintptr_t)va_arg(ap, void *);
+      break;
     case GCRYCTL_DISABLE_HWF:
       arg0 = (uintptr_t)va_arg(ap, const char *);
       arg1 = (uintptr_t)va_arg(ap, void *);
+      break;
+    case GCRYCTL_GET_CURRENT_RNG_TYPE:
+      arg0 = (uintptr_t)va_arg(ap, int *);
       break;
     case GCRYCTL_PRINT_CONFIG:
       arg0 = (uintptr_t)va_arg(ap, FILE *);
@@ -91,6 +175,18 @@ gcry_control(enum gcry_ctl_cmds cmd, ...)
   va_end(ap);
 
   return safe_gcry_control_dispatch(cmd, arg0, arg1, arg2);
+}
+
+void
+gcry_set_log_handler(gcry_handler_log_t f, void *opaque)
+{
+  safe_cabi_set_log_handler(f, opaque);
+}
+
+void
+gcry_set_gettext_handler(const char *(*f)(const char *))
+{
+  safe_gcry_set_gettext_handler(f);
 }
 
 gcry_error_t
