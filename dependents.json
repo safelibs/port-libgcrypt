@@ -1,0 +1,188 @@
+{
+  "product": "libgcrypt",
+  "distribution": {
+    "name": "Ubuntu",
+    "release": "24.04",
+    "codename": "noble"
+  },
+  "generated_at_utc": "2026-04-09T09:59:29Z",
+  "selection_note": "Representative direct Noble dependents chosen to span different kinds of software. Each entry records the package metadata proving compile-time and runtime dependence plus the runtime feature that actually exercises libgcrypt.",
+  "dependents": [
+    {
+      "name": "APT / libapt-pkg",
+      "category": "package management",
+      "repository_component": "main",
+      "source_package": "apt",
+      "source_version": "2.8.3",
+      "binary_package": "libapt-pkg6.0t64",
+      "binary_version": "2.8.3",
+      "dependency_types": [
+        "compile_time",
+        "runtime"
+      ],
+      "dependency_evidence": {
+        "compile_time": "apt 2.8.3 Build-Depends includes libgcrypt20-dev",
+        "runtime": "libapt-pkg6.0t64 2.8.3 Depends includes libgcrypt20 (>= 1.10.0)"
+      },
+      "runtime_functionality": "libapt-pkg uses libgcrypt as its hashing backend when computing and checking digests for package indexes and package files, which feeds source authentication and retrieved-data validation.",
+      "runtime_evidence": [
+        "apt-pkg/contrib/hashes.cc initializes libgcrypt, enables requested hash algorithms with gcry_md_enable, streams file contents with gcry_md_write, and returns digests with gcry_md_read.",
+        "The libapt-pkg package description says the runtime library authenticates sources and validates retrieved data."
+      ]
+    },
+    {
+      "name": "GNU Privacy Guard",
+      "category": "OpenPGP",
+      "repository_component": "main",
+      "source_package": "gnupg2",
+      "source_version": "2.4.4-2ubuntu17.4",
+      "binary_package": "gpg",
+      "binary_version": "2.4.4-2ubuntu17.4",
+      "dependency_types": [
+        "compile_time",
+        "runtime"
+      ],
+      "dependency_evidence": {
+        "compile_time": "gnupg2 2.4.4-2ubuntu17.4 Build-Depends includes libgcrypt20-dev (>= 1.9.1)",
+        "runtime": "gpg 2.4.4-2ubuntu17.4 Depends includes libgcrypt20 (>= 1.10.3)"
+      },
+      "runtime_functionality": "OpenPGP payload decryption, integrity checking, signature handling, and public-key operations rely on libgcrypt primitives.",
+      "runtime_evidence": [
+        "g10/decrypt-data.c uses gcry_cipher_* and gcry_md_* for encrypted-data packet handling, AEAD/MDC processing, and message integrity verification.",
+        "g10/pkglue.c uses gcry_pk_encrypt, gcry_pk_verify, gcry_sexp_* and gcry_mpi_* helpers for public-key encryption and signature verification paths."
+      ]
+    },
+    {
+      "name": "GNOME Keyring",
+      "category": "desktop secret storage",
+      "repository_component": "main",
+      "source_package": "gnome-keyring",
+      "source_version": "46.1-2ubuntu0.2",
+      "binary_package": "gnome-keyring",
+      "binary_version": "46.1-2ubuntu0.2",
+      "dependency_types": [
+        "compile_time",
+        "runtime"
+      ],
+      "dependency_evidence": {
+        "compile_time": "gnome-keyring 46.1-2ubuntu0.2 Build-Depends includes libgcrypt20-dev (>= 1.2.2)",
+        "runtime": "gnome-keyring 46.1-2ubuntu0.2 Depends includes libgcrypt20 (>= 1.10.0)"
+      },
+      "runtime_functionality": "Stored keyring secrets are encrypted and decrypted with libgcrypt, and password-derived keys and IVs are generated from libgcrypt-backed KDF and hash code.",
+      "runtime_evidence": [
+        "pkcs11/secret-store/gkm-secret-binary.c derives an AES-128 key and IV from the master password with egg_symkey_generate_simple(... GCRY_CIPHER_AES128, GCRY_MD_SHA256 ...) and then calls gcry_cipher_encrypt and gcry_cipher_decrypt on the keyring buffer.",
+        "egg/egg-symkey.c uses libgcrypt hash, HMAC, MPI, and cipher APIs to implement the key-derivation and cipher-setup helpers used by the keyring backends."
+      ]
+    },
+    {
+      "name": "libssh gcrypt flavor",
+      "category": "SSH library",
+      "repository_component": "main",
+      "source_package": "libssh",
+      "source_version": "0.10.6-2ubuntu0.4",
+      "binary_package": "libssh-gcrypt-4",
+      "binary_version": "0.10.6-2ubuntu0.4",
+      "dependency_types": [
+        "compile_time",
+        "runtime"
+      ],
+      "dependency_evidence": {
+        "compile_time": "libssh 0.10.6-2ubuntu0.4 Build-Depends includes libgcrypt-dev",
+        "runtime": "libssh-gcrypt-4 0.10.6-2ubuntu0.4 Depends includes libgcrypt20 (>= 1.10.0)"
+      },
+      "runtime_functionality": "SSH session crypto in the gcrypt backend uses libgcrypt for HMACs, block ciphers, AEAD modes, big-integer helpers, and related key material handling.",
+      "runtime_evidence": [
+        "The libssh-gcrypt-4 package description explicitly says it is the gcrypt-linked libssh flavor.",
+        "src/libgcrypt.c maps SSH HMACs to gcry_md_* calls and sets up Blowfish, AES-CBC, AES-CTR, AES-GCM, and other packet-protection primitives with gcry_cipher_*."
+      ]
+    },
+    {
+      "name": "xmlsec1 gcrypt backend",
+      "category": "XML security",
+      "repository_component": "main",
+      "source_package": "xmlsec1",
+      "source_version": "1.2.39-5build2",
+      "binary_package": "libxmlsec1t64-gcrypt",
+      "binary_version": "1.2.39-5build2",
+      "dependency_types": [
+        "compile_time",
+        "runtime"
+      ],
+      "dependency_evidence": {
+        "compile_time": "xmlsec1 1.2.39-5build2 Build-Depends includes libgcrypt20-dev",
+        "runtime": "libxmlsec1t64-gcrypt 1.2.39-5build2 Depends includes libgcrypt20 (>= 1.10.0)"
+      },
+      "runtime_functionality": "This package is xmlsec's libgcrypt-backed crypto engine for XML Signature and related XML security transforms.",
+      "runtime_evidence": [
+        "The package description says it provides the gcrypt implementation of the XML security library cryptography functions.",
+        "src/gcrypt/signatures.c opens libgcrypt digest contexts with gcry_md_open and wires libgcrypt-backed RSA signature and verification transforms into xmlsec."
+      ]
+    },
+    {
+      "name": "MUNGE",
+      "category": "cluster authentication",
+      "repository_component": "universe",
+      "source_package": "munge",
+      "source_version": "0.5.15-4ubuntu0.1",
+      "binary_package": "munge",
+      "binary_version": "0.5.15-4ubuntu0.1",
+      "dependency_types": [
+        "compile_time",
+        "runtime"
+      ],
+      "dependency_evidence": {
+        "compile_time": "munge 0.5.15-4ubuntu0.1 Build-Depends includes libgcrypt20-dev",
+        "runtime": "munge 0.5.15-4ubuntu0.1 Depends includes libgcrypt20 (>= 1.10.0)"
+      },
+      "runtime_functionality": "Credential creation and validation use libgcrypt for the service's symmetric encryption, digests, and HMAC-based authentication.",
+      "runtime_evidence": [
+        "The package description says MUNGE credentials are defined by and validated with a shared cryptographic key.",
+        "src/munged/cipher.c uses gcry_cipher_open, gcry_cipher_setkey, gcry_cipher_setiv, and gcry_cipher_encrypt/decrypt, while src/common/mac.c and src/common/md.c use libgcrypt HMAC and digest APIs."
+      ]
+    },
+    {
+      "name": "Aircrack-ng",
+      "category": "wireless security auditing",
+      "repository_component": "universe",
+      "source_package": "aircrack-ng",
+      "source_version": "1:1.7+git20230807.4bf83f1a-1build2",
+      "binary_package": "aircrack-ng",
+      "binary_version": "1:1.7+git20230807.4bf83f1a-1build2",
+      "dependency_types": [
+        "compile_time",
+        "runtime"
+      ],
+      "dependency_evidence": {
+        "compile_time": "aircrack-ng 1:1.7+git20230807.4bf83f1a-1build2 Build-Depends includes libgcrypt-dev | libgcrypt20-dev | libgcrypt11-dev",
+        "runtime": "aircrack-ng 1:1.7+git20230807.4bf83f1a-1build2 Depends includes libgcrypt20 (>= 1.10.0)"
+      },
+      "runtime_functionality": "The WEP/WPA cracking suite uses libgcrypt for most of its packet and key-cracking crypto helpers, including AES, ARCFOUR, MD5, SHA-256, and AES-CMAC code paths.",
+      "runtime_evidence": [
+        "debian/README.Debian says Debian's build uses an internal SHA1 implementation and relies on libgcrypt for the rest of the crypto code.",
+        "lib/crypto/aes-128-cbc-gcrypt.c, arcfour-gcrypt.c, md5-gcrypt.c, sha256-gcrypt.c, and mac-omac1-gcrypt.c are libgcrypt-backed implementations used by the suite."
+      ]
+    },
+    {
+      "name": "Wireshark",
+      "category": "packet analysis",
+      "repository_component": "universe",
+      "source_package": "wireshark",
+      "source_version": "4.2.2-1.1build3",
+      "binary_package": "wireshark-common",
+      "binary_version": "4.2.2-1.1build3",
+      "dependency_types": [
+        "compile_time",
+        "runtime"
+      ],
+      "dependency_evidence": {
+        "compile_time": "wireshark 4.2.2-1.1build3 Build-Depends includes libgcrypt-dev",
+        "runtime": "wireshark-common 4.2.2-1.1build3 Depends includes libgcrypt20 (>= 1.10.0)"
+      },
+      "runtime_functionality": "Wireshark uses libgcrypt for encrypted-traffic analysis, especially 802.11/WPA and TDLS key derivation, packet decryption, and MIC verification, plus some capture hashing helpers.",
+      "runtime_evidence": [
+        "epan/crypt/dot11decrypt.c, dot11decrypt_ccmp.c, and dot11decrypt_gcmp.c use gcry_md_*, gcry_mac_*, and gcry_cipher_* to derive wireless keys, verify MICs, and decrypt CCMP/GCMP traffic.",
+        "editcap.c and capinfos.c also use libgcrypt digest APIs for packet and capture hashing tasks."
+      ]
+    }
+  ]
+}
