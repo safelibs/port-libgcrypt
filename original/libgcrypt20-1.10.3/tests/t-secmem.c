@@ -97,6 +97,23 @@ test_secmem_overflow (void)
 }
 
 
+static void
+test_random_bytes_secure (void)
+{
+  unsigned char *buf;
+
+  buf = gcry_random_bytes_secure (chunk_size, GCRY_STRONG_RANDOM);
+  if (!buf)
+    {
+      fail ("gcry_random_bytes_secure returned NULL\n");
+      return;
+    }
+  if (!gcry_is_secure (buf))
+    fail ("gcry_random_bytes_secure did not return secure memory\n");
+  xfree (buf);
+}
+
+
 /* This function is called when we ran out of core and there is no way
  * to return that error to the caller (xmalloc or mpi allocation).  */
 static int
@@ -204,6 +221,7 @@ main (int argc, char **argv)
 
 
   test_secmem ();
+  test_random_bytes_secure ();
   if (!in_fips_mode)
     test_secmem_overflow ();
   /* FIXME: We need to improve the tests, for example by registering

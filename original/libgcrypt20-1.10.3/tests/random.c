@@ -321,7 +321,6 @@ check_random_bytes_helpers (void)
 {
   unsigned char seed[16];
   unsigned char *buf;
-  unsigned char *secure_buf;
   gcry_error_t err;
 
   if (verbose)
@@ -338,15 +337,7 @@ check_random_bytes_helpers (void)
   if (gcry_is_secure (buf))
     die ("gcry_random_bytes unexpectedly returned secure memory\n");
 
-  secure_buf = gcry_random_bytes_secure (sizeof seed, GCRY_STRONG_RANDOM);
-  if (!secure_buf)
-    {
-      gcry_free (buf);
-      die ("gcry_random_bytes_secure returned NULL\n");
-    }
-
   gcry_free (buf);
-  gcry_free (secure_buf);
 }
 
 
