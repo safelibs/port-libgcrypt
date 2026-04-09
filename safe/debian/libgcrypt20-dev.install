@@ -1,0 +1,9 @@
+debian/tmp/usr/bin/libgcrypt-config
+debian/tmp/usr/bin/dumpsexp
+debian/tmp/usr/bin/hmac256
+debian/tmp/usr/bin/mpicalc
+debian/tmp/usr/include/gcrypt.h
+debian/tmp/usr/lib/*/libgcrypt.a
+debian/tmp/usr/lib/*/libgcrypt.so
+debian/tmp/usr/lib/*/pkgconfig/libgcrypt.pc
+debian/tmp/usr/share/aclocal/libgcrypt.m4

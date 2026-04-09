@@ -1,0 +1,21 @@
+.TH HMAC256 1 "April 2026" "hmac256 (Libgcrypt) 1.10.3" "User Commands"
+.SH NAME
+hmac256 \- compute HMAC-SHA256 digests with libgcrypt
+.SH SYNOPSIS
+.B hmac256
+[\fB\-\-binary\fR] [\fB\-\-stdkey\fR|\fIkey\fR] [\fIfile\fR ...]
+.SH DESCRIPTION
+\fBhmac256\fR computes HMAC-SHA256 digests for one or more files or for
+standard input.
+.TP
+\fB\-\-binary\fR
+Write the raw 32-byte digest instead of the hexadecimal text form.
+.TP
+\fB\-\-stdkey\fR
+Use the historical libgcrypt built-in test key.
+.TP
+\fB\-\-version\fR
+Print version information and exit.
+.TP
+\fB\-\-help\fR
+Display usage information and exit.

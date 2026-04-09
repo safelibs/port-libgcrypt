@@ -12,11 +12,9 @@ use std::os::unix::fs::PermissionsExt;
 const PACKAGE_VERSION: &str = "1.10.3";
 const VERSION_NUMBER_HEX: &str = "0x010a03";
 const LIBGCRYPT_CONFIG_API_VERSION: &str = "1";
-const LIBGCRYPT_CONFIG_HOST: &str = "x86_64-linux-gnu";
 const PREFIX: &str = "/usr";
 const EXEC_PREFIX: &str = "/usr";
 const INCLUDEDIR: &str = "/usr/include";
-const LIBDIR: &str = "/usr/lib/x86_64-linux-gnu";
 const BUILD_REVISION: &str = "aa161086";
 const BUILD_TIMESTAMP: &str = "<none>";
 const LIBGCRYPT_CIPHERS: &str = "arcfour blowfish cast5 des aes twofish serpent rfc2268 seed camellia idea salsa20 gost28147 chacha20 sm4";
@@ -26,6 +24,7 @@ const LIBGCRYPT_DIGESTS: &str = "crc gostr3411-94 md2 md4 md5 rmd160 sha1 sha256
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?);
     let out_dir = PathBuf::from(env::var("OUT_DIR")?);
+    let multiarch = deb_host_multiarch();
     let abi_dir = manifest_dir.join("abi");
     let cabi_dir = manifest_dir.join("cabi");
     let bootstrap_dir = manifest_dir.join("target").join("bootstrap");
@@ -40,8 +39,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let gcrypt_h = render_gcrypt_header(&abi_dir.join("gcrypt.h.in"))?;
-    let libgcrypt_config = render_libgcrypt_config(&abi_dir.join("libgcrypt-config.in"))?;
-    let libgcrypt_pc = render_libgcrypt_pc(&abi_dir.join("libgcrypt.pc.in"))?;
+    let libgcrypt_config = render_libgcrypt_config(&abi_dir.join("libgcrypt-config.in"), &multiarch)?;
+    let libgcrypt_pc = render_libgcrypt_pc(&abi_dir.join("libgcrypt.pc.in"), &multiarch)?;
     let symbols = parse_version_script(&abi_dir.join("libgcrypt.vers"))?;
     let c_stub_source = generate_c_stub_source(&symbols);
 
@@ -97,6 +96,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "cargo:rerun-if-changed={}",
         cabi_dir.join("exports.h").display()
     );
+    println!("cargo:rerun-if-env-changed=DEB_HOST_MULTIARCH");
     println!("cargo:rustc-link-search=native={}", out_dir.display());
     println!("cargo:rustc-link-lib=static:+whole-archive=safe_cabi");
     println!("cargo:rustc-link-lib=gmp");
@@ -130,14 +130,19 @@ fn render_gcrypt_header(path: &Path) -> io::Result<String> {
         .replace("@VERSION_NUMBER@", VERSION_NUMBER_HEX))
 }
 
-fn render_libgcrypt_pc(path: &Path) -> io::Result<String> {
+fn deb_host_multiarch() -> String {
+    env::var("DEB_HOST_MULTIARCH").unwrap_or_else(|_| "x86_64-linux-gnu".to_string())
+}
+
+fn render_libgcrypt_pc(path: &Path, multiarch: &str) -> io::Result<String> {
     let template = fs::read_to_string(path)?;
+    let libdir = format!("/usr/lib/{multiarch}");
     Ok(template
         .replace("@prefix@", PREFIX)
         .replace("@exec_prefix@", EXEC_PREFIX)
         .replace("@includedir@", INCLUDEDIR)
-        .replace("@libdir@", LIBDIR)
-        .replace("@LIBGCRYPT_CONFIG_HOST@", LIBGCRYPT_CONFIG_HOST)
+        .replace("@libdir@", &libdir)
+        .replace("@LIBGCRYPT_CONFIG_HOST@", multiarch)
         .replace(
             "@LIBGCRYPT_CONFIG_API_VERSION@",
             LIBGCRYPT_CONFIG_API_VERSION,
@@ -151,15 +156,16 @@ fn render_libgcrypt_pc(path: &Path) -> io::Result<String> {
         .replace("@DL_LIBS@", ""))
 }
 
-fn render_libgcrypt_config(path: &Path) -> io::Result<String> {
+fn render_libgcrypt_config(path: &Path, multiarch: &str) -> io::Result<String> {
     let template = fs::read_to_string(path)?;
+    let libdir = format!("/usr/lib/{multiarch}");
     let rendered = template
         .replace("@configure_input@", "safe/abi/libgcrypt-config.in")
         .replace("@prefix@", PREFIX)
         .replace("@exec_prefix@", EXEC_PREFIX)
         .replace("@PACKAGE_VERSION@", PACKAGE_VERSION)
         .replace("@includedir@", INCLUDEDIR)
-        .replace("@libdir@", LIBDIR)
+        .replace("@libdir@", &libdir)
         .replace("@GPG_ERROR_LIBS@", "-lgpg-error")
         .replace("@GPG_ERROR_CFLAGS@", "")
         .replace("@LIBGCRYPT_CONFIG_LIBS@", "-lgcrypt")
@@ -168,7 +174,7 @@ fn render_libgcrypt_config(path: &Path) -> io::Result<String> {
             "@LIBGCRYPT_CONFIG_API_VERSION@",
             LIBGCRYPT_CONFIG_API_VERSION,
         )
-        .replace("@LIBGCRYPT_CONFIG_HOST@", LIBGCRYPT_CONFIG_HOST)
+        .replace("@LIBGCRYPT_CONFIG_HOST@", multiarch)
         .replace("@LIBGCRYPT_CIPHERS@", LIBGCRYPT_CIPHERS)
         .replace("@LIBGCRYPT_PUBKEY_CIPHERS@", LIBGCRYPT_PUBKEY_CIPHERS)
         .replace("@LIBGCRYPT_DIGESTS@", LIBGCRYPT_DIGESTS);

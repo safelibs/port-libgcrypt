@@ -2,6 +2,39 @@
 set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+implementation=original
+
+usage() {
+  cat <<'EOF'
+Usage: test-original.sh [--implementation original|safe]
+EOF
+}
+
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --implementation)
+      implementation="$2"
+      shift 2
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+case "${implementation}" in
+  original|safe)
+    ;;
+  *)
+    echo "unsupported implementation: ${implementation}" >&2
+    exit 1
+    ;;
+esac
 
 if [[ ! -f "$repo_root/dependents.json" ]]; then
   echo "missing $repo_root/dependents.json" >&2
@@ -20,12 +53,16 @@ fi
 
 docker run --rm -i \
   -e DEBIAN_FRONTEND=noninteractive \
+  -e IMPLEMENTATION="${implementation}" \
   -v "$repo_root:/work:ro" \
   -w /tmp \
   ubuntu:24.04 \
   bash -s <<'DOCKER_SCRIPT'
 set -euo pipefail
 
+IMPLEMENTATION="${IMPLEMENTATION:-original}"
+REPO_DIR=/work
+SAFE_WORKTREE=/tmp/safe-worktree
 log_dir=/tmp/test-original-logs
 mkdir -p "$log_dir"
 
@@ -94,19 +131,34 @@ fetch_source_dir() {
 assert_uses_built_libgcrypt() {
   local name=$1
   shift
+  local trace loaded real
 
-  if ! env LD_LIBRARY_PATH="$LD_LIBRARY_PATH" LD_TRACE_LOADED_OBJECTS=1 "$@" 2>/dev/null |
-      grep -Fq "$LIBGCRYPT_PREFIX/lib/libgcrypt.so.20"; then
+  trace=$(env \
+    LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}" \
+    SAFE_SYSTEM_LIBGCRYPT_PATH="${SAFE_SYSTEM_LIBGCRYPT_PATH:-}" \
+    LD_TRACE_LOADED_OBJECTS=1 \
+    "$@" 2>/dev/null || true)
+  loaded=$(awk '/libgcrypt\.so\.20/ {print $3; exit}' <<<"$trace")
+  if [[ -z "$loaded" ]]; then
     printf 'built libgcrypt was not used by %s\n' "$name" >&2
-    env LD_LIBRARY_PATH="$LD_LIBRARY_PATH" LD_TRACE_LOADED_OBJECTS=1 "$@" 2>/dev/null >&2 || true
+    printf '%s\n' "$trace" >&2
+    return 1
+  fi
+
+  real=$(readlink -f "$loaded")
+  if [[ "$real" != "$LIBGCRYPT_EXPECTED_REALPATH" ]]; then
+    printf 'unexpected libgcrypt path for %s: %s (expected %s)\n' \
+      "$name" "$real" "$LIBGCRYPT_EXPECTED_REALPATH" >&2
+    printf '%s\n' "$trace" >&2
     return 1
   fi
 }
 
 validate_dependents_json() {
-  python3 - <<'PY'
+  python3 - "${REPO_DIR}/dependents.json" <<'PY'
 import json
 from pathlib import Path
+import sys
 
 expected = {
     "libapt-pkg6.0t64",
@@ -119,11 +171,84 @@ expected = {
     "wireshark-common",
 }
 
-data = json.loads(Path("/work/dependents.json").read_text())
+data = json.loads(Path(sys.argv[1]).read_text())
 actual = {entry["binary_package"] for entry in data["dependents"]}
 if actual != expected:
     raise SystemExit(f"dependents.json drifted: {sorted(actual)} != {sorted(expected)}")
 PY
+}
+
+copy_committed_repo_inputs() {
+  rm -rf "$SAFE_WORKTREE"
+  mkdir -p "$SAFE_WORKTREE"
+  git -C /work archive --format=tar HEAD | tar -xf - -C "$SAFE_WORKTREE"
+  REPO_DIR="$SAFE_WORKTREE"
+}
+
+stash_upstream_libgcrypt() {
+  local system_lib real_lib base
+
+  system_lib=$(ldconfig -p | awk '/libgcrypt\.so\.20 .*=>/ {print $NF; exit}')
+  [[ -n "$system_lib" ]] || {
+    echo "failed to locate system libgcrypt.so.20" >&2
+    return 1
+  }
+
+  real_lib=$(readlink -f "$system_lib")
+  base=$(basename "$real_lib")
+  mkdir -p /opt/libgcrypt-upstream
+  cp "$real_lib" "/opt/libgcrypt-upstream/$base"
+  ln -sfn "$base" /opt/libgcrypt-upstream/libgcrypt.so.20
+  export SAFE_SYSTEM_LIBGCRYPT_PATH=/opt/libgcrypt-upstream/libgcrypt.so.20
+}
+
+build_safe_debs() {
+  local cargo_home
+  cargo_home=$(mktemp -d)
+  trap 'rm -rf "$cargo_home"' RETURN
+
+  (
+    cd "$REPO_DIR"
+    CARGO_HOME="$cargo_home" CARGO_NET_OFFLINE=true safe/scripts/build-debs.sh
+  )
+}
+
+install_safe_debs() {
+  local multiarch
+
+  stash_upstream_libgcrypt
+  dpkg -i "$REPO_DIR"/safe/dist/libgcrypt20_*.deb "$REPO_DIR"/safe/dist/libgcrypt20-dev_*.deb
+
+  multiarch="$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
+  export LIBGCRYPT_EXPECTED_REALPATH
+  LIBGCRYPT_EXPECTED_REALPATH="$(readlink -f "/usr/lib/${multiarch}/libgcrypt.so.20")"
+  export LD_LIBRARY_PATH="/usr/lib/${multiarch}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+  export PKG_CONFIG_PATH="/usr/lib/${multiarch}/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+}
+
+run_safe_helper_smoke() {
+  (
+    cd "$REPO_DIR"
+    SAFE_SYSTEM_LIBGCRYPT_PATH="${SAFE_SYSTEM_LIBGCRYPT_PATH}" \
+      safe/scripts/check-installed-tools.sh --dist safe/dist
+  )
+}
+
+setup_original_under_test() {
+  local build_dir=/tmp/build-libgcrypt
+
+  export LIBGCRYPT_PREFIX=/opt/libgcrypt-under-test
+  run_logged "configure original libgcrypt" "$log_dir/libgcrypt-configure.log" \
+    bash -lc "rm -rf '$build_dir' '$LIBGCRYPT_PREFIX' && mkdir -p '$build_dir' && cd '$build_dir' && /work/original/libgcrypt20-1.10.3/configure --prefix='$LIBGCRYPT_PREFIX'"
+  run_logged "build original libgcrypt" "$log_dir/libgcrypt-make.log" \
+    bash -lc "cd '$build_dir' && make -j\"\$(nproc)\""
+  run_logged "install original libgcrypt" "$log_dir/libgcrypt-install.log" \
+    bash -lc "cd '$build_dir' && make install"
+
+  export LIBGCRYPT_EXPECTED_REALPATH
+  LIBGCRYPT_EXPECTED_REALPATH="$(readlink -f "$LIBGCRYPT_PREFIX/lib/libgcrypt.so.20")"
+  export LD_LIBRARY_PATH="$LIBGCRYPT_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+  export PKG_CONFIG_PATH="$LIBGCRYPT_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
 }
 
 test_apt_libapt_pkg() {
@@ -212,6 +337,7 @@ test_gnome_keyring() {
     dbus-run-session -- bash -lc '
       set -euo pipefail
       export LD_LIBRARY_PATH='"'"$LD_LIBRARY_PATH"'"'
+      export SAFE_SYSTEM_LIBGCRYPT_PATH='"'"${SAFE_SYSTEM_LIBGCRYPT_PATH:-}"'"'
       export HOME='"'"$HOME"'"'
 
       eval "$(gnome-keyring-daemon --start --components=secrets)"
@@ -415,7 +541,9 @@ test_munge() {
   chmod 0400 /etc/munge/munge.key
   chown munge:munge /etc/munge/munge.key
 
-  runuser -u munge -- env LD_LIBRARY_PATH="$LD_LIBRARY_PATH" \
+  runuser -u munge -- env \
+    LD_LIBRARY_PATH="$LD_LIBRARY_PATH" \
+    SAFE_SYSTEM_LIBGCRYPT_PATH="${SAFE_SYSTEM_LIBGCRYPT_PATH:-}" \
     munged --pid-file /run/munge/munged.pid --socket /run/munge/munge.socket.2
   munged_pid=$(cat /run/munge/munged.pid)
 
@@ -459,48 +587,84 @@ test_wireshark() {
   )
 }
 
+base_packages=(
+  aircrack-ng
+  build-essential
+  dbus
+  dbus-user-session
+  dbus-x11
+  gnome-keyring
+  gnupg
+  libapt-pkg-dev
+  libgpg-error-dev
+  libsecret-tools
+  libssh-gcrypt-dev
+  libxmlsec1-dev
+  munge
+  openssh-server
+  pkg-config
+  python3
+  texinfo
+  tshark
+  wireshark-common
+)
+
+safe_extra_packages=(
+  autoconf
+  automake
+  cargo
+  ca-certificates
+  curl
+  debhelper
+  dpkg-dev
+  fakeroot
+  git
+  libgmp-dev
+  rustc
+)
+
+setup_modern_rust_toolchain() {
+  local cargo_version
+  cargo_version="$(cargo --version | awk '{print $2}')"
+  if dpkg --compare-versions "${cargo_version}" ge 1.85; then
+    return 0
+  fi
+
+  curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable
+  export PATH="/root/.cargo/bin:${PATH}"
+}
+
 run_logged "apt update" "$log_dir/apt-update.log" apt-get update
-run_logged "install build and runtime dependencies" "$log_dir/apt-install.log" \
-  apt-get install -y --no-install-recommends \
-    aircrack-ng \
-    build-essential \
-    dbus \
-    dbus-user-session \
-    dbus-x11 \
-    gnome-keyring \
-    gnupg \
-    libapt-pkg-dev \
-    libgpg-error-dev \
-    libsecret-tools \
-    libssh-gcrypt-dev \
-    libxmlsec1-dev \
-    munge \
-    openssh-server \
-    pkg-config \
-    python3 \
-    texinfo \
-    tshark \
-    wireshark-common
+if [[ "$IMPLEMENTATION" == "safe" ]]; then
+  run_logged "install build and runtime dependencies" "$log_dir/apt-install.log" \
+    apt-get install -y --no-install-recommends "${base_packages[@]}" "${safe_extra_packages[@]}"
+else
+  run_logged "install build and runtime dependencies" "$log_dir/apt-install.log" \
+    apt-get install -y --no-install-recommends "${base_packages[@]}"
+fi
 run_logged "enable source repositories" "$log_dir/enable-deb-src.log" \
   bash -lc "sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources && apt-get update"
+
+if [[ "$IMPLEMENTATION" == "safe" ]]; then
+  run_step "copy committed repository inputs" copy_committed_repo_inputs
+fi
+
+if [[ "$IMPLEMENTATION" == "safe" ]]; then
+  run_step "install modern Rust toolchain" setup_modern_rust_toolchain
+fi
 
 run_step "validate dependents.json coverage" validate_dependents_json
 capture_step "fetch aircrack-ng source" "$log_dir/fetch-aircrack.log" aircrack_src fetch_source_dir aircrack-ng
 capture_step "fetch wireshark source" "$log_dir/fetch-wireshark.log" wireshark_src fetch_source_dir wireshark
 capture_step "fetch xmlsec1 source" "$log_dir/fetch-xmlsec.log" xmlsec_src fetch_source_dir xmlsec1
 
-LIBGCRYPT_PREFIX=/opt/libgcrypt-under-test
-build_dir=/tmp/build-libgcrypt
-run_logged "configure original libgcrypt" "$log_dir/libgcrypt-configure.log" \
-  bash -lc "rm -rf '$build_dir' '$LIBGCRYPT_PREFIX' && mkdir -p '$build_dir' && cd '$build_dir' && /work/original/libgcrypt20-1.10.3/configure --prefix='$LIBGCRYPT_PREFIX'"
-run_logged "build original libgcrypt" "$log_dir/libgcrypt-make.log" \
-  bash -lc "cd '$build_dir' && make -j\"\$(nproc)\""
-run_logged "install original libgcrypt" "$log_dir/libgcrypt-install.log" \
-  bash -lc "cd '$build_dir' && make install"
-
-export LIBGCRYPT_PREFIX
-export LD_LIBRARY_PATH="$LIBGCRYPT_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-export PKG_CONFIG_PATH="$LIBGCRYPT_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+if [[ "$IMPLEMENTATION" == "safe" ]]; then
+  run_step "build safe Debian packages" build_safe_debs
+  run_step "install safe Debian packages" install_safe_debs
+  run_step "smoke installed helper tools" run_safe_helper_smoke
+else
+  setup_original_under_test
+fi
 
 run_step "test APT / libapt-pkg hashing" test_apt_libapt_pkg
 run_step "test GnuPG signing and encryption" test_gpg
@@ -511,5 +675,5 @@ run_step "test MUNGE credential encode/decode" test_munge
 run_step "test aircrack-ng WPA cracking sample" test_aircrack_ng
 run_step "test Wireshark WPA decryption" test_wireshark
 
-printf '\nAll dependent-software checks passed against the original libgcrypt build.\n'
+printf '\nAll dependent-software checks passed against the %s libgcrypt build.\n' "$IMPLEMENTATION"
 DOCKER_SCRIPT

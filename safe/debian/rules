@@ -1,0 +1,62 @@
+#!/usr/bin/make -f
+
+include /usr/share/dpkg/buildflags.mk
+
+export DPKG_GENSYMBOLS_CHECK_LEVEL = 4
+export DEB_BUILD_MAINT_OPTIONS := hardening=+bindnow
+export CARGO_NET_OFFLINE := true
+export CARGO_TARGET_DIR := $(CURDIR)/target
+export CARGO_HOME := $(CURDIR)/debian/cargo-home
+
+ifeq ($(origin DEB_HOST_MULTIARCH), undefined)
+export DEB_HOST_MULTIARCH = $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
+endif
+
+LIBGCRYPT_FULL_SO := libgcrypt.so.20.4.3
+RUST_STATICLIB := $(CARGO_TARGET_DIR)/release/libgcrypt.a
+RUST_SHARED_LIB := $(CARGO_TARGET_DIR)/release/libgcrypt.so
+
+%:
+	dh $@
+
+override_dh_auto_clean:
+	rm -rf debian/cargo-home debian/tmp
+	cargo clean --manifest-path Cargo.toml
+
+override_dh_auto_build:
+	test -d vendor
+	test -f Cargo.lock
+	rm -rf "$(CARGO_HOME)"
+	mkdir -p "$(CARGO_HOME)"
+	cargo build --manifest-path Cargo.toml --release --locked --offline --bins --lib
+	rm -f "$(RUST_SHARED_LIB).tmp"
+	$(CC) $(LDFLAGS) -shared -o "$(RUST_SHARED_LIB).tmp" \
+		-Wl,--version-script=$(CURDIR)/abi/libgcrypt.vers \
+		-Wl,-soname,libgcrypt.so.20 \
+		-Wl,--no-gc-sections \
+		-Wl,--whole-archive "$(RUST_STATICLIB)" \
+		-Wl,--no-whole-archive \
+		-lgpg-error -lgmp -ldl -lpthread -lm -lc -lgcc_s
+	mv -f "$(RUST_SHARED_LIB).tmp" "$(RUST_SHARED_LIB)"
+
+override_dh_auto_install:
+	install -d debian/tmp/usr/bin
+	install -d debian/tmp/usr/include
+	install -d debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig
+	install -d debian/tmp/usr/share/aclocal
+	install -d debian/tmp/usr/share/libgcrypt20
+	install -m755 target/release/libgcrypt.so debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/$(LIBGCRYPT_FULL_SO)
+	install -m755 target/release/libgcrypt.so debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/libgcrypt.so.20
+	install -m755 target/release/libgcrypt.so debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/libgcrypt.so
+	install -m644 target/release/libgcrypt.a debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/libgcrypt.a
+	install -m644 target/bootstrap/generated/include/gcrypt.h debian/tmp/usr/include/gcrypt.h
+	install -m644 target/bootstrap/generated/pkgconfig/libgcrypt.pc debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig/libgcrypt.pc
+	install -m755 target/bootstrap/generated/bin/libgcrypt-config debian/tmp/usr/bin/libgcrypt-config
+	install -m755 target/release/dumpsexp debian/tmp/usr/bin/dumpsexp
+	install -m755 target/release/hmac256 debian/tmp/usr/bin/hmac256
+	install -m755 target/release/mpicalc debian/tmp/usr/bin/mpicalc
+	install -m644 abi/libgcrypt.m4 debian/tmp/usr/share/aclocal/libgcrypt.m4
+	install -m755 debian/clean-up-unmanaged-libraries debian/tmp/usr/share/libgcrypt20/clean-up-unmanaged-libraries
+
+override_dh_missing:
+	dh_missing --fail-missing

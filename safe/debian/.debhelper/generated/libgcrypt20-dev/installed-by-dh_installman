@@ -1,0 +1,3 @@
+./debian/dumpsexp.8
+./debian/hmac256.1
+./debian/libgcrypt-config.1

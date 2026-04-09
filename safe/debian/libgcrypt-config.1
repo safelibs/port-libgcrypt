@@ -1,0 +1,28 @@
+.TH LIBGCRYPT 1 "April 2026" Version 1.10.3
+.SH NAME
+libgcrypt-config \- script to get information about the installed version of libgcrypt
+.SH SYNOPSIS
+.B libgcrypt-config
+[\-\-prefix\fI[=DIR]\fP] [\-\-exec\-prefix\fI[=DIR]\fP] [\-\-version] [\-\-libs] [\-\-cflags]
+.SH DESCRIPTION
+\fIlibgcrypt-config\fP prints the compiler and linker flags that should be
+used to compile and link programs against \fIlibgcrypt\fP. It is also used
+by the installed \fIlibgcrypt.m4\fP macro for GNU autoconf.
+.SH OPTIONS
+.TP
+.B \-\-version
+Print the installed libgcrypt version.
+.TP
+.B \-\-libs
+Print the linker flags required for libgcrypt.
+.TP
+.B \-\-cflags
+Print the compiler flags required for libgcrypt.
+.TP
+.B \-\-prefix=PREFIX
+Use PREFIX instead of the configured installation prefix when computing
+output for \fB\-\-cflags\fR and \fB\-\-libs\fR.
+.TP
+.B \-\-exec\-prefix=PREFIX
+Use PREFIX instead of the configured exec prefix when computing output for
+\fB\-\-cflags\fR and \fB\-\-libs\fR.

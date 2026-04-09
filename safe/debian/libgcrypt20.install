@@ -1,0 +1,2 @@
+debian/tmp/usr/lib/*/libgcrypt.so.20*
+debian/tmp/usr/share/libgcrypt20/clean-up-unmanaged-libraries

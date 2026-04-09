@@ -197,16 +197,23 @@ where
 }
 
 unsafe fn open_upstream_handle() -> *mut c_void {
-    let mut candidates = Vec::new();
-    if let Some(path) = option_env!("SAFE_SYSTEM_LIBGCRYPT_PATH") {
-        candidates.push(path);
+    let mut candidates: Vec<String> = Vec::new();
+    if let Some(path) = std::env::var_os("SAFE_SYSTEM_LIBGCRYPT_PATH") {
+        candidates.push(path.to_string_lossy().into_owned());
     }
-    candidates.extend([
-        "/lib/x86_64-linux-gnu/libgcrypt.so.20",
-        "/usr/lib/x86_64-linux-gnu/libgcrypt.so.20",
-        "/lib64/libgcrypt.so.20",
-        "/usr/lib64/libgcrypt.so.20",
-    ]);
+    if let Some(path) = option_env!("SAFE_SYSTEM_LIBGCRYPT_PATH") {
+        candidates.push(path.to_string());
+    }
+    candidates.extend(
+        [
+            "/lib/x86_64-linux-gnu/libgcrypt.so.20",
+            "/usr/lib/x86_64-linux-gnu/libgcrypt.so.20",
+            "/lib64/libgcrypt.so.20",
+            "/usr/lib64/libgcrypt.so.20",
+        ]
+        .into_iter()
+        .map(str::to_string),
+    );
 
     for path in candidates {
         let Ok(path) = CString::new(path) else {

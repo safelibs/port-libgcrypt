@@ -1,0 +1,14 @@
+Package: libgcrypt20-dbgsym
+Package-Type: ddeb
+Source: libgcrypt20
+Version: 1.10.3+safe1
+Auto-Built-Package: debug-symbols
+Architecture: amd64
+Maintainer: Safe Libgcrypt Port Maintainers <maintainers@example.invalid>
+Installed-Size: 1505
+Depends: libgcrypt20 (= 1.10.3+safe1)
+Section: debug
+Priority: optional
+Multi-Arch: same
+Description: debug symbols for libgcrypt20
+Build-Ids: 5bccf26e73196dc3bf1b55e2ffe8f8800bcb7e41
