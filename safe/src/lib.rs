@@ -5,12 +5,14 @@
 use std::ffi::{c_char, c_int, c_uint, c_void};
 
 mod alloc;
+mod cipher;
 mod config;
 mod context;
 mod digest;
 mod drbg;
 mod error;
 mod global;
+mod hwfeatures;
 mod kdf;
 mod log;
 mod mac;

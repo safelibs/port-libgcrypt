@@ -4,9 +4,11 @@ use std::sync::{Mutex, OnceLock};
 
 use crate::context;
 use crate::error;
+use crate::hwfeatures;
 use crate::log;
 use crate::random;
 use crate::secmem::{self, SecureMemoryState};
+use crate::upstream;
 use crate::{
     PACKAGE_VERSION_BYTES, gcry_handler_alloc_t, gcry_handler_free_t, gcry_handler_no_mem_t,
     gcry_handler_realloc_t, gcry_handler_secure_check_t,
@@ -48,6 +50,7 @@ const GCRYCTL_PRINT_CONFIG: u32 = 53;
 const GCRYCTL_OPERATIONAL_P: u32 = 54;
 const GCRYCTL_FIPS_MODE_P: u32 = 55;
 const GCRYCTL_FORCE_FIPS_MODE: u32 = 56;
+const GCRYCTL_SELFTEST: u32 = 57;
 const PRIV_CTL_INIT_EXTRNG_TEST: u32 = 58;
 const PRIV_CTL_RUN_EXTRNG_TEST: u32 = 59;
 const PRIV_CTL_DEINIT_EXTRNG_TEST: u32 = 60;
@@ -212,42 +215,6 @@ fn truthy_success() -> u32 {
 
 fn control_result(code: u32) -> u32 {
     error::gcry_error_from_code(code)
-}
-
-fn disable_hw_features(state: &mut RuntimeState, names: &CStr) -> u32 {
-    const KNOWN_X86_FEATURES: &[&str] = &[
-        "all",
-        "padlock-rng",
-        "padlock-aes",
-        "padlock-sha",
-        "padlock-mmul",
-        "intel-cpu",
-        "intel-fast-shld",
-        "intel-bmi2",
-        "intel-ssse3",
-        "intel-sse4.1",
-        "intel-pclmul",
-        "intel-aesni",
-        "intel-rdrand",
-        "intel-avx",
-        "intel-avx2",
-        "intel-fast-vpgather",
-        "intel-rdtsc",
-        "intel-shaext",
-        "intel-vaes-vpclmul",
-    ];
-
-    let names = names.to_string_lossy();
-    for token in names.split([':', ',']) {
-        if token.is_empty() {
-            continue;
-        }
-        if !KNOWN_X86_FEATURES.iter().any(|known| known == &token) {
-            return error::GPG_ERR_INV_NAME;
-        }
-        state.disabled_hw_features.insert(token.to_string());
-    }
-    0
 }
 
 pub(crate) fn current_rng_type() -> c_int {
@@ -479,6 +446,14 @@ pub extern "C" fn safe_gcry_control_dispatch(
                 return truthy_success();
             }
         }
+        GCRYCTL_SELFTEST => {
+            prefer_default_rng(&mut state);
+            if arg0 != 0 {
+                error::GPG_ERR_INV_ARG
+            } else {
+                0
+            }
+        }
         GCRYCTL_NO_FIPS_MODE => {
             prefer_default_rng(&mut state);
             if !state.any_init_done {
@@ -500,7 +475,21 @@ pub extern "C" fn safe_gcry_control_dispatch(
             else {
                 return 0;
             };
-            disable_hw_features(&mut state, name)
+            let sanitized = match hwfeatures::sanitize_disable_request(name) {
+                Ok(value) => value,
+                Err(code) => return control_result(code),
+            };
+            if let Some(ref names) = sanitized {
+                let upstream_rc = upstream::disable_hw_features_preinit(names.as_c_str());
+                if upstream_rc != 0 {
+                    return upstream_rc;
+                }
+            }
+            hwfeatures::remember_disabled_features(
+                &mut state.disabled_hw_features,
+                sanitized.as_deref(),
+            );
+            0
         }
         GCRYCTL_SET_ENFORCED_FIPS_FLAG => 0,
         GCRYCTL_SET_PREFERRED_RNG_TYPE => {

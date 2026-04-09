@@ -4,6 +4,7 @@ use std::ptr::null_mut;
 use crate::alloc;
 use crate::error;
 use crate::global;
+use crate::hwfeatures;
 use crate::log;
 use crate::{FILE, GCRYPT_VERSION_NUMBER, PACKAGE_VERSION, set_errno};
 
@@ -92,44 +93,7 @@ fn mpi_asm_line() -> String {
 
 fn hwflist_line() -> String {
     let state = global::lock_runtime_state();
-    let disabled = &state.disabled_hw_features;
-    let mut features = Vec::new();
-
-    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    {
-        let enabled = |name: &str| !disabled.contains("all") && !disabled.contains(name);
-
-        if enabled("intel-cpu") {
-            features.push("intel-cpu");
-        }
-        if enabled("intel-bmi2") && std::is_x86_feature_detected!("bmi2") {
-            features.push("intel-bmi2");
-        }
-        if enabled("intel-ssse3") && std::is_x86_feature_detected!("ssse3") {
-            features.push("intel-ssse3");
-        }
-        if enabled("intel-sse4.1") && std::is_x86_feature_detected!("sse4.1") {
-            features.push("intel-sse4.1");
-        }
-        if enabled("intel-pclmul") && std::is_x86_feature_detected!("pclmulqdq") {
-            features.push("intel-pclmul");
-        }
-        if enabled("intel-aesni") && std::is_x86_feature_detected!("aes") {
-            features.push("intel-aesni");
-        }
-        if enabled("intel-rdrand") && std::is_x86_feature_detected!("rdrand") {
-            features.push("intel-rdrand");
-        }
-        if enabled("intel-avx") && std::is_x86_feature_detected!("avx") {
-            features.push("intel-avx");
-        }
-        if enabled("intel-avx2") && std::is_x86_feature_detected!("avx2") {
-            features.push("intel-avx2");
-        }
-        if enabled("intel-shaext") && std::is_x86_feature_detected!("sha") {
-            features.push("intel-shaext");
-        }
-    }
+    let features = hwfeatures::active_feature_names(&state.disabled_hw_features);
 
     if features.is_empty() {
         "hwflist:".to_string()

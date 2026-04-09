@@ -56,8 +56,11 @@ prepare_harness_tree() {
 
   ln -s "${ORIGINAL_DIR}/compat/compat.c" "${compat_stage}/compat.c"
   ln -s "${ORIGINAL_DIR}/compat/libcompat.h" "${compat_stage}/libcompat.h"
-  ln -s "${ORIGINAL_DIR}/tests/t-common.h" "${tests_stage}/t-common.h"
-  ln -s "${ORIGINAL_DIR}/tests/stopwatch.h" "${tests_stage}/stopwatch.h"
+
+  while IFS= read -r -d '' file; do
+    ln -s "${file}" "${tests_stage}/$(basename "${file}")"
+  done < <(find "${ORIGINAL_DIR}/tests" -maxdepth 1 -type f ! -name '*.c' -print0)
+
   ln -s "${WRAPPER_BASIC}" "${tests_stage}/basic-disable-all-hwf"
   ln -s "${WRAPPER_HASH}" "${tests_stage}/hashtest-256g"
 }
@@ -90,33 +93,70 @@ compile_compat_object() {
     -o "${HARNESS_ROOT}/build/compat.o"
 }
 
+source_test_name() {
+  case "$1" in
+    basic-disable-all-hwf) printf '%s\n' "basic" ;;
+    hashtest-256g) printf '%s\n' "hashtest" ;;
+    *) printf '%s\n' "$1" ;;
+  esac
+}
+
+binary_test_name() {
+  case "$1" in
+    basic-disable-all-hwf) printf '%s\n' "basic" ;;
+    hashtest-256g) printf '%s\n' "hashtest" ;;
+    *) printf '%s\n' "$1" ;;
+  esac
+}
+
 compile_test() {
-  local test_name source_path output_path extra_link
+  local test_name source_name binary_name source_path output_path extra_link
   test_name="$1"
-  source_path="${HARNESS_ROOT}/tests/${test_name}.c"
-  output_path="${HARNESS_ROOT}/build/${test_name}"
+  source_name="$(source_test_name "${test_name}")"
+  binary_name="$(binary_test_name "${test_name}")"
+  source_path="${HARNESS_ROOT}/tests/${source_name}.c"
+  output_path="${HARNESS_ROOT}/build/${binary_name}"
   extra_link="$(maybe_disable_new_dtags_flag || true)"
 
-  cc \
-    -DHAVE_CONFIG_H=1 \
-    -I"${SAFE_DIR}/tests/original-build" \
-    -I"${HARNESS_ROOT}/tests" \
-    -I"${HARNESS_ROOT}/src" \
-    "${source_path}" \
-    "${HARNESS_ROOT}/build/compat.o" \
-    -L"${STAGE_LIBDIR}" \
-    -Wl,-rpath,"${STAGE_LIBDIR}" \
-    ${extra_link:+${extra_link}} \
-    -lgcrypt -lgpg-error \
-    -o "${output_path}"
+  if [[ ! -x "${output_path}" ]]; then
+    cc \
+      -DHAVE_CONFIG_H=1 \
+      -I"${SAFE_DIR}/tests/original-build" \
+      -I"${HARNESS_ROOT}/tests" \
+      -I"${HARNESS_ROOT}/src" \
+      "${source_path}" \
+      "${HARNESS_ROOT}/build/compat.o" \
+      -L"${STAGE_LIBDIR}" \
+      -Wl,-rpath,"${STAGE_LIBDIR}" \
+      ${extra_link:+${extra_link}} \
+      -pthread \
+      -lgcrypt -lgpg-error \
+      -o "${output_path}"
+  fi
+
+  if [[ "${test_name}" != "${binary_name}" ]]; then
+    ln -sfn "../tests/${test_name}" "${HARNESS_ROOT}/build/${test_name}"
+  fi
 }
 
 run_test() {
   local test_name
   test_name="$1"
-  GCRYPT_IN_REGRESSION_TEST=1 \
-  LD_LIBRARY_PATH="${STAGE_LIBDIR}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" \
-    "${HARNESS_ROOT}/build/${test_name}"
+  (
+    cd "${HARNESS_ROOT}/build"
+    case "${test_name}" in
+      basic)
+        GCRYPT_IN_REGRESSION_TEST=1 \
+        LD_LIBRARY_PATH="${STAGE_LIBDIR}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" \
+          ./basic --cipher-modes
+        ;;
+      *)
+        GCRYPT_IN_REGRESSION_TEST=1 \
+        LD_LIBRARY_PATH="${STAGE_LIBDIR}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" \
+          "./${test_name}"
+        ;;
+    esac
+  )
 }
 
 verify_plumbing() {
@@ -163,11 +203,6 @@ main() {
   stage_install_tree
   prepare_harness_tree
 
-  for test_name in "${tests[@]}"; do
-    require_file "${ORIGINAL_DIR}/tests/${test_name}.c"
-    ln -s "${ORIGINAL_DIR}/tests/${test_name}.c" "${HARNESS_ROOT}/tests/${test_name}.c"
-  done
-
   if [[ "${verify_plumbing_mode}" -eq 1 ]]; then
     verify_plumbing
   fi
@@ -175,6 +210,10 @@ main() {
   compile_compat_object
 
   for test_name in "${tests[@]}"; do
+    local_source_name="$(source_test_name "${test_name}")"
+    require_file "${ORIGINAL_DIR}/tests/${local_source_name}.c"
+    ln -sfn "${ORIGINAL_DIR}/tests/${local_source_name}.c" \
+      "${HARNESS_ROOT}/tests/${local_source_name}.c"
     compile_test "${test_name}"
     run_test "${test_name}"
   done
