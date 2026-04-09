@@ -307,18 +307,29 @@ test_gpg() {
   assert_uses_built_libgcrypt "gpg" /usr/bin/gpg
 
   export GNUPGHOME=/tmp/gnupg-test
+  local fixture_home="$REPO_DIR/safe/tests/compat/tool-fixtures/gnupg-home"
+
+  if [[ ! -d "$fixture_home" ]]; then
+    echo "missing fixture GnuPG home: $fixture_home" >&2
+    return 1
+  fi
+
   rm -rf "$GNUPGHOME"
   mkdir -m 700 -p "$GNUPGHOME"
+  cp -a "$fixture_home"/. "$GNUPGHOME"/
+  chmod 700 "$GNUPGHOME"
+  find "$GNUPGHOME" -type d -exec chmod 700 {} +
+  find "$GNUPGHOME" -type f -exec chmod 600 {} +
 
-  gpg --batch --import "$REPO_DIR/safe/tests/compat/tool-fixtures/gpg-test-secret.asc"
   printf 'libgcrypt gpg test\n' > /tmp/message.txt
-  gpg --batch --yes --armor --output /tmp/message.txt.asc --sign /tmp/message.txt
+  gpg --batch --yes --pinentry-mode loopback --armor --output /tmp/message.txt.asc --sign /tmp/message.txt
   gpg --batch --verify /tmp/message.txt.asc >/tmp/gpg-verify.log 2>&1
-  gpg --batch --yes --trust-model always --armor \
+  gpg --batch --yes --pinentry-mode loopback --trust-model always --armor \
     --recipient gcrypt@example.com \
     --output /tmp/message.txt.gpg \
     --encrypt /tmp/message.txt
-  gpg --batch --yes --output /tmp/message.dec --decrypt /tmp/message.txt.gpg >/tmp/gpg-decrypt.log 2>&1
+  gpg --batch --yes --pinentry-mode loopback --output /tmp/message.dec \
+    --decrypt /tmp/message.txt.gpg >/tmp/gpg-decrypt.log 2>&1
 
   cmp /tmp/message.txt /tmp/message.dec
   grep -q 'Good signature' /tmp/gpg-verify.log
