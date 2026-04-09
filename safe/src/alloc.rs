@@ -398,39 +398,3 @@ pub extern "C" fn gcry_free(a: *mut c_void) {
         set_errno(saved_errno);
     }
 }
-
-#[unsafe(export_name = "safe_gcry_random_add_bytes")]
-pub extern "C" fn gcry_random_add_bytes(
-    _buffer: *const c_void,
-    _length: usize,
-    _quality: c_int,
-) -> u32 {
-    0
-}
-
-#[unsafe(export_name = "safe_gcry_random_bytes")]
-pub extern "C" fn gcry_random_bytes(nbytes: usize, _level: c_int) -> *mut c_void {
-    fill_random_allocation(nbytes, false)
-}
-
-#[unsafe(export_name = "safe_gcry_random_bytes_secure")]
-pub extern "C" fn gcry_random_bytes_secure(nbytes: usize, _level: c_int) -> *mut c_void {
-    fill_random_allocation(nbytes, true)
-}
-
-#[unsafe(export_name = "safe_gcry_randomize")]
-pub extern "C" fn gcry_randomize(buffer: *mut c_void, length: usize, _level: c_int) {
-    if buffer.is_null() || length == 0 {
-        return;
-    }
-
-    unsafe {
-        let slice = std::slice::from_raw_parts_mut(buffer.cast::<u8>(), length);
-        os_rng::fill_random(slice);
-    }
-}
-
-#[unsafe(export_name = "safe_gcry_create_nonce")]
-pub extern "C" fn gcry_create_nonce(buffer: *mut c_void, length: usize) {
-    gcry_randomize(buffer, length, 0);
-}

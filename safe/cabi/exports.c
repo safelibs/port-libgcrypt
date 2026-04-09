@@ -136,6 +136,7 @@ gcry_control(enum gcry_ctl_cmds cmd, ...)
   uintptr_t arg0 = 0;
   uintptr_t arg1 = 0;
   uintptr_t arg2 = 0;
+  uintptr_t arg3 = 0;
   va_list ap;
 
   va_start(ap, cmd);
@@ -145,6 +146,7 @@ gcry_control(enum gcry_ctl_cmds cmd, ...)
     case GCRYCTL_SET_VERBOSITY:
     case GCRYCTL_SET_DEBUG_FLAGS:
     case GCRYCTL_AUTO_EXPAND_SECMEM:
+    case GCRYCTL_FIPS_SERVICE_INDICATOR_KDF:
     case 61: /* PRIV_CTL_EXTERNAL_LOCK_TEST */
       arg0 = (uintptr_t)va_arg(ap, int);
       break;
@@ -168,12 +170,22 @@ gcry_control(enum gcry_ctl_cmds cmd, ...)
     case GCRYCTL_PRINT_CONFIG:
       arg0 = (uintptr_t)va_arg(ap, FILE *);
       break;
+    case GCRYCTL_DRBG_REINIT:
+      arg0 = (uintptr_t)va_arg(ap, const char *);
+      arg1 = (uintptr_t)va_arg(ap, void *);
+      arg2 = (uintptr_t)va_arg(ap, int);
+      arg3 = (uintptr_t)va_arg(ap, void *);
+      break;
+    case 59: /* PRIV_CTL_RUN_EXTRNG_TEST */
+      arg0 = (uintptr_t)va_arg(ap, void *);
+      arg1 = (uintptr_t)va_arg(ap, void *);
+      break;
     default:
       break;
     }
   va_end(ap);
 
-  return safe_gcry_control_dispatch(cmd, arg0, arg1, arg2);
+  return safe_gcry_control_dispatch(cmd, arg0, arg1, arg2, arg3);
 }
 
 void

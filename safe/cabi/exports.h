@@ -8,7 +8,8 @@
 gcry_error_t safe_gcry_control_dispatch(enum gcry_ctl_cmds cmd,
                                         uintptr_t arg0,
                                         uintptr_t arg1,
-                                        uintptr_t arg2);
+                                        uintptr_t arg2,
+                                        uintptr_t arg3);
 const char *safe_gcry_check_version(const char *req_version);
 void safe_gcry_set_progress_handler(gcry_handler_progress_t cb, void *cb_data);
 void safe_gcry_set_allocation_handler(gcry_handler_alloc_t func_alloc,

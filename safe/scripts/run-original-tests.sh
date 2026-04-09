@@ -57,6 +57,7 @@ prepare_harness_tree() {
   ln -s "${ORIGINAL_DIR}/compat/compat.c" "${compat_stage}/compat.c"
   ln -s "${ORIGINAL_DIR}/compat/libcompat.h" "${compat_stage}/libcompat.h"
   ln -s "${ORIGINAL_DIR}/tests/t-common.h" "${tests_stage}/t-common.h"
+  ln -s "${ORIGINAL_DIR}/tests/stopwatch.h" "${tests_stage}/stopwatch.h"
   ln -s "${WRAPPER_BASIC}" "${tests_stage}/basic-disable-all-hwf"
   ln -s "${WRAPPER_HASH}" "${tests_stage}/hashtest-256g"
 }

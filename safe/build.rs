@@ -100,6 +100,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rustc-link-search=native={}", out_dir.display());
     println!("cargo:rustc-link-lib=static:+whole-archive=safe_cabi");
     println!("cargo:rustc-link-lib=gmp");
+    println!("cargo:rustc-link-lib=dl");
+    if let Some(system_libgcrypt) = find_system_libgcrypt() {
+        println!("cargo:rustc-env=SAFE_SYSTEM_LIBGCRYPT_PATH={system_libgcrypt}");
+    }
     println!(
         "cargo:rustc-cdylib-link-arg=-Wl,--version-script={}",
         abi_dir.join("libgcrypt.vers").display()
@@ -253,6 +257,46 @@ fn generate_c_stub_source(symbols: &[String]) -> String {
         "gcry_create_nonce",
         "gcry_get_config",
         "gcry_md_get",
+        "gcry_md_algo_info",
+        "gcry_md_algo_name",
+        "gcry_md_close",
+        "gcry_md_copy",
+        "gcry_md_ctl",
+        "gcry_md_enable",
+        "gcry_md_get_algo",
+        "gcry_md_get_algo_dlen",
+        "gcry_md_hash_buffer",
+        "gcry_md_hash_buffers",
+        "gcry_md_info",
+        "gcry_md_is_enabled",
+        "gcry_md_is_secure",
+        "gcry_md_map_name",
+        "gcry_md_open",
+        "gcry_md_read",
+        "gcry_md_extract",
+        "gcry_md_reset",
+        "gcry_md_setkey",
+        "gcry_md_write",
+        "gcry_md_debug",
+        "gcry_mac_algo_info",
+        "gcry_mac_algo_name",
+        "gcry_mac_map_name",
+        "gcry_mac_get_algo",
+        "gcry_mac_get_algo_maclen",
+        "gcry_mac_get_algo_keylen",
+        "gcry_mac_open",
+        "gcry_mac_close",
+        "gcry_mac_setkey",
+        "gcry_mac_setiv",
+        "gcry_mac_write",
+        "gcry_mac_read",
+        "gcry_mac_verify",
+        "gcry_mac_ctl",
+        "gcry_kdf_derive",
+        "gcry_kdf_open",
+        "gcry_kdf_compute",
+        "gcry_kdf_final",
+        "gcry_kdf_close",
         "gcry_log_debugmpi",
         "gcry_mpi_abs",
         "gcry_mpi_add",
@@ -402,6 +446,26 @@ fn compile_c_exports(
     ]))?;
 
     Ok(())
+}
+
+fn find_system_libgcrypt() -> Option<String> {
+    let output = Command::new("ldconfig").arg("-p").output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    stdout.lines().find_map(|line| {
+        if !line.contains("libgcrypt.so.20") {
+            return None;
+        }
+        let path = line.split("=>").nth(1)?.trim();
+        if path.is_empty() {
+            None
+        } else {
+            Some(path.to_string())
+        }
+    })
 }
 
 fn run(command: &mut Command) -> io::Result<()> {

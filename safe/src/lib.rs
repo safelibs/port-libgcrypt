@@ -7,13 +7,19 @@ use std::ffi::{c_char, c_int, c_uint, c_void};
 mod alloc;
 mod config;
 mod context;
+mod digest;
+mod drbg;
 mod error;
 mod global;
+mod kdf;
 mod log;
+mod mac;
 mod mpi;
 mod os_rng;
+mod random;
 mod secmem;
 mod sexp;
+mod upstream;
 
 pub(crate) type gcry_handler_progress_t =
     Option<unsafe extern "C" fn(*mut c_void, *const c_char, c_int, c_int, c_int)>;
@@ -56,16 +62,6 @@ pub use config::*;
 pub use error::*;
 pub use global::*;
 pub use log::*;
-
-#[unsafe(export_name = "safe_gcry_md_get")]
-pub extern "C" fn gcry_md_get(
-    _hd: *mut c_void,
-    _algo: c_int,
-    _buffer: *mut u8,
-    _buflen: c_int,
-) -> u32 {
-    error::gcry_error_from_code(error::GPG_ERR_NOT_IMPLEMENTED)
-}
 
 #[unsafe(no_mangle)]
 pub extern "C" fn safe_gcry_stub_zero() -> usize {

@@ -5,6 +5,7 @@ use std::sync::{Mutex, OnceLock};
 use crate::context;
 use crate::error;
 use crate::log;
+use crate::random;
 use crate::secmem::{self, SecureMemoryState};
 use crate::{
     PACKAGE_VERSION_BYTES, gcry_handler_alloc_t, gcry_handler_free_t, gcry_handler_no_mem_t,
@@ -62,6 +63,7 @@ const GCRYCTL_CLOSE_RANDOM_DEVICE: u32 = 70;
 const GCRYCTL_DRBG_REINIT: u32 = 74;
 const GCRYCTL_REINIT_SYSCALL_CLAMP: u32 = 77;
 const GCRYCTL_AUTO_EXPAND_SECMEM: u32 = 78;
+const GCRYCTL_FIPS_SERVICE_INDICATOR_KDF: u32 = 82;
 const GCRYCTL_NO_FIPS_MODE: u32 = 83;
 
 const COMPAT_IDENTIFICATION: &[u8] =
@@ -91,6 +93,8 @@ pub(crate) struct RuntimeState {
     pub(crate) fips_mode: bool,
     pub(crate) requested_fips_mode: Option<bool>,
     pub(crate) preferred_rng_type: Option<c_int>,
+    pub(crate) active_rng_type: c_int,
+    pub(crate) rng_frozen: bool,
     pub(crate) quick_random_enabled: bool,
     pub(crate) debug_flags: u32,
     pub(crate) alloc_handlers: AllocationHandlers,
@@ -108,6 +112,8 @@ impl Default for RuntimeState {
             fips_mode: false,
             requested_fips_mode: None,
             preferred_rng_type: None,
+            active_rng_type: GCRY_RNG_TYPE_STANDARD,
+            rng_frozen: false,
             quick_random_enabled: false,
             debug_flags: 0,
             alloc_handlers: AllocationHandlers::default(),
@@ -164,14 +170,28 @@ fn parse_version_string(value: &CStr) -> Option<(u32, u32, u32)> {
 }
 
 fn prefer_default_rng(state: &mut RuntimeState) {
-    state.preferred_rng_type = None;
+    if !state.rng_frozen {
+        state.preferred_rng_type = None;
+    }
 }
 
 fn resolve_rng_type(state: &RuntimeState) -> c_int {
     if state.fips_mode {
         GCRY_RNG_TYPE_FIPS
+    } else if state.rng_frozen {
+        state.active_rng_type
     } else {
         state.preferred_rng_type.unwrap_or(GCRY_RNG_TYPE_STANDARD)
+    }
+}
+
+fn freeze_rng_type(state: &mut RuntimeState) {
+    if state.fips_mode {
+        state.active_rng_type = GCRY_RNG_TYPE_FIPS;
+        state.rng_frozen = true;
+    } else if !state.rng_frozen {
+        state.active_rng_type = state.preferred_rng_type.unwrap_or(GCRY_RNG_TYPE_STANDARD);
+        state.rng_frozen = true;
     }
 }
 
@@ -235,6 +255,11 @@ pub(crate) fn current_rng_type() -> c_int {
     resolve_rng_type(&state)
 }
 
+pub(crate) fn note_rng_use() {
+    let mut state = lock_runtime_state();
+    freeze_rng_type(&mut state);
+}
+
 #[unsafe(export_name = "safe_gcry_check_version")]
 pub extern "C" fn gcry_check_version(req_version: *const c_char) -> *const c_char {
     if !req_version.is_null() {
@@ -277,8 +302,9 @@ pub extern "C" fn gcry_check_version(req_version: *const c_char) -> *const c_cha
 pub extern "C" fn safe_gcry_control_dispatch(
     cmd: u32,
     arg0: usize,
-    _arg1: usize,
-    _arg2: usize,
+    arg1: usize,
+    arg2: usize,
+    arg3: usize,
 ) -> u32 {
     let mut state = lock_runtime_state();
     let mut deferred_log = None;
@@ -297,7 +323,11 @@ pub extern "C" fn safe_gcry_control_dispatch(
             }
             0
         }
-        GCRYCTL_DUMP_RANDOM_STATS | GCRYCTL_DUMP_MEMORY_STATS => 0,
+        GCRYCTL_DUMP_RANDOM_STATS => {
+            deferred_log = Some(random::dump_stats());
+            0
+        }
+        GCRYCTL_DUMP_MEMORY_STATS => 0,
         GCRYCTL_DUMP_SECMEM_STATS => {
             deferred_log = Some(secmem::dump_stats(&state.secmem, false));
             0
@@ -384,6 +414,7 @@ pub extern "C" fn safe_gcry_control_dispatch(
         }
         GCRYCTL_INITIALIZATION_FINISHED => {
             global_init_locked(&mut state);
+            freeze_rng_type(&mut state);
             state.init_finished = true;
             0
         }
@@ -395,12 +426,25 @@ pub extern "C" fn safe_gcry_control_dispatch(
         GCRYCTL_FAST_POLL => {
             prefer_default_rng(&mut state);
             global_init_locked(&mut state);
-            0
+            drop(state);
+            random::fast_poll();
+            return 0;
+        }
+        GCRYCTL_FIPS_SERVICE_INDICATOR_KDF => {
+            if arg0 as c_int == 34 {
+                0
+            } else {
+                error::GPG_ERR_NOT_SUPPORTED
+            }
         }
         GCRYCTL_SET_RNDEGD_SOCKET
         | GCRYCTL_SET_RANDOM_DAEMON_SOCKET
         | GCRYCTL_USE_RANDOM_DAEMON => error::GPG_ERR_NOT_SUPPORTED,
-        GCRYCTL_CLOSE_RANDOM_DEVICE => 0,
+        GCRYCTL_CLOSE_RANDOM_DEVICE => {
+            drop(state);
+            random::close_random_device();
+            return 0;
+        }
         GCRYCTL_PRINT_CONFIG => {
             prefer_default_rng(&mut state);
             deferred_print_config = Some(arg0 as *mut crate::FILE);
@@ -423,12 +467,15 @@ pub extern "C" fn safe_gcry_control_dispatch(
             prefer_default_rng(&mut state);
             if !state.any_init_done {
                 state.requested_fips_mode = Some(true);
+                state.active_rng_type = GCRY_RNG_TYPE_FIPS;
                 0
             } else if !state.init_finished {
                 state.fips_mode = true;
+                freeze_rng_type(&mut state);
                 0
             } else {
                 state.fips_mode = true;
+                freeze_rng_type(&mut state);
                 return truthy_success();
             }
         }
@@ -439,6 +486,9 @@ pub extern "C" fn safe_gcry_control_dispatch(
                 0
             } else if !state.init_finished {
                 state.fips_mode = false;
+                if state.active_rng_type == GCRY_RNG_TYPE_FIPS {
+                    state.active_rng_type = GCRY_RNG_TYPE_STANDARD;
+                }
                 0
             } else {
                 return truthy_success();
@@ -455,10 +505,20 @@ pub extern "C" fn safe_gcry_control_dispatch(
         GCRYCTL_SET_ENFORCED_FIPS_FLAG => 0,
         GCRYCTL_SET_PREFERRED_RNG_TYPE => {
             let rng_type = arg0 as c_int;
-            if rng_type > 0 {
+            if rng_type <= 0 {
+                0
+            } else if !state.rng_frozen && !state.init_finished {
                 state.preferred_rng_type = Some(rng_type);
+                state.active_rng_type = rng_type;
+                0
+            } else if rng_type == GCRY_RNG_TYPE_STANDARD {
+                state.preferred_rng_type = Some(GCRY_RNG_TYPE_STANDARD);
+                state.active_rng_type = GCRY_RNG_TYPE_STANDARD;
+                state.rng_frozen = true;
+                0
+            } else {
+                0
             }
-            0
         }
         GCRYCTL_GET_CURRENT_RNG_TYPE => {
             if arg0 != 0 {
@@ -477,13 +537,33 @@ pub extern "C" fn safe_gcry_control_dispatch(
             prefer_default_rng(&mut state);
             0
         }
-        GCRYCTL_DRBG_REINIT => error::GPG_ERR_NOT_SUPPORTED,
+        GCRYCTL_DRBG_REINIT => {
+            drop(state);
+            return control_result(random::drbg_reinit(
+                arg0 as *const c_char,
+                arg1 as *const crate::upstream::gcry_buffer_t,
+                arg2 as c_int,
+                arg3,
+            ));
+        }
         GCRYCTL_REINIT_SYSCALL_CLAMP => {
             state.syscalls_clamped = true;
             0
         }
-        PRIV_CTL_INIT_EXTRNG_TEST | PRIV_CTL_RUN_EXTRNG_TEST | PRIV_CTL_DEINIT_EXTRNG_TEST => {
-            error::GPG_ERR_NOT_SUPPORTED
+        PRIV_CTL_INIT_EXTRNG_TEST => {
+            drop(state);
+            return control_result(random::init_extrng_test());
+        }
+        PRIV_CTL_RUN_EXTRNG_TEST => {
+            drop(state);
+            return control_result(random::run_extrng_test(
+                arg0 as *const random::gcry_drbg_test_vector,
+                arg1 as *mut u8,
+            ));
+        }
+        PRIV_CTL_DEINIT_EXTRNG_TEST => {
+            drop(state);
+            return control_result(random::deinit_extrng_test());
         }
         PRIV_CTL_EXTERNAL_LOCK_TEST => context::external_lock_test(arg0 as c_int),
         _ => error::GPG_ERR_INV_OP,

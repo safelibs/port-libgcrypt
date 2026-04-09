@@ -7,7 +7,7 @@ use crate::alloc;
 use crate::context;
 use crate::error;
 use crate::log;
-use crate::os_rng;
+use crate::random;
 
 pub(crate) mod arith;
 pub(crate) mod consts;
@@ -864,7 +864,7 @@ pub extern "C" fn gcry_mpi_get_flag(a: *mut gcry_mpi, flag: c_int) -> c_int {
 }
 
 #[unsafe(export_name = "gcry_mpi_randomize")]
-pub extern "C" fn gcry_mpi_randomize(w: *mut gcry_mpi, nbits: c_uint, _level: c_int) {
+pub extern "C" fn gcry_mpi_randomize(w: *mut gcry_mpi, nbits: c_uint, level: c_int) {
     let Some(dest) = (unsafe { gcry_mpi::as_mut(w) }) else {
         return;
     };
@@ -877,7 +877,12 @@ pub extern "C" fn gcry_mpi_randomize(w: *mut gcry_mpi, nbits: c_uint, _level: c_
 
     let nbytes = (nbits as usize).div_ceil(8);
     let mut bytes = vec![0u8; nbytes];
-    os_rng::fill_random(&mut bytes);
+    random::fill_mpi_random(&mut bytes, level);
+    let excess_bits = nbytes * 8 - nbits as usize;
+    if excess_bits != 0 {
+        bytes[0] &= 0xff >> excess_bits;
+    }
+    bytes[0] |= 1u8 << (7 - excess_bits);
     let imported = import_unsigned_bytes(&bytes);
     dest.kind = MpiKind::Numeric(imported);
 }
