@@ -316,6 +316,40 @@ check_close_random_device (void)
 }
 
 
+static void
+check_random_bytes_helpers (void)
+{
+  unsigned char seed[16];
+  unsigned char *buf;
+  unsigned char *secure_buf;
+  gcry_error_t err;
+
+  if (verbose)
+    info ("checking direct random byte helper APIs\n");
+
+  memset (seed, 0x5a, sizeof seed);
+  err = gcry_random_add_bytes (seed, sizeof seed, 0);
+  if (err)
+    die ("gcry_random_add_bytes failed: %s\n", gpg_strerror (err));
+
+  buf = gcry_random_bytes (sizeof seed, GCRY_STRONG_RANDOM);
+  if (!buf)
+    die ("gcry_random_bytes returned NULL\n");
+  if (gcry_is_secure (buf))
+    die ("gcry_random_bytes unexpectedly returned secure memory\n");
+
+  secure_buf = gcry_random_bytes_secure (sizeof seed, GCRY_STRONG_RANDOM);
+  if (!secure_buf)
+    {
+      gcry_free (buf);
+      die ("gcry_random_bytes_secure returned NULL\n");
+    }
+
+  gcry_free (buf);
+  gcry_free (secure_buf);
+}
+
+
 static int
 rng_type (void)
 {
@@ -788,6 +822,7 @@ main (int argc, char **argv)
     }
   else if (!in_recursion)
     {
+      check_random_bytes_helpers ();
       check_forking ();
       check_nonce_forking ();
       check_close_random_device ();

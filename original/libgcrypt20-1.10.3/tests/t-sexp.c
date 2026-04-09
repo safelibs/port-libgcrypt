@@ -393,6 +393,73 @@ canon_len (void)
 }
 
 
+static void
+list_ops (void)
+{
+  gcry_error_t err;
+  gcry_sexp_t list;
+  gcry_sexp_t item;
+  const char *data;
+  size_t datalen;
+
+  err = gcry_sexp_new (&list, "(root alpha (beta gamma) delta)", 0, 1);
+  if (err)
+    {
+      fail ("creating list_ops test expression failed: %s\n",
+            gpg_strerror (err));
+      return;
+    }
+
+  if (gcry_sexp_length (list) != 4)
+    fail ("gcry_sexp_length returned %d instead of 4\n",
+          gcry_sexp_length (list));
+
+  item = gcry_sexp_car (list);
+  if (!item)
+    fail ("gcry_sexp_car failed\n");
+  else
+    {
+      data = gcry_sexp_nth_data (item, 0, &datalen);
+      if (!data || datalen != 4 || memcmp (data, "root", 4))
+        fail ("gcry_sexp_car returned the wrong atom\n");
+      gcry_sexp_release (item);
+    }
+
+  item = gcry_sexp_cadr (list);
+  if (!item)
+    fail ("gcry_sexp_cadr failed\n");
+  else
+    {
+      data = gcry_sexp_nth_data (item, 0, &datalen);
+      if (!data || datalen != 5 || memcmp (data, "alpha", 5))
+        fail ("gcry_sexp_cadr returned the wrong atom\n");
+      gcry_sexp_release (item);
+    }
+
+  item = gcry_sexp_nth (list, 2);
+  if (!item)
+    fail ("gcry_sexp_nth(list, 2) failed in list_ops\n");
+  else
+    {
+      if (gcry_sexp_length (item) != 2)
+        fail ("gcry_sexp_length returned %d instead of 2 for nested list\n",
+              gcry_sexp_length (item));
+
+      data = gcry_sexp_nth_data (item, 0, &datalen);
+      if (!data || datalen != 4 || memcmp (data, "beta", 4))
+        fail ("nested list first atom mismatch\n");
+
+      data = gcry_sexp_nth_data (item, 1, &datalen);
+      if (!data || datalen != 5 || memcmp (data, "gamma", 5))
+        fail ("nested list second atom mismatch\n");
+
+      gcry_sexp_release (item);
+    }
+
+  gcry_sexp_release (list);
+}
+
+
 /* Compare SE to the canonical formatted expression in
  * (CANON,CANONLEN).  This is done by a converting SE to canonical
  * format and doing a byte compare.  Returns 0 if they match.  */
@@ -1335,6 +1402,7 @@ main (int argc, char **argv)
     {
       basic ();
       canon_len ();
+      list_ops ();
       back_and_forth ();
       check_sscan ();
       check_extract_param ();

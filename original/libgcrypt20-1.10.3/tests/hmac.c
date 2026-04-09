@@ -181,6 +181,113 @@ check_hmac_multi (void)
 }
 
 
+static void
+check_md_api (void)
+{
+  static const unsigned char sha256_asnoid[] =
+    { 0x30, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86,
+      0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05,
+      0x00, 0x04, 0x20 };
+  gcry_md_hd_t hd;
+  gcry_error_t err;
+  unsigned char oid[sizeof sha256_asnoid];
+  size_t value;
+  int algo;
+
+  if (verbose)
+    fprintf (stderr, "checking digest metadata helpers\n");
+
+  err = gcry_md_open (&hd, GCRY_MD_SHA1, GCRY_MD_FLAG_SECURE);
+  if (err)
+    {
+      fail ("gcry_md_open with secure memory failed: %s\n", gpg_strerror (err));
+      return;
+    }
+
+  if (!gcry_md_is_secure (hd))
+    fail ("gcry_md_is_secure returned false for a secure digest handle\n");
+
+  value = 0;
+  err = gcry_md_info (hd, GCRYCTL_IS_SECURE, NULL, &value);
+  if (err)
+    fail ("gcry_md_info(IS_SECURE) failed: %s\n", gpg_strerror (err));
+  else if (value != 1)
+    fail ("gcry_md_info(IS_SECURE) returned %u instead of 1\n",
+          (unsigned int)value);
+
+  if (!gcry_md_is_enabled (hd, GCRY_MD_SHA1))
+    fail ("gcry_md_is_enabled did not report the primary digest algorithm\n");
+  if (gcry_md_is_enabled (hd, GCRY_MD_SHA256))
+    fail ("gcry_md_is_enabled unexpectedly reported SHA256 before enable\n");
+
+  algo = GCRY_MD_SHA1;
+  value = sizeof algo;
+  err = gcry_md_info (hd, GCRYCTL_IS_ALGO_ENABLED, &algo, &value);
+  if (err)
+    fail ("gcry_md_info(IS_ALGO_ENABLED, SHA1) failed: %s\n",
+          gpg_strerror (err));
+  else if (value != 1)
+    fail ("gcry_md_info(IS_ALGO_ENABLED, SHA1) returned %u instead of 1\n",
+          (unsigned int)value);
+
+  algo = GCRY_MD_SHA256;
+  value = sizeof algo;
+  err = gcry_md_info (hd, GCRYCTL_IS_ALGO_ENABLED, &algo, &value);
+  if (err)
+    fail ("gcry_md_info(IS_ALGO_ENABLED, SHA256) failed: %s\n",
+          gpg_strerror (err));
+  else if (value != 0)
+    fail ("gcry_md_info(IS_ALGO_ENABLED, SHA256) returned %u instead of 0\n",
+          (unsigned int)value);
+
+  value = sizeof algo;
+  err = gcry_md_info (hd, GCRYCTL_IS_ALGO_ENABLED, NULL, &value);
+  if (gcry_err_code (err) != GPG_ERR_INV_ARG)
+    fail ("gcry_md_info(IS_ALGO_ENABLED) accepted NULL buffer\n");
+
+  err = gcry_md_enable (hd, GCRY_MD_SHA256);
+  if (err)
+    fail ("gcry_md_enable(SHA256) failed: %s\n", gpg_strerror (err));
+  else if (!gcry_md_is_enabled (hd, GCRY_MD_SHA256))
+    fail ("gcry_md_is_enabled did not report SHA256 after enable\n");
+
+  algo = GCRY_MD_SHA256;
+  value = sizeof algo;
+  err = gcry_md_info (hd, GCRYCTL_IS_ALGO_ENABLED, &algo, &value);
+  if (err)
+    fail ("gcry_md_info(IS_ALGO_ENABLED, enabled SHA256) failed: %s\n",
+          gpg_strerror (err));
+  else if (value != 1)
+    fail ("gcry_md_info(IS_ALGO_ENABLED, enabled SHA256) returned %u\n",
+          (unsigned int)value);
+
+  gcry_md_close (hd);
+
+  value = 0;
+  err = gcry_md_get_asnoid (GCRY_MD_SHA256, NULL, &value);
+  if (err)
+    fail ("gcry_md_get_asnoid(NULL) failed: %s\n", gpg_strerror (err));
+  else if (value != sizeof sha256_asnoid)
+    fail ("gcry_md_get_asnoid(NULL) reported %u bytes instead of %u\n",
+          (unsigned int)value, (unsigned int)sizeof sha256_asnoid);
+
+  value = 1;
+  err = gcry_md_get_asnoid (GCRY_MD_SHA256, oid, &value);
+  if (gcry_err_code (err) != GPG_ERR_TOO_SHORT)
+    fail ("gcry_md_get_asnoid accepted an undersized buffer\n");
+
+  value = sizeof oid;
+  err = gcry_md_get_asnoid (GCRY_MD_SHA256, oid, &value);
+  if (err)
+    fail ("gcry_md_get_asnoid failed: %s\n", gpg_strerror (err));
+  else if (value != sizeof sha256_asnoid)
+    fail ("gcry_md_get_asnoid wrote %u bytes instead of %u\n",
+          (unsigned int)value, (unsigned int)sizeof sha256_asnoid);
+  else if (memcmp (oid, sha256_asnoid, sizeof sha256_asnoid))
+    fail ("gcry_md_get_asnoid returned the wrong DER encoding\n");
+}
+
+
 int
 main (int argc, char **argv)
 {
@@ -198,6 +305,7 @@ main (int argc, char **argv)
     xgcry_control ((GCRYCTL_SET_DEBUG_FLAGS, 1u, 0));
   check_hmac ();
   check_hmac_multi ();
+  check_md_api ();
 
   return error_count ? 1 : 0;
 }
