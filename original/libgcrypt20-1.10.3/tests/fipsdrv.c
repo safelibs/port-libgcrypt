@@ -960,6 +960,18 @@ allow_weak_keys (gcry_cipher_hd_t hd)
 }
 
 
+static void
+setkey_allow_weak (gcry_cipher_hd_t hd, const void *key_buffer, size_t key_buflen)
+{
+  gpg_error_t err;
+
+  err = gcry_cipher_setkey (hd, key_buffer, key_buflen);
+  if (err && gpg_err_code (err) != GPG_ERR_WEAK_KEY)
+    die ("gcry_cipher_setkey failed with keylen %u: %s\n",
+         (unsigned int)key_buflen, gpg_strerror (err));
+}
+
+
 
 /* Run an encrypt or decryption operations.  If DATA is NULL the
    function reads its input in chunks of size DATALEN from fp and
@@ -989,10 +1001,7 @@ run_encrypt_decrypt (int encrypt_mode,
 
   allow_weak_keys (hd);
 
-  err = gcry_cipher_setkey (hd, key_buffer, key_buflen);
-  if (err)
-    die ("gcry_cipher_setkey failed with keylen %u: %s\n",
-         (unsigned int)key_buflen, gpg_strerror (err));
+  setkey_allow_weak (hd, key_buffer, key_buflen);
 
   if (iv_buffer)
     {
@@ -1094,10 +1103,7 @@ run_cipher_mct_loop (int encrypt_mode, int cipher_algo, int cipher_mode,
 
   allow_weak_keys (hd);
 
-  err = gcry_cipher_setkey (hd, key_buffer, key_buflen);
-  if (err)
-    die ("gcry_cipher_setkey failed with keylen %u: %s\n",
-         (unsigned int)key_buflen, gpg_strerror (err));
+  setkey_allow_weak (hd, key_buffer, key_buflen);
 
   if (iv_buffer)
     {
