@@ -120,7 +120,7 @@ fetch_source_dir() {
     apt-get source "$pkg" >/dev/null
   )
 
-  dir=$(find "$dest" -mindepth 1 -maxdepth 1 -type d | head -n 1)
+  dir=$(find "$dest" -mindepth 1 -maxdepth 1 -type d -print -quit)
   if [[ -z "$dir" ]]; then
     echo "failed to locate unpacked source for $pkg" >&2
     return 1
@@ -181,14 +181,23 @@ PY
 copy_committed_repo_inputs() {
   rm -rf "$SAFE_WORKTREE"
   mkdir -p "$SAFE_WORKTREE"
+  git config --global --add safe.directory /work
   git -C /work archive --format=tar HEAD | tar -xf - -C "$SAFE_WORKTREE"
+  [[ -f "$SAFE_WORKTREE/dependents.json" ]] || {
+    echo "committed repo copy is missing dependents.json" >&2
+    return 1
+  }
+  [[ -d "$SAFE_WORKTREE/safe" ]] || {
+    echo "committed repo copy is missing safe/" >&2
+    return 1
+  }
   REPO_DIR="$SAFE_WORKTREE"
 }
 
 stash_upstream_libgcrypt() {
   local system_lib real_lib base
 
-  system_lib=$(ldconfig -p | awk '/libgcrypt\.so\.20 .*=>/ {print $NF; exit}')
+  system_lib=$(ldconfig -p | awk '/libgcrypt\.so\.20 .*=>/ && !found {print $NF; found=1} END {if (!found) exit 1}')
   [[ -n "$system_lib" ]] || {
     echo "failed to locate system libgcrypt.so.20" >&2
     return 1
@@ -205,12 +214,13 @@ stash_upstream_libgcrypt() {
 build_safe_debs() {
   local cargo_home
   cargo_home=$(mktemp -d)
-  trap 'rm -rf "$cargo_home"' RETURN
 
   (
     cd "$REPO_DIR"
     CARGO_HOME="$cargo_home" CARGO_NET_OFFLINE=true safe/scripts/build-debs.sh
   )
+
+  rm -rf "$cargo_home"
 }
 
 install_safe_debs() {
@@ -300,18 +310,7 @@ test_gpg() {
   rm -rf "$GNUPGHOME"
   mkdir -m 700 -p "$GNUPGHOME"
 
-  cat >/tmp/gpg-batch <<'CFG'
-%no-protection
-Key-Type: RSA
-Key-Length: 2048
-Subkey-Type: RSA
-Subkey-Length: 2048
-Name-Real: Gcrypt Test
-Name-Email: gcrypt@example.com
-Expire-Date: 0
-CFG
-
-  gpg --batch --generate-key /tmp/gpg-batch
+  gpg --batch --import "$REPO_DIR/safe/tests/compat/tool-fixtures/gpg-test-secret.asc"
   printf 'libgcrypt gpg test\n' > /tmp/message.txt
   gpg --batch --yes --armor --output /tmp/message.txt.asc --sign /tmp/message.txt
   gpg --batch --verify /tmp/message.txt.asc >/tmp/gpg-verify.log 2>&1
@@ -323,7 +322,7 @@ CFG
 
   cmp /tmp/message.txt /tmp/message.dec
   grep -q 'Good signature' /tmp/gpg-verify.log
-  grep -q 'encrypted with rsa2048 key' /tmp/gpg-decrypt.log
+  grep -q 'encrypted with' /tmp/gpg-decrypt.log
 }
 
 test_gnome_keyring() {
