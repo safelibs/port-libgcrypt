@@ -1,7 +1,7 @@
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use std::collections::BTreeSet;
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{c_char, c_int, c_void, CStr};
 use std::sync::{Mutex, OnceLock};
 
 use crate::context;
@@ -12,8 +12,8 @@ use crate::random;
 use crate::secmem::{self, SecureMemoryState};
 use crate::upstream;
 use crate::{
-    PACKAGE_VERSION_BYTES, gcry_handler_alloc_t, gcry_handler_free_t, gcry_handler_no_mem_t,
-    gcry_handler_realloc_t, gcry_handler_secure_check_t,
+    gcry_handler_alloc_t, gcry_handler_free_t, gcry_handler_no_mem_t, gcry_handler_realloc_t,
+    gcry_handler_secure_check_t, PACKAGE_VERSION_BYTES,
 };
 
 pub(crate) const GCRY_RNG_TYPE_STANDARD: c_int = 1;
@@ -459,7 +459,11 @@ pub extern "C" fn safe_gcry_control_dispatch(
         }
         GCRYCTL_SELFTEST => {
             prefer_default_rng(&mut state);
-            if arg0 != 0 { error::GPG_ERR_INV_ARG } else { 0 }
+            if arg0 != 0 {
+                error::GPG_ERR_INV_ARG
+            } else {
+                0
+            }
         }
         GCRYCTL_NO_FIPS_MODE => {
             prefer_default_rng(&mut state);
@@ -487,6 +491,8 @@ pub extern "C" fn safe_gcry_control_dispatch(
                 Err(code) => return control_result(code),
             };
             if let Some(ref names) = sanitized {
+                // Keep the remaining bridge-backed pubkey path on the same
+                // pre-init hardware-feature floor as the local runtime shell.
                 let upstream_rc = upstream::disable_hw_features_preinit(names.as_c_str());
                 if upstream_rc != 0 {
                     return upstream_rc;

@@ -71,6 +71,8 @@ fn retain_constant_time_floor(
 ) -> bool {
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     {
+        // Keep the SSSE3 floor enabled under "all" unless the caller
+        // explicitly names it, matching the local constant-time AES path.
         if saw_all && token == "intel-ssse3" && !explicit_tokens.contains("intel-ssse3") {
             return true;
         }

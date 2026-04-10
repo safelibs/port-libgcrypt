@@ -22,18 +22,20 @@ require_file() {
 }
 
 main() {
+  local tmp_shared
+
   require_file "${STATICLIB}"
   require_file "${VERSION_SCRIPT}"
 
-  rm -f "${SHAREDLIB}.tmp"
-  cc -shared -o "${SHAREDLIB}.tmp" \
+  tmp_shared="$(mktemp "${SHAREDLIB}.tmp.XXXXXX")"
+  cc -shared -o "${tmp_shared}" \
     "-Wl,--version-script=${VERSION_SCRIPT}" \
     -Wl,-soname,libgcrypt.so.20 \
     -Wl,--no-gc-sections \
     -Wl,--whole-archive "${STATICLIB}" \
     -Wl,--no-whole-archive \
     -lgpg-error -lgmp -ldl -lpthread -lm -lc -lgcc_s
-  mv -f "${SHAREDLIB}.tmp" "${SHAREDLIB}"
+  mv -f "${tmp_shared}" "${SHAREDLIB}"
 }
 
 main "$@"

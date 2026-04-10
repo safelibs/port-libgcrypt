@@ -13,16 +13,41 @@ name = "gcrypt"
 crate-type = ["cdylib", "staticlib", "rlib"]
 
 [dependencies]
+aes = "=0.9.0-rc.4"
+aes-gcm-siv = "=0.12.0-rc.3"
+aes-kw = "=0.3.0-rc.2"
+aes-siv = "=0.8.0-rc.3"
 argon2 = "=0.6.0-rc.8"
+blowfish = "=0.10.0-rc.3"
+camellia = "=0.2.0-rc.1"
+cast5 = "=0.12.0-rc.1"
+chacha20 = { version = "=0.10.0", default-features = false, features = ["cipher", "legacy"] }
+cmac = "=0.8.0-rc.5"
+des = "=0.9.0-rc.3"
+dbl = "=0.5.0"
 digest = "=0.11.2"
 gost94 = "=0.11.0"
+ghash = "=0.6.0"
+idea = "=0.6.0-rc.1"
 md-5 = "=0.11.0"
+poly1305 = "=0.9.0-rc.6"
+polyval = "=0.7.1"
+rc2 = "=0.9.0-rc.1"
+rc4 = "=0.2.0"
+salsa20 = "=0.11.0"
 scrypt = "=0.12.0-rc.10"
 sha1 = "=0.11.0"
 sha2 = "=0.11.0"
 sha3 = "=0.11.0"
 sm3 = "=0.5.0"
+sm4 = "=0.6.0-rc.3"
+serpent = "=0.6.0-rc.3"
 streebog = "=0.11.0"
+subtle = "=2.6.1"
+twofish = "=0.8.0-rc.1"
+
+[patch.crates-io]
+aes = { path = "patches/aes" }
 
 [profile.release]
 panic = "abort"

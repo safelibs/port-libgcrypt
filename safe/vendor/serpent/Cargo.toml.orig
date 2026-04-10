@@ -1,0 +1,28 @@
+[package]
+name = "serpent"
+version = "0.6.0-rc.3"
+description = "Serpent block cipher"
+authors = ["RustCrypto Developers"]
+license = "MIT OR Apache-2.0"
+edition = "2024"
+rust-version = "1.85"
+readme = "README.md"
+documentation = "https://docs.rs/serpent"
+repository = "https://github.com/RustCrypto/block-ciphers"
+keywords = ["crypto", "serpent", "block-cipher"]
+categories = ["cryptography", "no-std"]
+
+[dependencies]
+cipher = "0.5.0-rc.7"
+
+[dev-dependencies]
+cipher = { version = "0.5.0-rc.7", features = ["dev"] }
+
+[features]
+zeroize = ["cipher/zeroize"]
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(serpent_no_unroll)'] }
