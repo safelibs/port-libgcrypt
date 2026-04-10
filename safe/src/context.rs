@@ -134,8 +134,5 @@ pub extern "C" fn gcry_ctx_release(ctx: *mut c_void) {
         }
         return;
     }
-
-    unsafe {
-        (crate::pubkey::encoding::api().ctx_release)(ctx);
-    }
+    let _ = crate::mpi::ec::release_local_context(ctx);
 }

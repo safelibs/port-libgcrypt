@@ -15,7 +15,6 @@ const GCRYMPI_FLAG_OPAQUE: c_int = 2;
 type GcryError = u32;
 
 type CheckVersionFn = unsafe extern "C" fn(*const c_char) -> *const c_char;
-type CtxReleaseFn = unsafe extern "C" fn(*mut c_void);
 
 type SexpSscanFn =
     unsafe extern "C" fn(*mut *mut c_void, *mut usize, *const c_char, usize) -> GcryError;
@@ -23,6 +22,7 @@ type SexpSprintFn = unsafe extern "C" fn(*mut c_void, c_int, *mut c_void, usize)
 type SexpReleaseFn = unsafe extern "C" fn(*mut c_void);
 
 type MpiNewFn = unsafe extern "C" fn(c_uint) -> *mut c_void;
+type MpiSecureNewFn = unsafe extern "C" fn(c_uint) -> *mut c_void;
 type MpiReleaseFn = unsafe extern "C" fn(*mut c_void);
 type MpiScanFn =
     unsafe extern "C" fn(*mut *mut c_void, c_int, *const c_void, usize, *mut usize) -> GcryError;
@@ -32,58 +32,19 @@ type MpiGetFlagFn = unsafe extern "C" fn(*mut c_void, c_int) -> c_int;
 type MpiGetOpaqueFn = unsafe extern "C" fn(*mut c_void, *mut c_uint) -> *mut c_void;
 type MpiSetOpaqueCopyFn = unsafe extern "C" fn(*mut c_void, *const c_void, c_uint) -> *mut c_void;
 
-type PointNewFn = unsafe extern "C" fn(c_uint) -> *mut c_void;
-type PointReleaseFn = unsafe extern "C" fn(*mut c_void);
-type PointCopyFn = unsafe extern "C" fn(*mut c_void) -> *mut c_void;
-type PointGetFn = unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, *mut c_void);
-type PointSetFn =
-    unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, *mut c_void) -> *mut c_void;
-
-type EcNewFn = unsafe extern "C" fn(*mut *mut c_void, *mut c_void, *const c_char) -> GcryError;
-type EcGetMpiFn = unsafe extern "C" fn(*const c_char, *mut c_void, c_int) -> *mut c_void;
-type EcGetPointFn = unsafe extern "C" fn(*const c_char, *mut c_void, c_int) -> *mut c_void;
-type EcSetMpiFn = unsafe extern "C" fn(*const c_char, *mut c_void, *mut c_void) -> GcryError;
-type EcSetPointFn = unsafe extern "C" fn(*const c_char, *mut c_void, *mut c_void) -> GcryError;
-type EcDecodePointFn = unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void) -> GcryError;
-type EcGetAffineFn =
-    unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, *mut c_void) -> c_int;
-type EcDupFn = unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void);
-type EcPointVoidFn = unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, *mut c_void);
-type EcMulFn = unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, *mut c_void);
-type EcCurvePointFn = unsafe extern "C" fn(*mut c_void, *mut c_void) -> c_int;
-
 pub(crate) struct PubkeyApi {
     _handle: usize,
-    pub(crate) ctx_release: CtxReleaseFn,
     pub(crate) sexp_sscan: SexpSscanFn,
     pub(crate) sexp_sprint: SexpSprintFn,
     pub(crate) sexp_release: SexpReleaseFn,
     pub(crate) mpi_new: MpiNewFn,
+    pub(crate) mpi_snew: MpiSecureNewFn,
     pub(crate) mpi_release: MpiReleaseFn,
     pub(crate) mpi_scan: MpiScanFn,
     pub(crate) mpi_print: MpiPrintFn,
     pub(crate) mpi_get_flag: MpiGetFlagFn,
     pub(crate) mpi_get_opaque: MpiGetOpaqueFn,
     pub(crate) mpi_set_opaque_copy: MpiSetOpaqueCopyFn,
-    pub(crate) point_new: PointNewFn,
-    pub(crate) point_release: PointReleaseFn,
-    pub(crate) point_copy: PointCopyFn,
-    pub(crate) point_get: PointGetFn,
-    pub(crate) point_snatch_get: PointGetFn,
-    pub(crate) point_set: PointSetFn,
-    pub(crate) point_snatch_set: PointSetFn,
-    pub(crate) ec_new: EcNewFn,
-    pub(crate) ec_get_mpi: EcGetMpiFn,
-    pub(crate) ec_get_point: EcGetPointFn,
-    pub(crate) ec_set_mpi: EcSetMpiFn,
-    pub(crate) ec_set_point: EcSetPointFn,
-    pub(crate) ec_decode_point: EcDecodePointFn,
-    pub(crate) ec_get_affine: EcGetAffineFn,
-    pub(crate) ec_dup: EcDupFn,
-    pub(crate) ec_add: EcPointVoidFn,
-    pub(crate) ec_sub: EcPointVoidFn,
-    pub(crate) ec_mul: EcMulFn,
-    pub(crate) ec_curve_point: EcCurvePointFn,
 }
 
 unsafe impl Send for PubkeyApi {}
@@ -99,36 +60,17 @@ fn init() -> PubkeyApi {
 
     PubkeyApi {
         _handle: handle as usize,
-        ctx_release: unsafe { load_symbol(handle, "gcry_ctx_release") },
         sexp_sscan: unsafe { load_symbol(handle, "gcry_sexp_sscan") },
         sexp_sprint: unsafe { load_symbol(handle, "gcry_sexp_sprint") },
         sexp_release: unsafe { load_symbol(handle, "gcry_sexp_release") },
         mpi_new: unsafe { load_symbol(handle, "gcry_mpi_new") },
+        mpi_snew: unsafe { load_symbol(handle, "gcry_mpi_snew") },
         mpi_release: unsafe { load_symbol(handle, "gcry_mpi_release") },
         mpi_scan: unsafe { load_symbol(handle, "gcry_mpi_scan") },
         mpi_print: unsafe { load_symbol(handle, "gcry_mpi_print") },
         mpi_get_flag: unsafe { load_symbol(handle, "gcry_mpi_get_flag") },
         mpi_get_opaque: unsafe { load_symbol(handle, "gcry_mpi_get_opaque") },
         mpi_set_opaque_copy: unsafe { load_symbol(handle, "gcry_mpi_set_opaque_copy") },
-        point_new: unsafe { load_symbol(handle, "gcry_mpi_point_new") },
-        point_release: unsafe { load_symbol(handle, "gcry_mpi_point_release") },
-        point_copy: unsafe { load_symbol(handle, "gcry_mpi_point_copy") },
-        point_get: unsafe { load_symbol(handle, "gcry_mpi_point_get") },
-        point_snatch_get: unsafe { load_symbol(handle, "gcry_mpi_point_snatch_get") },
-        point_set: unsafe { load_symbol(handle, "gcry_mpi_point_set") },
-        point_snatch_set: unsafe { load_symbol(handle, "gcry_mpi_point_snatch_set") },
-        ec_new: unsafe { load_symbol(handle, "gcry_mpi_ec_new") },
-        ec_get_mpi: unsafe { load_symbol(handle, "gcry_mpi_ec_get_mpi") },
-        ec_get_point: unsafe { load_symbol(handle, "gcry_mpi_ec_get_point") },
-        ec_set_mpi: unsafe { load_symbol(handle, "gcry_mpi_ec_set_mpi") },
-        ec_set_point: unsafe { load_symbol(handle, "gcry_mpi_ec_set_point") },
-        ec_decode_point: unsafe { load_symbol(handle, "gcry_mpi_ec_decode_point") },
-        ec_get_affine: unsafe { load_symbol(handle, "gcry_mpi_ec_get_affine") },
-        ec_dup: unsafe { load_symbol(handle, "gcry_mpi_ec_dup") },
-        ec_add: unsafe { load_symbol(handle, "gcry_mpi_ec_add") },
-        ec_sub: unsafe { load_symbol(handle, "gcry_mpi_ec_sub") },
-        ec_mul: unsafe { load_symbol(handle, "gcry_mpi_ec_mul") },
-        ec_curve_point: unsafe { load_symbol(handle, "gcry_mpi_ec_curve_point") },
     }
 }
 
@@ -221,18 +163,39 @@ pub(crate) fn local_to_upstream_mpi(local: *mut gcry_mpi) -> Result<*mut c_void,
 
     let is_opaque = unsafe { gcry_mpi::as_ref(local) }.is_some_and(gcry_mpi::is_opaque);
     if is_opaque {
+        let secure = unsafe { gcry_mpi::as_ref(local) }.is_some_and(|mpi| mpi.secure);
         let mut nbits = 0u32;
         let data = crate::mpi::opaque::gcry_mpi_get_opaque(local, &mut nbits);
-        let upstream = unsafe { (api().mpi_set_opaque_copy)(null_mut(), data, nbits) };
-        if upstream.is_null() && (nbits != 0 || !data.is_null()) {
-            return Err(oom_error());
-        }
-        if upstream.is_null() {
-            let zero = unsafe { (api().mpi_new)(0) };
+        if nbits == 0 && data.is_null() {
+            let zero = unsafe {
+                if secure {
+                    (api().mpi_snew)(0)
+                } else {
+                    (api().mpi_new)(0)
+                }
+            };
             if zero.is_null() {
                 return Err(oom_error());
             }
             return Ok(zero);
+        }
+
+        let seed = if secure {
+            unsafe { (api().mpi_snew)(0) }
+        } else {
+            null_mut()
+        };
+        if secure && seed.is_null() {
+            return Err(oom_error());
+        }
+        let upstream = unsafe { (api().mpi_set_opaque_copy)(seed, data, nbits) };
+        if upstream.is_null() && (nbits != 0 || !data.is_null()) {
+            if !seed.is_null() {
+                unsafe {
+                    (api().mpi_release)(seed);
+                }
+            }
+            return Err(oom_error());
         }
         return Ok(upstream);
     }

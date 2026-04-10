@@ -22,11 +22,7 @@ type PkTestKeyFn = unsafe extern "C" fn(*mut c_void) -> GcryError;
 type PkGenKeyFn = unsafe extern "C" fn(*mut *mut c_void, *mut c_void) -> GcryError;
 type PkGetNbitsFn = unsafe extern "C" fn(*mut c_void) -> c_uint;
 type PkGetKeygripFn = unsafe extern "C" fn(*mut c_void, *mut u8) -> *mut u8;
-type PkGetCurveFn = unsafe extern "C" fn(*mut c_void, c_int, *mut c_uint) -> *const c_char;
-type PkGetParamFn = unsafe extern "C" fn(c_int, *const c_char) -> *mut c_void;
 type PubkeyGetSexpFn = unsafe extern "C" fn(*mut *mut c_void, c_int, *mut c_void) -> GcryError;
-type EccGetAlgoKeylenFn = unsafe extern "C" fn(c_int) -> c_uint;
-type EccMulPointFn = unsafe extern "C" fn(c_int, *mut u8, *const u8, *const u8) -> GcryError;
 
 struct EccBridgeApi {
     _handle: usize,
@@ -38,11 +34,7 @@ struct EccBridgeApi {
     pk_genkey: PkGenKeyFn,
     pk_get_nbits: PkGetNbitsFn,
     pk_get_keygrip: PkGetKeygripFn,
-    pk_get_curve: PkGetCurveFn,
-    pk_get_param: PkGetParamFn,
     pubkey_get_sexp: PubkeyGetSexpFn,
-    ecc_get_algo_keylen: EccGetAlgoKeylenFn,
-    ecc_mul_point: EccMulPointFn,
 }
 
 unsafe impl Send for EccBridgeApi {}
@@ -66,11 +58,7 @@ fn init() -> EccBridgeApi {
         pk_genkey: unsafe { load_symbol(handle, "gcry_pk_genkey") },
         pk_get_nbits: unsafe { load_symbol(handle, "gcry_pk_get_nbits") },
         pk_get_keygrip: unsafe { load_symbol(handle, "gcry_pk_get_keygrip") },
-        pk_get_curve: unsafe { load_symbol(handle, "gcry_pk_get_curve") },
-        pk_get_param: unsafe { load_symbol(handle, "gcry_pk_get_param") },
         pubkey_get_sexp: unsafe { load_symbol(handle, "gcry_pubkey_get_sexp") },
-        ecc_get_algo_keylen: unsafe { load_symbol(handle, "gcry_ecc_get_algo_keylen") },
-        ecc_mul_point: unsafe { load_symbol(handle, "gcry_ecc_mul_point") },
     }
 }
 
@@ -297,33 +285,12 @@ pub extern "C" fn gcry_pk_get_curve(
     iterator: c_int,
     nbits: *mut c_uint,
 ) -> *const c_char {
-    if key.is_null() {
-        return unsafe { (api().pk_get_curve)(null_mut(), iterator, nbits) };
-    }
-
-    let upstream_key = match encoding::sexp_to_upstream(key) {
-        Ok(value) => value,
-        Err(_) => return std::ptr::null(),
-    };
-    let result = unsafe { (api().pk_get_curve)(upstream_key, iterator, nbits) };
-    unsafe {
-        encoding::release_upstream_sexp(upstream_key);
-    }
-    result
+    crate::mpi::ec::pk_get_curve_name(key, iterator, nbits)
 }
 
 #[no_mangle]
 pub extern "C" fn gcry_pk_get_param(algo: c_int, name: *const c_char) -> *mut sexp::gcry_sexp {
-    let upstream = unsafe { (api().pk_get_param)(algo, name) };
-    if upstream.is_null() {
-        return null_mut();
-    }
-
-    let local = encoding::sexp_from_upstream(upstream);
-    unsafe {
-        encoding::release_upstream_sexp(upstream);
-    }
-    local.unwrap_or(null_mut())
+    crate::mpi::ec::pk_get_param_sexp(algo, name)
 }
 
 #[no_mangle]
@@ -341,6 +308,9 @@ pub extern "C" fn gcry_pubkey_get_sexp(
 
     if context::is_random_override_context(ctx) {
         return error::gcry_error_from_code(super::GPG_ERR_WRONG_CRYPT_CTX);
+    }
+    if crate::mpi::ec::is_local_context(ctx) {
+        return crate::mpi::ec::local_pubkey_get_sexp(result, mode, ctx);
     }
 
     let mut upstream = null_mut();
@@ -367,7 +337,7 @@ pub extern "C" fn gcry_pubkey_get_sexp(
 
 #[no_mangle]
 pub extern "C" fn gcry_ecc_get_algo_keylen(curveid: c_int) -> c_uint {
-    unsafe { (api().ecc_get_algo_keylen)(curveid) }
+    crate::mpi::ec::ecc_get_algo_keylen(curveid)
 }
 
 #[no_mangle]
@@ -377,5 +347,5 @@ pub extern "C" fn gcry_ecc_mul_point(
     scalar: *const u8,
     point: *const u8,
 ) -> u32 {
-    unsafe { (api().ecc_mul_point)(curveid, result, scalar, point) }
+    crate::mpi::ec::ecc_mul_point_bytes(curveid, result, scalar, point)
 }
