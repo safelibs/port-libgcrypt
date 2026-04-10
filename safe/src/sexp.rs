@@ -535,6 +535,16 @@ fn append_advanced_atom(bytes: &[u8], out: &mut Vec<u8>) {
     }
 }
 
+fn append_built_atom(bytes: &[u8], out: &mut Vec<u8>) {
+    if out
+        .last()
+        .is_some_and(|byte| !byte.is_ascii_whitespace() && *byte != b'(')
+    {
+        out.push(b' ');
+    }
+    append_advanced_atom(bytes, out);
+}
+
 fn sprint_canon(node: &Sexpr, out: &mut Vec<u8>) {
     match node {
         Sexpr::Atom(bytes) => {
@@ -1015,7 +1025,7 @@ fn build_from_format(format: &CStr, args: &[usize]) -> Result<(*mut gcry_sexp, u
                     rendered
                 };
                 secure |= mpi.secure;
-                append_advanced_atom(&rendered, &mut out);
+                append_built_atom(&rendered, &mut out);
                 arg_index += 1;
             }
             b's' => {
@@ -1023,7 +1033,7 @@ fn build_from_format(format: &CStr, args: &[usize]) -> Result<(*mut gcry_sexp, u
                     return Err(error::gcry_error_from_code(error::GPG_ERR_MISSING_VALUE));
                 };
                 let text = unsafe { CStr::from_ptr(raw as *const c_char) }.to_bytes();
-                append_advanced_atom(text, &mut out);
+                append_built_atom(text, &mut out);
                 arg_index += 1;
             }
             b'b' => {
@@ -1040,7 +1050,7 @@ fn build_from_format(format: &CStr, args: &[usize]) -> Result<(*mut gcry_sexp, u
                 let slice =
                     unsafe { std::slice::from_raw_parts(ptr_raw as *const u8, len as usize) };
                 secure |= alloc::gcry_is_secure(ptr_raw as *const c_void) != 0;
-                append_advanced_atom(slice, &mut out);
+                append_built_atom(slice, &mut out);
                 arg_index += 2;
             }
             b'd' | b'u' => {
@@ -1052,7 +1062,7 @@ fn build_from_format(format: &CStr, args: &[usize]) -> Result<(*mut gcry_sexp, u
                 } else {
                     raw.to_string()
                 };
-                append_advanced_atom(text.as_bytes(), &mut out);
+                append_built_atom(text.as_bytes(), &mut out);
                 arg_index += 1;
             }
             b'S' => {
@@ -1061,6 +1071,12 @@ fn build_from_format(format: &CStr, args: &[usize]) -> Result<(*mut gcry_sexp, u
                 };
                 let sexp = unsafe { gcry_sexp::as_ref(raw as *const gcry_sexp) }
                     .ok_or(error::gcry_error_from_code(error::GPG_ERR_INV_ARG))?;
+                if out
+                    .last()
+                    .is_some_and(|byte| !byte.is_ascii_whitespace() && *byte != b'(')
+                {
+                    out.push(b' ');
+                }
                 sprint_advanced_top(&sexp.root, sexp.top_level_fragment, &mut out);
                 secure |= sexp.secure;
                 arg_index += 1;

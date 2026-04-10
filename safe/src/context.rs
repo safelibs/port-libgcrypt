@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::ffi::c_void;
 use std::sync::{Mutex, OnceLock};
 
@@ -9,6 +9,7 @@ struct ExternalLockState {
     initialized: bool,
     locked: bool,
     secure_objects: HashSet<usize>,
+    random_override_contexts: HashMap<usize, Vec<u8>>,
 }
 
 fn state() -> &'static Mutex<ExternalLockState> {
@@ -86,9 +87,51 @@ pub(crate) fn is_registered_secure_object(ptr: *const c_void) -> bool {
     lock_state().secure_objects.contains(&(ptr as usize))
 }
 
+pub(crate) fn new_random_override_context(bytes: &[u8]) -> Result<*mut c_void, u32> {
+    let marker = Box::into_raw(Box::new(0u8)).cast::<c_void>();
+    if marker.is_null() {
+        return Err(error::gcry_error_from_errno(crate::ENOMEM_VALUE));
+    }
+
+    lock_state()
+        .random_override_contexts
+        .insert(marker as usize, bytes.to_vec());
+    Ok(marker)
+}
+
+pub(crate) fn copy_random_override_context(ctx: *mut c_void) -> Option<Vec<u8>> {
+    if ctx.is_null() {
+        return None;
+    }
+
+    lock_state()
+        .random_override_contexts
+        .get(&(ctx as usize))
+        .cloned()
+}
+
+pub(crate) fn is_random_override_context(ctx: *mut c_void) -> bool {
+    if ctx.is_null() {
+        return false;
+    }
+
+    lock_state().random_override_contexts.contains_key(&(ctx as usize))
+}
+
 #[no_mangle]
 pub extern "C" fn gcry_ctx_release(ctx: *mut c_void) {
     if ctx.is_null() {
+        return;
+    }
+
+    if lock_state()
+        .random_override_contexts
+        .remove(&(ctx as usize))
+        .is_some()
+    {
+        unsafe {
+            drop(Box::from_raw(ctx.cast::<u8>()));
+        }
         return;
     }
 
