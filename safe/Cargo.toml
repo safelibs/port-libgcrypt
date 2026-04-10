@@ -13,6 +13,16 @@ name = "gcrypt"
 crate-type = ["cdylib", "staticlib", "rlib"]
 
 [dependencies]
+argon2 = "=0.6.0-rc.8"
+digest = "=0.11.2"
+gost94 = "=0.11.0"
+md-5 = "=0.11.0"
+scrypt = "=0.12.0-rc.10"
+sha1 = "=0.11.0"
+sha2 = "=0.11.0"
+sha3 = "=0.11.0"
+sm3 = "=0.5.0"
+streebog = "=0.11.0"
 
 [profile.release]
 panic = "abort"
