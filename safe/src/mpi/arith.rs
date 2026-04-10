@@ -44,22 +44,22 @@ fn assign_binary_op(
     gcry_mpi_release(right_copy);
 }
 
-#[unsafe(export_name = "gcry_mpi_add")]
+#[export_name = "gcry_mpi_add"]
 pub extern "C" fn gcry_mpi_add(w: *mut gcry_mpi, u: *mut gcry_mpi, v: *mut gcry_mpi) {
     assign_binary_op(w, u, v, __gmpz_add);
 }
 
-#[unsafe(export_name = "gcry_mpi_sub")]
+#[export_name = "gcry_mpi_sub"]
 pub extern "C" fn gcry_mpi_sub(w: *mut gcry_mpi, u: *mut gcry_mpi, v: *mut gcry_mpi) {
     assign_binary_op(w, u, v, __gmpz_sub);
 }
 
-#[unsafe(export_name = "gcry_mpi_mul")]
+#[export_name = "gcry_mpi_mul"]
 pub extern "C" fn gcry_mpi_mul(w: *mut gcry_mpi, u: *mut gcry_mpi, v: *mut gcry_mpi) {
     assign_binary_op(w, u, v, __gmpz_mul);
 }
 
-#[unsafe(export_name = "gcry_mpi_add_ui")]
+#[export_name = "gcry_mpi_add_ui"]
 pub extern "C" fn gcry_mpi_add_ui(w: *mut gcry_mpi, u: *mut gcry_mpi, v: c_ulong) {
     let copy = gcry_mpi_copy(u);
     let Some(src) = (unsafe { gcry_mpi::as_ref(copy) }) else {
@@ -79,7 +79,7 @@ pub extern "C" fn gcry_mpi_add_ui(w: *mut gcry_mpi, u: *mut gcry_mpi, v: c_ulong
     gcry_mpi_release(copy);
 }
 
-#[unsafe(export_name = "gcry_mpi_sub_ui")]
+#[export_name = "gcry_mpi_sub_ui"]
 pub extern "C" fn gcry_mpi_sub_ui(w: *mut gcry_mpi, u: *mut gcry_mpi, v: c_ulong) {
     let copy = gcry_mpi_copy(u);
     let Some(src) = (unsafe { gcry_mpi::as_ref(copy) }) else {
@@ -99,7 +99,7 @@ pub extern "C" fn gcry_mpi_sub_ui(w: *mut gcry_mpi, u: *mut gcry_mpi, v: c_ulong
     gcry_mpi_release(copy);
 }
 
-#[unsafe(export_name = "gcry_mpi_mul_ui")]
+#[export_name = "gcry_mpi_mul_ui"]
 pub extern "C" fn gcry_mpi_mul_ui(w: *mut gcry_mpi, u: *mut gcry_mpi, v: c_ulong) {
     let copy = gcry_mpi_copy(u);
     let Some(src) = (unsafe { gcry_mpi::as_ref(copy) }) else {
@@ -165,7 +165,7 @@ fn assign_mod_op(
     gcry_mpi_release(mod_copy);
 }
 
-#[unsafe(export_name = "gcry_mpi_addm")]
+#[export_name = "gcry_mpi_addm"]
 pub extern "C" fn gcry_mpi_addm(
     w: *mut gcry_mpi,
     u: *mut gcry_mpi,
@@ -175,7 +175,7 @@ pub extern "C" fn gcry_mpi_addm(
     assign_mod_op(w, u, v, m, __gmpz_add);
 }
 
-#[unsafe(export_name = "gcry_mpi_subm")]
+#[export_name = "gcry_mpi_subm"]
 pub extern "C" fn gcry_mpi_subm(
     w: *mut gcry_mpi,
     u: *mut gcry_mpi,
@@ -185,7 +185,7 @@ pub extern "C" fn gcry_mpi_subm(
     assign_mod_op(w, u, v, m, __gmpz_sub);
 }
 
-#[unsafe(export_name = "gcry_mpi_mulm")]
+#[export_name = "gcry_mpi_mulm"]
 pub extern "C" fn gcry_mpi_mulm(
     w: *mut gcry_mpi,
     u: *mut gcry_mpi,
@@ -195,7 +195,7 @@ pub extern "C" fn gcry_mpi_mulm(
     assign_mod_op(w, u, v, m, __gmpz_mul);
 }
 
-#[unsafe(export_name = "gcry_mpi_mul_2exp")]
+#[export_name = "gcry_mpi_mul_2exp"]
 pub extern "C" fn gcry_mpi_mul_2exp(w: *mut gcry_mpi, u: *mut gcry_mpi, cnt: c_ulong) {
     let copy = gcry_mpi_copy(u);
     let Some(src) = (unsafe { gcry_mpi::as_ref(copy) }) else {
@@ -219,7 +219,7 @@ pub extern "C" fn gcry_mpi_mul_2exp(w: *mut gcry_mpi, u: *mut gcry_mpi, cnt: c_u
     gcry_mpi_release(copy);
 }
 
-#[unsafe(export_name = "gcry_mpi_div")]
+#[export_name = "gcry_mpi_div"]
 pub extern "C" fn gcry_mpi_div(
     q: *mut gcry_mpi,
     r: *mut gcry_mpi,
@@ -290,7 +290,7 @@ pub extern "C" fn gcry_mpi_div(
     gcry_mpi_release(den_copy);
 }
 
-#[unsafe(export_name = "gcry_mpi_mod")]
+#[export_name = "gcry_mpi_mod"]
 pub extern "C" fn gcry_mpi_mod(r: *mut gcry_mpi, dividend: *mut gcry_mpi, divisor: *mut gcry_mpi) {
     let num_copy = gcry_mpi_copy(dividend);
     let den_copy = gcry_mpi_copy(divisor);
@@ -318,7 +318,7 @@ pub extern "C" fn gcry_mpi_mod(r: *mut gcry_mpi, dividend: *mut gcry_mpi, diviso
     gcry_mpi_release(den_copy);
 }
 
-#[unsafe(export_name = "gcry_mpi_powm")]
+#[export_name = "gcry_mpi_powm"]
 pub extern "C" fn gcry_mpi_powm(
     w: *mut gcry_mpi,
     b: *const gcry_mpi,
@@ -370,7 +370,7 @@ pub extern "C" fn gcry_mpi_powm(
     gcry_mpi_release(mod_copy);
 }
 
-#[unsafe(export_name = "gcry_mpi_gcd")]
+#[export_name = "gcry_mpi_gcd"]
 pub extern "C" fn gcry_mpi_gcd(g: *mut gcry_mpi, a: *mut gcry_mpi, b: *mut gcry_mpi) -> c_int {
     let left_copy = gcry_mpi_copy(a);
     let right_copy = gcry_mpi_copy(b);
@@ -403,7 +403,7 @@ pub extern "C" fn gcry_mpi_gcd(g: *mut gcry_mpi, a: *mut gcry_mpi, b: *mut gcry_
     0
 }
 
-#[unsafe(export_name = "gcry_mpi_invm")]
+#[export_name = "gcry_mpi_invm"]
 pub extern "C" fn gcry_mpi_invm(x: *mut gcry_mpi, a: *mut gcry_mpi, m: *mut gcry_mpi) -> c_int {
     let value_copy = gcry_mpi_copy(a);
     let mod_copy = gcry_mpi_copy(m);

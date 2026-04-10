@@ -3,7 +3,7 @@ use std::ffi::{CStr, CString, c_int, c_uint, c_void};
 use std::io::{self, Read, Write};
 use std::ptr::null_mut;
 
-unsafe extern "C" {
+extern "C" {
     static mut stdout: *mut c_void;
 
     fn gcry_control(cmd: c_uint, ...) -> u32;

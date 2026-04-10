@@ -5,21 +5,28 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SAFE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO_DIR="$(cd "${SAFE_DIR}/.." && pwd)"
 ORIGINAL_DIR="${REPO_DIR}/original/libgcrypt20-1.10.3"
+INVOCATION_PWD="${PWD}"
+# shellcheck source=./cargo-target-root.sh
+source "${SCRIPT_DIR}/cargo-target-root.sh"
+TARGET_ROOT="$(resolve_target_root "${SAFE_DIR}" "${INVOCATION_PWD}")"
+BOOTSTRAP_ROOT="${TARGET_ROOT}/bootstrap"
 MULTIARCH="$(dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null || echo x86_64-linux-gnu)"
-GENERATED_DIR="${SAFE_DIR}/target/bootstrap/generated"
-STAGE_ROOT="${SAFE_DIR}/target/bootstrap/staging"
+GENERATED_DIR="${BOOTSTRAP_ROOT}/generated"
+STAGE_ROOT="${BOOTSTRAP_ROOT}/staging"
 STAGE_PREFIX="${STAGE_ROOT}/usr"
 STAGE_LIBDIR="${STAGE_PREFIX}/lib/${MULTIARCH}"
 STAGE_PKGCONFIG="${STAGE_LIBDIR}/pkgconfig"
 STAGE_INCLUDEDIR="${STAGE_PREFIX}/include"
 STAGE_BINDIR="${STAGE_PREFIX}/bin"
 STAGE_ACLOCAL="${STAGE_PREFIX}/share/aclocal"
-RELEASE_LIBDIR="${SAFE_DIR}/target/release"
-EXPECTED_ROOT="${SAFE_DIR}/target/bootstrap/check-abi-expected"
+RELEASE_LIBDIR="${TARGET_ROOT}/release"
+EXPECTED_ROOT="${BOOTSTRAP_ROOT}/check-abi-expected"
 EXPECTED_INCLUDEDIR="${EXPECTED_ROOT}/include"
 EXPECTED_PKGCONFIG="${EXPECTED_ROOT}/pkgconfig"
 EXPECTED_BINDIR="${EXPECTED_ROOT}/bin"
 PUBLIC_SMOKE_SOURCE="${SAFE_DIR}/tests/compat/public-api-smoke.c"
+
+mkdir -p "${BOOTSTRAP_ROOT}"
 
 fail() {
   echo "check-abi: $*" >&2
@@ -154,10 +161,10 @@ compare_command_output() {
   local description="$3"
   local actual_stdout actual_stderr expected_stdout expected_stderr actual_rc expected_rc
 
-  actual_stdout="$(mktemp "${SAFE_DIR}/target/bootstrap/check-abi.actual.stdout.XXXXXX")"
-  actual_stderr="$(mktemp "${SAFE_DIR}/target/bootstrap/check-abi.actual.stderr.XXXXXX")"
-  expected_stdout="$(mktemp "${SAFE_DIR}/target/bootstrap/check-abi.expected.stdout.XXXXXX")"
-  expected_stderr="$(mktemp "${SAFE_DIR}/target/bootstrap/check-abi.expected.stderr.XXXXXX")"
+  actual_stdout="$(mktemp "${BOOTSTRAP_ROOT}/check-abi.actual.stdout.XXXXXX")"
+  actual_stderr="$(mktemp "${BOOTSTRAP_ROOT}/check-abi.actual.stderr.XXXXXX")"
+  expected_stdout="$(mktemp "${BOOTSTRAP_ROOT}/check-abi.expected.stdout.XXXXXX")"
+  expected_stderr="$(mktemp "${BOOTSTRAP_ROOT}/check-abi.expected.stderr.XXXXXX")"
 
   set +e
   bash -c "${actual_cmd}" >"${actual_stdout}" 2>"${actual_stderr}"
@@ -178,7 +185,7 @@ compare_command_output() {
 
 check_thread_cbs_noop() {
   local tmpdir probe_c probe_bin
-  tmpdir="$(mktemp -d "${SAFE_DIR}/target/bootstrap/check-abi-thread-cbs.XXXXXX")"
+  tmpdir="$(mktemp -d "${BOOTSTRAP_ROOT}/check-abi-thread-cbs.XXXXXX")"
   probe_c="${tmpdir}/thread-cbs-noop.c"
   probe_bin="${tmpdir}/thread-cbs-noop"
 
@@ -245,7 +252,7 @@ EOF
 
 check_runtime_shell_surface() {
   local tmpdir probe_c probe_bin
-  tmpdir="$(mktemp -d "${SAFE_DIR}/target/bootstrap/check-abi-runtime.XXXXXX")"
+  tmpdir="$(mktemp -d "${BOOTSTRAP_ROOT}/check-abi-runtime.XXXXXX")"
   probe_c="${tmpdir}/runtime-shell.c"
   probe_bin="${tmpdir}/runtime-shell"
 
@@ -366,7 +373,7 @@ EOF
 
 check_header_smoke_compilation() {
   local tmpdir stage_obj original_obj
-  tmpdir="$(mktemp -d "${SAFE_DIR}/target/bootstrap/check-abi-header.XXXXXX")"
+  tmpdir="$(mktemp -d "${BOOTSTRAP_ROOT}/check-abi-header.XXXXXX")"
   stage_obj="${tmpdir}/stage-public-api-smoke.o"
   original_obj="${tmpdir}/original-public-api-smoke.o"
 
@@ -565,6 +572,7 @@ main() {
   fi
 
   cargo build --manifest-path "${SAFE_DIR}/Cargo.toml" --release --offline
+  "${SCRIPT_DIR}/build-release-lib.sh"
   stage_install_tree
   render_expected_original_artifacts
 

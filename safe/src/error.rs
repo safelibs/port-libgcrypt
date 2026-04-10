@@ -40,7 +40,7 @@ pub(crate) const GPG_ERR_USER_1: u32 = 1024;
 pub(crate) const GPG_ERR_ERANGE: u32 = (1 << 15) | 117;
 
 #[link(name = "gpg-error")]
-unsafe extern "C" {
+extern "C" {
     fn gpg_strerror(err: u32) -> *const c_char;
     fn gpg_strsource(err: u32) -> *const c_char;
     fn gpg_err_code_from_errno(err: c_int) -> u32;
@@ -100,32 +100,32 @@ pub(crate) fn encode_version_number(version: &str) -> u32 {
     (major << 16) | (minor << 8) | micro
 }
 
-#[unsafe(export_name = "safe_gcry_err_code_from_errno")]
+#[export_name = "safe_gcry_err_code_from_errno"]
 pub extern "C" fn gcry_err_code_from_errno(err: c_int) -> u32 {
     gpg_err_code_from_os_error(err)
 }
 
-#[unsafe(export_name = "safe_gcry_err_code_to_errno")]
+#[export_name = "safe_gcry_err_code_to_errno"]
 pub extern "C" fn gcry_err_code_to_errno(code: u32) -> c_int {
     unsafe { gpg_err_code_to_errno(code) }
 }
 
-#[unsafe(export_name = "safe_gcry_err_make_from_errno")]
+#[export_name = "safe_gcry_err_make_from_errno"]
 pub extern "C" fn gcry_err_make_from_errno(source: u32, err: c_int) -> u32 {
     gcry_error_from_source(source, gpg_err_code_from_os_error(err))
 }
 
-#[unsafe(export_name = "safe_gcry_error_from_errno")]
+#[export_name = "safe_gcry_error_from_errno"]
 pub extern "C" fn gcry_error_from_errno(err: c_int) -> u32 {
     gcry_error_from_code(gpg_err_code_from_os_error(err))
 }
 
-#[unsafe(export_name = "safe_gcry_strerror")]
+#[export_name = "safe_gcry_strerror"]
 pub extern "C" fn gcry_strerror(err: u32) -> *const c_char {
     unsafe { gpg_strerror(err) }
 }
 
-#[unsafe(export_name = "safe_gcry_strsource")]
+#[export_name = "safe_gcry_strsource"]
 pub extern "C" fn gcry_strsource(err: u32) -> *const c_char {
     unsafe { gpg_strsource(err) }
 }

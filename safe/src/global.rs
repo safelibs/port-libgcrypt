@@ -83,13 +83,22 @@ pub(crate) struct AllocationHandlers {
     pub(crate) free: gcry_handler_free_t,
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) struct OutOfCoreHandler {
     pub(crate) callback: gcry_handler_no_mem_t,
     pub(crate) opaque: *mut c_void,
 }
 
 unsafe impl Send for OutOfCoreHandler {}
+
+impl Default for OutOfCoreHandler {
+    fn default() -> Self {
+        Self {
+            callback: None,
+            opaque: std::ptr::null_mut(),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub(crate) struct RuntimeState {
@@ -229,7 +238,7 @@ pub(crate) fn note_rng_use() {
     freeze_rng_type(&mut state);
 }
 
-#[unsafe(export_name = "safe_gcry_check_version")]
+#[export_name = "safe_gcry_check_version"]
 pub extern "C" fn gcry_check_version(req_version: *const c_char) -> *const c_char {
     if !req_version.is_null() {
         let request = unsafe { CStr::from_ptr(req_version) };
@@ -267,7 +276,7 @@ pub extern "C" fn gcry_check_version(req_version: *const c_char) -> *const c_cha
     }
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn safe_gcry_control_dispatch(
     cmd: u32,
     arg0: usize,

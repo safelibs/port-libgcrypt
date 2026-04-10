@@ -623,8 +623,6 @@ safe_extra_packages=(
   autoconf
   automake
   cargo
-  ca-certificates
-  curl
   debhelper
   dpkg-dev
   fakeroot
@@ -633,15 +631,23 @@ safe_extra_packages=(
   rustc
 )
 
-setup_modern_rust_toolchain() {
-  local cargo_version
-  cargo_version="$(cargo --version | awk '{print $2}')"
-  if dpkg --compare-versions "${cargo_version}" ge 1.85; then
+verify_archive_rust_toolchain() {
+  local cargo_version rustc_version
+
+  cargo_version="$(cargo --version 2>/dev/null || echo missing)"
+  rustc_version="$(rustc --version 2>/dev/null || echo missing)"
+
+  if cargo build --manifest-path "$REPO_DIR/safe/Cargo.toml" --release --offline; then
     return 0
   fi
 
-  curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable
-  export PATH="/root/.cargo/bin:${PATH}"
+  {
+    echo "Ubuntu 24.04 archive cargo/rustc could not build safe/Cargo.toml offline."
+    echo "cargo: $cargo_version"
+    echo "rustc: $rustc_version"
+    echo "This downstream harness no longer bootstraps an alternate Rust toolchain."
+  } >&2
+  return 1
 }
 
 run_logged "apt update" "$log_dir/apt-update.log" apt-get update
@@ -660,7 +666,7 @@ if [[ "$IMPLEMENTATION" == "safe" ]]; then
 fi
 
 if [[ "$IMPLEMENTATION" == "safe" ]]; then
-  run_step "install modern Rust toolchain" setup_modern_rust_toolchain
+  run_step "verify distro Rust toolchain" verify_archive_rust_toolchain
 fi
 
 run_step "validate dependents.json coverage" validate_dependents_json

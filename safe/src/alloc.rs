@@ -15,7 +15,7 @@ use crate::{
 
 const SECURE_OOM_MESSAGE: &[u8] = b"out of core in secure memory\0";
 
-unsafe extern "C" {
+extern "C" {
     fn malloc(size: usize) -> *mut c_void;
     fn realloc(ptr: *mut c_void, size: usize) -> *mut c_void;
     fn free(ptr: *mut c_void);
@@ -163,7 +163,7 @@ pub(crate) fn copy_bytes(bytes: &[u8], secure: bool, xhint: bool) -> *mut c_char
     ptr.cast()
 }
 
-#[unsafe(export_name = "safe_gcry_set_allocation_handler")]
+#[export_name = "safe_gcry_set_allocation_handler"]
 pub extern "C" fn gcry_set_allocation_handler(
     func_alloc: gcry_handler_alloc_t,
     func_alloc_secure: gcry_handler_alloc_t,
@@ -185,7 +185,7 @@ pub extern "C" fn gcry_set_allocation_handler(
     };
 }
 
-#[unsafe(export_name = "safe_gcry_set_outofcore_handler")]
+#[export_name = "safe_gcry_set_outofcore_handler"]
 pub extern "C" fn gcry_set_outofcore_handler(handler: gcry_handler_no_mem_t, opaque: *mut c_void) {
     let mut state = lock_runtime_state();
     if state.fips_mode {
@@ -198,17 +198,17 @@ pub extern "C" fn gcry_set_outofcore_handler(handler: gcry_handler_no_mem_t, opa
     };
 }
 
-#[unsafe(export_name = "safe_gcry_malloc")]
+#[export_name = "safe_gcry_malloc"]
 pub extern "C" fn gcry_malloc(n: usize) -> *mut c_void {
     try_allocate(n, false, false, false)
 }
 
-#[unsafe(export_name = "safe_gcry_malloc_secure")]
+#[export_name = "safe_gcry_malloc_secure"]
 pub extern "C" fn gcry_malloc_secure(n: usize) -> *mut c_void {
     try_allocate(n, true, false, false)
 }
 
-#[unsafe(export_name = "safe_gcry_calloc")]
+#[export_name = "safe_gcry_calloc"]
 pub extern "C" fn gcry_calloc(n: usize, m: usize) -> *mut c_void {
     let Some(bytes) = multiply_sizes(n, m) else {
         set_errno(ENOMEM_VALUE);
@@ -217,7 +217,7 @@ pub extern "C" fn gcry_calloc(n: usize, m: usize) -> *mut c_void {
     try_allocate(bytes.max(1), false, true, false)
 }
 
-#[unsafe(export_name = "safe_gcry_calloc_secure")]
+#[export_name = "safe_gcry_calloc_secure"]
 pub extern "C" fn gcry_calloc_secure(n: usize, m: usize) -> *mut c_void {
     let Some(bytes) = multiply_sizes(n, m) else {
         set_errno(ENOMEM_VALUE);
@@ -226,7 +226,7 @@ pub extern "C" fn gcry_calloc_secure(n: usize, m: usize) -> *mut c_void {
     try_allocate(bytes.max(1), true, true, false)
 }
 
-#[unsafe(export_name = "safe_gcry_realloc")]
+#[export_name = "safe_gcry_realloc"]
 pub extern "C" fn gcry_realloc(a: *mut c_void, n: usize) -> *mut c_void {
     if a.is_null() {
         return gcry_malloc(n);
@@ -258,7 +258,7 @@ pub extern "C" fn gcry_realloc(a: *mut c_void, n: usize) -> *mut c_void {
     ptr
 }
 
-#[unsafe(export_name = "safe_gcry_strdup")]
+#[export_name = "safe_gcry_strdup"]
 pub extern "C" fn gcry_strdup(string: *const c_char) -> *mut c_char {
     if string.is_null() {
         return null_mut();
@@ -268,12 +268,12 @@ pub extern "C" fn gcry_strdup(string: *const c_char) -> *mut c_char {
     copy_bytes(bytes, is_secure_internal(string.cast()), false)
 }
 
-#[unsafe(export_name = "safe_gcry_is_secure")]
+#[export_name = "safe_gcry_is_secure"]
 pub extern "C" fn gcry_is_secure(a: *const c_void) -> c_int {
     is_secure_internal(a) as c_int
 }
 
-#[unsafe(export_name = "safe_gcry_xcalloc")]
+#[export_name = "safe_gcry_xcalloc"]
 pub extern "C" fn gcry_xcalloc(n: usize, m: usize) -> *mut c_void {
     let Some(bytes) = multiply_sizes(n, m) else {
         set_errno(ENOMEM_VALUE);
@@ -285,7 +285,7 @@ pub extern "C" fn gcry_xcalloc(n: usize, m: usize) -> *mut c_void {
     xallocate(bytes.max(1), false, true, 0)
 }
 
-#[unsafe(export_name = "safe_gcry_xcalloc_secure")]
+#[export_name = "safe_gcry_xcalloc_secure"]
 pub extern "C" fn gcry_xcalloc_secure(n: usize, m: usize) -> *mut c_void {
     let Some(bytes) = multiply_sizes(n, m) else {
         set_errno(ENOMEM_VALUE);
@@ -297,17 +297,17 @@ pub extern "C" fn gcry_xcalloc_secure(n: usize, m: usize) -> *mut c_void {
     xallocate(bytes.max(1), true, true, 1)
 }
 
-#[unsafe(export_name = "safe_gcry_xmalloc")]
+#[export_name = "safe_gcry_xmalloc"]
 pub extern "C" fn gcry_xmalloc(n: usize) -> *mut c_void {
     xallocate(n, false, false, 0)
 }
 
-#[unsafe(export_name = "safe_gcry_xmalloc_secure")]
+#[export_name = "safe_gcry_xmalloc_secure"]
 pub extern "C" fn gcry_xmalloc_secure(n: usize) -> *mut c_void {
     xallocate(n, true, false, 1)
 }
 
-#[unsafe(export_name = "safe_gcry_xrealloc")]
+#[export_name = "safe_gcry_xrealloc"]
 pub extern "C" fn gcry_xrealloc(a: *mut c_void, n: usize) -> *mut c_void {
     loop {
         let ptr = gcry_realloc(a, n);
@@ -331,7 +331,7 @@ pub extern "C" fn gcry_xrealloc(a: *mut c_void, n: usize) -> *mut c_void {
     }
 }
 
-#[unsafe(export_name = "safe_gcry_xstrdup")]
+#[export_name = "safe_gcry_xstrdup"]
 pub extern "C" fn gcry_xstrdup(a: *const c_char) -> *mut c_char {
     if a.is_null() {
         log::fatal_error(error::GPG_ERR_INV_ARG, b"Invalid argument\0");
@@ -361,7 +361,7 @@ pub extern "C" fn gcry_xstrdup(a: *const c_char) -> *mut c_char {
     }
 }
 
-#[unsafe(export_name = "safe_gcry_free")]
+#[export_name = "safe_gcry_free"]
 pub extern "C" fn gcry_free(a: *mut c_void) {
     if a.is_null() {
         return;

@@ -15,9 +15,14 @@
 /* Harness-visible feature toggles for the Linux test path.  */
 #define HAVE_CONFIG_H 1
 #define HAVE_CLOCK 1
+#define HAVE_CLOCK_GETTIME 1
 #define HAVE_FLOCKFILE 1
 #define HAVE_GETPID 1
+#define HAVE_GETPAGESIZE 1
+#define HAVE_GETTIMEOFDAY 1
 #define HAVE_MMAP 1
+#define HAVE_PTHREAD 1
+#define HAVE_SPAWN_H 1
 #define HAVE_STDINT_H 1
 #define HAVE_SYSCONF 1
 

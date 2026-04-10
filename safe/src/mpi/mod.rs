@@ -50,7 +50,7 @@ type mpz_ptr = *mut __mpz_struct;
 type mpz_srcptr = *const __mpz_struct;
 
 #[link(name = "gmp")]
-unsafe extern "C" {
+extern "C" {
     fn __gmpz_abs(rop: mpz_ptr, op: mpz_srcptr);
     fn __gmpz_add(rop: mpz_ptr, op1: mpz_srcptr, op2: mpz_srcptr);
     fn __gmpz_add_ui(rop: mpz_ptr, op1: mpz_srcptr, op2: c_ulong);
@@ -472,17 +472,17 @@ pub(crate) fn mpi_printable_hex(value: &gcry_mpi) -> String {
     String::from_utf8_lossy(&bytes).into_owned()
 }
 
-#[unsafe(export_name = "gcry_mpi_new")]
+#[export_name = "gcry_mpi_new"]
 pub extern "C" fn gcry_mpi_new(nbits: c_uint) -> *mut gcry_mpi {
     gcry_mpi::new_numeric(nbits as usize, false)
 }
 
-#[unsafe(export_name = "gcry_mpi_snew")]
+#[export_name = "gcry_mpi_snew"]
 pub extern "C" fn gcry_mpi_snew(nbits: c_uint) -> *mut gcry_mpi {
     gcry_mpi::new_numeric(nbits as usize, true)
 }
 
-#[unsafe(export_name = "gcry_mpi_release")]
+#[export_name = "gcry_mpi_release"]
 pub extern "C" fn gcry_mpi_release(a: *mut gcry_mpi) {
     if a.is_null() {
         return;
@@ -498,12 +498,12 @@ pub extern "C" fn gcry_mpi_release(a: *mut gcry_mpi) {
     }
 }
 
-#[unsafe(export_name = "gcry_mpi_copy")]
+#[export_name = "gcry_mpi_copy"]
 pub extern "C" fn gcry_mpi_copy(a: *const gcry_mpi) -> *mut gcry_mpi {
     unsafe { gcry_mpi::as_ref(a).map_or(null_mut(), gcry_mpi::deep_copy) }
 }
 
-#[unsafe(export_name = "gcry_mpi_snatch")]
+#[export_name = "gcry_mpi_snatch"]
 pub extern "C" fn gcry_mpi_snatch(w: *mut gcry_mpi, u: *mut gcry_mpi) {
     if w.is_null() || u.is_null() || w == u {
         return;
@@ -517,7 +517,7 @@ pub extern "C" fn gcry_mpi_snatch(w: *mut gcry_mpi, u: *mut gcry_mpi) {
     gcry_mpi_release(u);
 }
 
-#[unsafe(export_name = "gcry_mpi_set")]
+#[export_name = "gcry_mpi_set"]
 pub extern "C" fn gcry_mpi_set(w: *mut gcry_mpi, u: *const gcry_mpi) -> *mut gcry_mpi {
     let Some(src) = (unsafe { gcry_mpi::as_ref(u) }) else {
         return null_mut();
@@ -537,14 +537,14 @@ pub extern "C" fn gcry_mpi_set(w: *mut gcry_mpi, u: *const gcry_mpi) -> *mut gcr
     null_mut()
 }
 
-#[unsafe(export_name = "gcry_mpi_set_ui")]
+#[export_name = "gcry_mpi_set_ui"]
 pub extern "C" fn gcry_mpi_set_ui(w: *mut gcry_mpi, u: c_ulong) -> *mut gcry_mpi {
     set_numeric_from_u64(w, u, unsafe {
         gcry_mpi::as_ref(w).is_some_and(|mpi| mpi.secure)
     })
 }
 
-#[unsafe(export_name = "gcry_mpi_get_ui")]
+#[export_name = "gcry_mpi_get_ui"]
 pub extern "C" fn gcry_mpi_get_ui(w: *mut c_uint, u: *mut gcry_mpi) -> u32 {
     let Some(value) = (unsafe { gcry_mpi::as_ref(u) }) else {
         return error::gcry_error_from_code(error::GPG_ERR_INV_ARG);
@@ -569,7 +569,7 @@ pub extern "C" fn gcry_mpi_get_ui(w: *mut c_uint, u: *mut gcry_mpi) -> u32 {
     0
 }
 
-#[unsafe(export_name = "gcry_mpi_swap")]
+#[export_name = "gcry_mpi_swap"]
 pub extern "C" fn gcry_mpi_swap(a: *mut gcry_mpi, b: *mut gcry_mpi) {
     if a.is_null() || b.is_null() || a == b {
         return;
@@ -581,7 +581,7 @@ pub extern "C" fn gcry_mpi_swap(a: *mut gcry_mpi, b: *mut gcry_mpi) {
     }
 }
 
-#[unsafe(export_name = "gcry_mpi_is_neg")]
+#[export_name = "gcry_mpi_is_neg"]
 pub extern "C" fn gcry_mpi_is_neg(a: *mut gcry_mpi) -> c_int {
     unsafe {
         gcry_mpi::as_ref(a).map_or(0, |mpi| match &mpi.kind {
@@ -591,7 +591,7 @@ pub extern "C" fn gcry_mpi_is_neg(a: *mut gcry_mpi) -> c_int {
     }
 }
 
-#[unsafe(export_name = "gcry_mpi_neg")]
+#[export_name = "gcry_mpi_neg"]
 pub extern "C" fn gcry_mpi_neg(w: *mut gcry_mpi, u: *mut gcry_mpi) {
     let snapshot = gcry_mpi_copy(u);
     let Some(src) = (unsafe { gcry_mpi::as_ref(snapshot) }) else {
@@ -614,7 +614,7 @@ pub extern "C" fn gcry_mpi_neg(w: *mut gcry_mpi, u: *mut gcry_mpi) {
     gcry_mpi_release(snapshot);
 }
 
-#[unsafe(export_name = "gcry_mpi_abs")]
+#[export_name = "gcry_mpi_abs"]
 pub extern "C" fn gcry_mpi_abs(w: *mut gcry_mpi) {
     let snapshot = gcry_mpi_copy(w);
     let Some(src) = (unsafe { gcry_mpi::as_ref(snapshot) }) else {
@@ -633,7 +633,7 @@ pub extern "C" fn gcry_mpi_abs(w: *mut gcry_mpi) {
     gcry_mpi_release(snapshot);
 }
 
-#[unsafe(export_name = "gcry_mpi_cmp")]
+#[export_name = "gcry_mpi_cmp"]
 pub extern "C" fn gcry_mpi_cmp(u: *const gcry_mpi, v: *const gcry_mpi) -> c_int {
     match (unsafe { gcry_mpi::as_ref(u) }, unsafe {
         gcry_mpi::as_ref(v)
@@ -645,7 +645,7 @@ pub extern "C" fn gcry_mpi_cmp(u: *const gcry_mpi, v: *const gcry_mpi) -> c_int 
     }
 }
 
-#[unsafe(export_name = "gcry_mpi_cmp_ui")]
+#[export_name = "gcry_mpi_cmp_ui"]
 pub extern "C" fn gcry_mpi_cmp_ui(u: *const gcry_mpi, v: c_ulong) -> c_int {
     let Some(left) = (unsafe { gcry_mpi::as_ref(u) }) else {
         return -1;
@@ -656,7 +656,7 @@ pub extern "C" fn gcry_mpi_cmp_ui(u: *const gcry_mpi, v: c_ulong) -> c_int {
     }
 }
 
-#[unsafe(export_name = "gcry_mpi_get_nbits")]
+#[export_name = "gcry_mpi_get_nbits"]
 pub extern "C" fn gcry_mpi_get_nbits(a: *mut gcry_mpi) -> c_uint {
     let Some(value) = (unsafe { gcry_mpi::as_ref(a) }) else {
         return 0;
@@ -677,7 +677,7 @@ pub extern "C" fn gcry_mpi_get_nbits(a: *mut gcry_mpi) -> c_uint {
     }
 }
 
-#[unsafe(export_name = "gcry_mpi_test_bit")]
+#[export_name = "gcry_mpi_test_bit"]
 pub extern "C" fn gcry_mpi_test_bit(a: *mut gcry_mpi, n: c_uint) -> c_int {
     let Some(value) = (unsafe { gcry_mpi::as_ref(a) }) else {
         return 0;
@@ -706,7 +706,7 @@ pub extern "C" fn gcry_mpi_test_bit(a: *mut gcry_mpi, n: c_uint) -> c_int {
     }
 }
 
-#[unsafe(export_name = "gcry_mpi_set_bit")]
+#[export_name = "gcry_mpi_set_bit"]
 pub extern "C" fn gcry_mpi_set_bit(a: *mut gcry_mpi, n: c_uint) {
     let Some(dest) = (unsafe { gcry_mpi::as_mut(a) }) else {
         return;
@@ -716,7 +716,7 @@ pub extern "C" fn gcry_mpi_set_bit(a: *mut gcry_mpi, n: c_uint) {
     }
 }
 
-#[unsafe(export_name = "gcry_mpi_clear_bit")]
+#[export_name = "gcry_mpi_clear_bit"]
 pub extern "C" fn gcry_mpi_clear_bit(a: *mut gcry_mpi, n: c_uint) {
     let Some(dest) = (unsafe { gcry_mpi::as_mut(a) }) else {
         return;
@@ -726,7 +726,7 @@ pub extern "C" fn gcry_mpi_clear_bit(a: *mut gcry_mpi, n: c_uint) {
     }
 }
 
-#[unsafe(export_name = "gcry_mpi_set_highbit")]
+#[export_name = "gcry_mpi_set_highbit"]
 pub extern "C" fn gcry_mpi_set_highbit(a: *mut gcry_mpi, n: c_uint) {
     let Some(dest) = (unsafe { gcry_mpi::as_mut(a) }) else {
         return;
@@ -739,7 +739,7 @@ pub extern "C" fn gcry_mpi_set_highbit(a: *mut gcry_mpi, n: c_uint) {
     }
 }
 
-#[unsafe(export_name = "gcry_mpi_clear_highbit")]
+#[export_name = "gcry_mpi_clear_highbit"]
 pub extern "C" fn gcry_mpi_clear_highbit(a: *mut gcry_mpi, n: c_uint) {
     let Some(dest) = (unsafe { gcry_mpi::as_mut(a) }) else {
         return;
@@ -751,7 +751,7 @@ pub extern "C" fn gcry_mpi_clear_highbit(a: *mut gcry_mpi, n: c_uint) {
     }
 }
 
-#[unsafe(export_name = "gcry_mpi_rshift")]
+#[export_name = "gcry_mpi_rshift"]
 pub extern "C" fn gcry_mpi_rshift(x: *mut gcry_mpi, a: *mut gcry_mpi, n: c_uint) {
     let snapshot = gcry_mpi_copy(a);
     let Some(src) = (unsafe { gcry_mpi::as_ref(snapshot) }) else {
@@ -775,7 +775,7 @@ pub extern "C" fn gcry_mpi_rshift(x: *mut gcry_mpi, a: *mut gcry_mpi, n: c_uint)
     gcry_mpi_release(snapshot);
 }
 
-#[unsafe(export_name = "gcry_mpi_lshift")]
+#[export_name = "gcry_mpi_lshift"]
 pub extern "C" fn gcry_mpi_lshift(x: *mut gcry_mpi, a: *mut gcry_mpi, n: c_uint) {
     let snapshot = gcry_mpi_copy(a);
     let Some(src) = (unsafe { gcry_mpi::as_ref(snapshot) }) else {
@@ -799,7 +799,7 @@ pub extern "C" fn gcry_mpi_lshift(x: *mut gcry_mpi, a: *mut gcry_mpi, n: c_uint)
     gcry_mpi_release(snapshot);
 }
 
-#[unsafe(export_name = "gcry_mpi_set_flag")]
+#[export_name = "gcry_mpi_set_flag"]
 pub extern "C" fn gcry_mpi_set_flag(a: *mut gcry_mpi, flag: c_int) {
     let Some(value) = (unsafe { gcry_mpi::as_mut(a) }) else {
         return;
@@ -818,7 +818,7 @@ pub extern "C" fn gcry_mpi_set_flag(a: *mut gcry_mpi, flag: c_int) {
     }
 }
 
-#[unsafe(export_name = "gcry_mpi_clear_flag")]
+#[export_name = "gcry_mpi_clear_flag"]
 pub extern "C" fn gcry_mpi_clear_flag(a: *mut gcry_mpi, flag: c_int) {
     let Some(value) = (unsafe { gcry_mpi::as_mut(a) }) else {
         return;
@@ -832,7 +832,7 @@ pub extern "C" fn gcry_mpi_clear_flag(a: *mut gcry_mpi, flag: c_int) {
     }
 }
 
-#[unsafe(export_name = "gcry_mpi_get_flag")]
+#[export_name = "gcry_mpi_get_flag"]
 pub extern "C" fn gcry_mpi_get_flag(a: *mut gcry_mpi, flag: c_int) -> c_int {
     let Some(value) = (unsafe { gcry_mpi::as_ref(a) }) else {
         return 0;
@@ -848,7 +848,7 @@ pub extern "C" fn gcry_mpi_get_flag(a: *mut gcry_mpi, flag: c_int) -> c_int {
     set as c_int
 }
 
-#[unsafe(export_name = "gcry_mpi_randomize")]
+#[export_name = "gcry_mpi_randomize"]
 pub extern "C" fn gcry_mpi_randomize(w: *mut gcry_mpi, nbits: c_uint, level: c_int) {
     let Some(dest) = (unsafe { gcry_mpi::as_mut(w) }) else {
         return;
@@ -872,7 +872,7 @@ pub extern "C" fn gcry_mpi_randomize(w: *mut gcry_mpi, nbits: c_uint, level: c_i
     dest.kind = MpiKind::Numeric(imported);
 }
 
-#[unsafe(export_name = "gcry_mpi_dump")]
+#[export_name = "gcry_mpi_dump"]
 pub extern "C" fn gcry_mpi_dump(a: *const gcry_mpi) {
     let text = if let Some(value) = unsafe { gcry_mpi::as_ref(a) } {
         format!(" {}", mpi_printable_hex(value))
@@ -882,7 +882,7 @@ pub extern "C" fn gcry_mpi_dump(a: *const gcry_mpi) {
     log::emit_message(log::GCRY_LOG_INFO, &text);
 }
 
-#[unsafe(export_name = "gcry_log_debugmpi")]
+#[export_name = "gcry_log_debugmpi"]
 pub extern "C" fn gcry_log_debugmpi(text: *const c_char, mpi: *mut gcry_mpi) {
     let prefix = if text.is_null() {
         "mpi".to_string()

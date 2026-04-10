@@ -1,9 +1,24 @@
-# Upstream Test Matrix
+# Harness Test Matrix
 
-This matrix records the imported upstream `tests/` inventory now staged under `safe/tests/upstream/` and the helper/build contract now staged under `safe/tests/compat/`. Driver order and long-running flags come from `safe/tests/upstream/testdrv.c`; the broader build inventory comes from `safe/tests/upstream/Makefile.am`, and the two are intentionally not forced to match.
+This matrix tracks two distinct compatibility harnesses:
+
+- Original source-compatible harness: [`safe/scripts/run-original-tests.sh`](../scripts/run-original-tests.sh) compiles the original `original/libgcrypt20-1.10.3/tests/*.c` sources directly, derives `--list` and `--all` from `original/libgcrypt20-1.10.3/tests/Makefile.am`, and uses the committed original-build contract in `safe/tests/original-build/` for `config.h`, `test-build-vars.mk`, and the rendered wrapper scripts.
+- Imported upstream harness: [`safe/scripts/run-upstream-tests.sh`](../scripts/run-upstream-tests.sh) compiles the committed snapshot under `safe/tests/upstream/` plus the committed compat subset under `safe/tests/compat/`; execution order comes from `safe/tests/upstream/testdrv.c`, not from the broader `Makefile.am` inventory.
+
+## Phase 1 Harness Baseline
+
+| Harness | Inventory source | Build contract | Execution entrypoint |
+| --- | --- | --- | --- |
+| Original source-compatible harness | `original/libgcrypt20-1.10.3/tests/Makefile.am` `TESTS` via `tests_bin`, `tests_sh`, `tests_bin_last`, and `tests_sh_last` | `safe/tests/original-build/config.h`, `safe/tests/original-build/test-build-vars.mk`, `safe/tests/original-build/basic-disable-all-hwf`, `safe/tests/original-build/hashtest-256g` | `safe/scripts/run-original-tests.sh --all` |
+| Imported upstream harness | `safe/tests/upstream/testdrv.c` plus the committed wrapper copies in `safe/tests/upstream/` | `safe/tests/upstream/` and `safe/tests/compat/` committed copies only | `safe/scripts/run-upstream-tests.sh --all` |
+
+For the original harness, `safe/scripts/run-original-tests.sh --list` prints only the live `TESTS` inventory, `--dry-run` preserves the real command shapes (`./basic`, wrapper-script arguments, and `./testapi version` / `./testapi sexp`), and the helper-only `testapi:version` / `testapi:sexp` entries remain opt-in instead of appearing in `--list` or `--all`.
+
+The Noble-compatible toolchain baseline keeps plain `cargo build --release --offline` focused on Rust outputs. The harness and ABI scripts then relink `target/release/libgcrypt.so` from `target/release/libgcrypt.a` with the committed `safe/abi/libgcrypt.vers` map so the staged test surface still carries the authoritative `GCRYPT_1.6` symbol versions and `libgcrypt.so.20` SONAME.
 
 Phase ownership follows the current repo documentation:
 
+- Phase 1: Noble toolchain baseline plus the committed original-harness build contract, runtime inventory parser, and imported-harness sync plumbing.
 - Phase 2: runtime shell/bootstrap ownership for version, config, allocation, and secure-memory behavior. This phase number is inferred from the pre-phase-3 ownership notes in `safe/docs/abi-map.md`.
 - Phase 3: S-expression and MPI core ownership.
 - Phase 4: digest, MAC, RNG, and KDF ownership.
@@ -58,7 +73,7 @@ Phase ownership follows the current repo documentation:
 
 ## Phase 8 Link-Compatibility Overlay
 
-Phase 8 adds two compatibility-specific harnesses on top of the imported upstream suite:
+Phase 8 adds two compatibility-specific harnesses on top of the phase-1 original source-compatible harness and the phase-7 imported upstream suite:
 
 - `safe/scripts/relink-original-objects.sh` compiles the original upstream `tests/` sources to object files with the original headers and build defines, relinks those objects against the safe `libgcrypt.so.20`, and executes every `tests_bin` and `tests_bin_last` binary from `original/libgcrypt20-1.10.3/tests/Makefile.am`, plus `testapi`.
 - `safe/scripts/run-compat-smoke.sh` covers the remaining public-development and ABI-only surfaces that are not exercised by imported upstream tests, shell-backed wrappers, or the original-object relink pass.
@@ -80,10 +95,12 @@ Phase 8 adds two compatibility-specific harnesses on top of the imported upstrea
 
 Phase 10 closes the remaining verification ownership for committed imported artifacts, packaged helper tools, Debian metadata, and downstream dependents.
 
+Later downstream/image phases should consume already-built `safe/dist/*.deb` artifacts instead of rebuilding `safe/` inside Docker again. Phase 1 keeps offline Cargo valid for `cargo build` and `safe/scripts/build-debs.sh`, but package/image workflows should install the prebuilt packages they inherit.
+
 | Harness / surface | First enabled phase | Coverage type | Execution |
 | --- | --- | --- | --- |
 | Imported test-tree drift guard | Phase 10 | committed-artifact verification | `safe/scripts/import-upstream-tests.sh --verify` compares the committed `safe/tests/upstream/` tree and the imported subset of `safe/tests/compat/` against `original/libgcrypt20-1.10.3`, while preserving local compat-smoke assets |
 | Upstream harness plumbing | Phase 10 | committed-artifact verification | `safe/scripts/run-upstream-tests.sh --verify-plumbing` proves the run used the committed imported `config.h`, rendered wrapper scripts, generated header, and committed `compat/` support tree instead of files from `original/` |
 | Debian symbol contract | Phase 10 | packaging verification | `safe/scripts/build-debs.sh` plus `safe/scripts/check-deb-metadata.sh --dist safe/dist` reconcile `safe/debian/libgcrypt20.symbols` against `safe/abi/libgcrypt.vers`, allowing only Debian's `GCRYPT_1.6` sentinel line as an extra non-symbol entry |
 | Installed helper CLI surface | Phase 10 | package-image smoke | `safe/scripts/check-installed-tools.sh --dist safe/dist` runs `dumpsexp`, `hmac256`, `mpicalc`, `libgcrypt-config`, and `pkg-config` from the extracted package image rather than cargo-built binaries |
-| Downstream dependent matrix | Phase 10 | packaged runtime compatibility | `./test-original.sh --implementation safe` validates the packaged safe build against `libapt-pkg`, `gpg`, `gnome-keyring`, `libssh-gcrypt`, `xmlsec1`, `munge`, `aircrack-ng`, and `wireshark` |
+| Downstream dependent matrix | Phase 10 | packaged runtime compatibility | `./test-original.sh --implementation safe` validates the packaged safe build against `libapt-pkg`, `gpg`, `gnome-keyring`, `libssh-gcrypt`, `xmlsec1`, `munge`, `aircrack-ng`, and `wireshark`; later image/downstream phases should install the already-built `safe/dist/*.deb` packages rather than rebuilding `safe/` inside Docker |

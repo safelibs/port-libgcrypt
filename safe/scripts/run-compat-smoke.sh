@@ -4,20 +4,27 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SAFE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO_DIR="$(cd "${SAFE_DIR}/.." && pwd)"
+INVOCATION_PWD="${PWD}"
+# shellcheck source=./cargo-target-root.sh
+source "${SCRIPT_DIR}/cargo-target-root.sh"
+TARGET_ROOT="$(resolve_target_root "${SAFE_DIR}" "${INVOCATION_PWD}")"
+BOOTSTRAP_ROOT="${TARGET_ROOT}/bootstrap"
 MULTIARCH="$(dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null || echo x86_64-linux-gnu)"
-GENERATED_DIR="${SAFE_DIR}/target/bootstrap/generated"
-STAGE_ROOT="${SAFE_DIR}/target/bootstrap/staging"
+GENERATED_DIR="${BOOTSTRAP_ROOT}/generated"
+STAGE_ROOT="${BOOTSTRAP_ROOT}/staging"
 STAGE_PREFIX="${STAGE_ROOT}/usr"
 STAGE_LIBDIR="${STAGE_PREFIX}/lib/${MULTIARCH}"
 STAGE_PKGCONFIG="${STAGE_LIBDIR}/pkgconfig"
 STAGE_INCLUDEDIR="${STAGE_PREFIX}/include"
 STAGE_BINDIR="${STAGE_PREFIX}/bin"
 STAGE_ACLOCAL="${STAGE_PREFIX}/share/aclocal"
-RELEASE_LIBDIR="${SAFE_DIR}/target/release"
+RELEASE_LIBDIR="${TARGET_ROOT}/release"
 COMPAT_DIR="${SAFE_DIR}/tests/compat"
-HARNESS_ROOT="${SAFE_DIR}/target/bootstrap/compat-smoke"
+HARNESS_ROOT="${BOOTSTRAP_ROOT}/compat-smoke"
 AUTOMAKE_LIBDIR="$(automake --print-libdir)"
 SYSTEM_PKGCONFIG_PATHS="$(pkg-config --variable pc_path pkg-config)"
+
+mkdir -p "${BOOTSTRAP_ROOT}"
 
 fail() {
   echo "run-compat-smoke: $*" >&2
@@ -30,9 +37,9 @@ require_file() {
 
 stage_install_tree() {
   mkdir -p "${STAGE_LIBDIR}" "${STAGE_INCLUDEDIR}" "${STAGE_PKGCONFIG}" "${STAGE_BINDIR}" "${STAGE_ACLOCAL}"
-  cp "${SAFE_DIR}/target/release/libgcrypt.so" "${STAGE_LIBDIR}/libgcrypt.so.20"
+  cp "${RELEASE_LIBDIR}/libgcrypt.so" "${STAGE_LIBDIR}/libgcrypt.so.20"
   ln -sfn "libgcrypt.so.20" "${STAGE_LIBDIR}/libgcrypt.so"
-  cp "${SAFE_DIR}/target/release/libgcrypt.a" "${STAGE_LIBDIR}/libgcrypt.a"
+  cp "${RELEASE_LIBDIR}/libgcrypt.a" "${STAGE_LIBDIR}/libgcrypt.a"
   cp "${GENERATED_DIR}/include/gcrypt.h" "${STAGE_INCLUDEDIR}/gcrypt.h"
   cp "${GENERATED_DIR}/pkgconfig/libgcrypt.pc" "${STAGE_PKGCONFIG}/libgcrypt.pc"
   cp "${GENERATED_DIR}/bin/libgcrypt-config" "${STAGE_BINDIR}/libgcrypt-config"
@@ -181,6 +188,7 @@ main() {
   done
 
   cargo build --manifest-path "${SAFE_DIR}/Cargo.toml" --release --offline
+  "${SCRIPT_DIR}/build-release-lib.sh"
   mkdir -p "${HARNESS_ROOT}"
   stage_install_tree
 

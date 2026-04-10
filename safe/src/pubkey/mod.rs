@@ -47,7 +47,7 @@ fn convert_result(result: *mut *mut sexp::gcry_sexp, upstream: *mut c_void) -> u
     0
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_pk_encrypt(
     result: *mut *mut sexp::gcry_sexp,
     data: *mut sexp::gcry_sexp,
@@ -85,7 +85,7 @@ pub extern "C" fn gcry_pk_encrypt(
     convert_result(result, upstream_result)
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_pk_decrypt(
     result: *mut *mut sexp::gcry_sexp,
     data: *mut sexp::gcry_sexp,
@@ -123,7 +123,7 @@ pub extern "C" fn gcry_pk_decrypt(
     convert_result(result, upstream_result)
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_pk_sign(
     result: *mut *mut sexp::gcry_sexp,
     data: *mut sexp::gcry_sexp,
@@ -161,7 +161,7 @@ pub extern "C" fn gcry_pk_sign(
     convert_result(result, upstream_result)
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_pk_verify(
     sigval: *mut sexp::gcry_sexp,
     data: *mut sexp::gcry_sexp,
@@ -200,7 +200,7 @@ pub extern "C" fn gcry_pk_verify(
     rc
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_pk_testkey(key: *mut sexp::gcry_sexp) -> u32 {
     let upstream_key = match encoding::sexp_to_upstream(key) {
         Ok(value) => value,
@@ -213,7 +213,7 @@ pub extern "C" fn gcry_pk_testkey(key: *mut sexp::gcry_sexp) -> u32 {
     rc
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_pk_genkey(
     result: *mut *mut sexp::gcry_sexp,
     parms: *mut sexp::gcry_sexp,
@@ -238,12 +238,12 @@ pub extern "C" fn gcry_pk_genkey(
     convert_result(result, upstream_result)
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_pk_ctl(cmd: c_int, buffer: *mut c_void, buflen: usize) -> u32 {
     unsafe { (encoding::api().pk_ctl)(cmd, buffer, buflen) }
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_pk_algo_info(
     algo: c_int,
     what: c_int,
@@ -253,7 +253,7 @@ pub extern "C" fn gcry_pk_algo_info(
     unsafe { (encoding::api().pk_algo_info)(algo, what, buffer, nbytes) }
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_pk_algo_name(algo: c_int) -> *const c_char {
     let upstream = unsafe { (encoding::api().pk_algo_name)(algo) };
     if upstream.is_null() {
@@ -263,12 +263,12 @@ pub extern "C" fn gcry_pk_algo_name(algo: c_int) -> *const c_char {
     }
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_pk_map_name(name: *const c_char) -> c_int {
     unsafe { (encoding::api().pk_map_name)(name) }
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_pk_get_nbits(key: *mut sexp::gcry_sexp) -> u32 {
     let upstream_key = match encoding::sexp_to_upstream(key) {
         Ok(value) => value,
@@ -281,7 +281,7 @@ pub extern "C" fn gcry_pk_get_nbits(key: *mut sexp::gcry_sexp) -> u32 {
     nbits
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_pk_hash_sign(
     result: *mut *mut sexp::gcry_sexp,
     data_tmpl: *const c_char,
@@ -317,7 +317,7 @@ pub extern "C" fn gcry_pk_hash_sign(
     convert_result(result, upstream_result)
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_pk_hash_verify(
     sigval: *mut sexp::gcry_sexp,
     data_tmpl: *const c_char,
@@ -349,7 +349,7 @@ pub extern "C" fn gcry_pk_hash_verify(
     rc
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_pk_random_override_new(
     r_ctx: *mut *mut c_void,
     p: *const u8,
@@ -364,7 +364,7 @@ pub extern "C" fn gcry_pk_random_override_new(
     unsafe { (encoding::api().pk_random_override_new)(r_ctx, p, len) }
 }
 
-#[unsafe(export_name = "safe_gcry_pk_register")]
+#[export_name = "safe_gcry_pk_register"]
 pub extern "C" fn gcry_pk_register() -> u32 {
     error::gcry_error_from_code(error::GPG_ERR_NOT_SUPPORTED)
 }

@@ -270,7 +270,7 @@ fn import_mpi(format: c_int, buffer: *const c_void, buflen: usize) -> Result<(Mp
     }
 }
 
-#[unsafe(export_name = "gcry_mpi_scan")]
+#[export_name = "gcry_mpi_scan"]
 pub extern "C" fn gcry_mpi_scan(
     ret_mpi: *mut *mut gcry_mpi,
     format: c_int,
@@ -307,7 +307,7 @@ pub extern "C" fn gcry_mpi_scan(
     0
 }
 
-#[unsafe(export_name = "gcry_mpi_print")]
+#[export_name = "gcry_mpi_print"]
 pub extern "C" fn gcry_mpi_print(
     format: c_int,
     buffer: *mut u8,
@@ -357,7 +357,7 @@ pub extern "C" fn gcry_mpi_print(
     0
 }
 
-#[unsafe(export_name = "gcry_mpi_aprint")]
+#[export_name = "gcry_mpi_aprint"]
 pub extern "C" fn gcry_mpi_aprint(
     format: c_int,
     buffer: *mut *mut u8,

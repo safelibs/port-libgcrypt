@@ -93,7 +93,7 @@ type KdfComputeFn =
 type KdfFinalFn = unsafe extern "C" fn(*mut c_void, usize, *mut c_void) -> u32;
 type KdfCloseFn = unsafe extern "C" fn(*mut c_void);
 
-unsafe extern "C" {
+extern "C" {
     fn dlopen(filename: *const c_char, flags: c_int) -> *mut c_void;
     fn dlsym(handle: *mut c_void, symbol: *const c_char) -> *mut c_void;
     fn dlerror() -> *const c_char;

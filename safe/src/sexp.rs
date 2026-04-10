@@ -553,11 +553,13 @@ fn sprint_canon(node: &Sexpr, out: &mut Vec<u8>) {
 }
 
 fn sprint_canon_top(node: &Sexpr, top_level_fragment: bool, out: &mut Vec<u8>) {
-    if top_level_fragment && let Sexpr::List(items) = node {
-        for item in items {
-            sprint_canon(item, out);
+    if top_level_fragment {
+        if let Sexpr::List(items) = node {
+            for item in items {
+                sprint_canon(item, out);
+            }
+            return;
         }
-        return;
     }
     sprint_canon(node, out);
 }
@@ -579,11 +581,13 @@ fn sprint_advanced(node: &Sexpr, out: &mut Vec<u8>) {
 }
 
 fn sprint_advanced_top(node: &Sexpr, top_level_fragment: bool, out: &mut Vec<u8>) {
-    if top_level_fragment && let Sexpr::List(items) = node {
-        for item in items {
-            sprint_advanced(item, out);
+    if top_level_fragment {
+        if let Sexpr::List(items) = node {
+            for item in items {
+                sprint_advanced(item, out);
+            }
+            return;
         }
-        return;
     }
     sprint_advanced(node, out);
 }
@@ -617,10 +621,10 @@ fn find_token_recursive(node: &Sexpr, token: &[u8], secure: bool) -> Option<*mut
     match node {
         Sexpr::Atom(_) => None,
         Sexpr::List(items) => {
-            if let Some(Sexpr::Atom(head)) = items.first()
-                && head == token
-            {
-                return Some(gcry_sexp::new(Sexpr::List(items.clone()), secure));
+            if let Some(Sexpr::Atom(head)) = items.first() {
+                if head == token {
+                    return Some(gcry_sexp::new(Sexpr::List(items.clone()), secure));
+                }
             }
             for item in items {
                 if let Some(found) = find_token_recursive(item, token, secure) {
@@ -1078,7 +1082,7 @@ fn build_from_format(format: &CStr, args: &[usize]) -> Result<(*mut gcry_sexp, u
     ))
 }
 
-#[unsafe(export_name = "gcry_sexp_new")]
+#[export_name = "gcry_sexp_new"]
 pub extern "C" fn gcry_sexp_new(
     retsexp: *mut *mut gcry_sexp,
     buffer: *const c_void,
@@ -1114,7 +1118,7 @@ pub extern "C" fn gcry_sexp_new(
     }
 }
 
-#[unsafe(export_name = "gcry_sexp_create")]
+#[export_name = "gcry_sexp_create"]
 pub extern "C" fn gcry_sexp_create(
     retsexp: *mut *mut gcry_sexp,
     buffer: *mut c_void,
@@ -1156,7 +1160,7 @@ pub extern "C" fn gcry_sexp_create(
     }
 }
 
-#[unsafe(export_name = "gcry_sexp_sscan")]
+#[export_name = "gcry_sexp_sscan"]
 pub extern "C" fn gcry_sexp_sscan(
     retsexp: *mut *mut gcry_sexp,
     erroff: *mut usize,
@@ -1203,7 +1207,7 @@ pub extern "C" fn gcry_sexp_sscan(
     }
 }
 
-#[unsafe(export_name = "gcry_sexp_build_array")]
+#[export_name = "gcry_sexp_build_array"]
 pub extern "C" fn gcry_sexp_build_array(
     retsexp: *mut *mut gcry_sexp,
     erroff: *mut usize,
@@ -1238,7 +1242,7 @@ pub extern "C" fn gcry_sexp_build_array(
     }
 }
 
-#[unsafe(export_name = "gcry_sexp_release")]
+#[export_name = "gcry_sexp_release"]
 pub extern "C" fn gcry_sexp_release(sexp: *mut gcry_sexp) {
     if sexp.is_null() {
         return;
@@ -1248,7 +1252,7 @@ pub extern "C" fn gcry_sexp_release(sexp: *mut gcry_sexp) {
     }
 }
 
-#[unsafe(export_name = "gcry_sexp_canon_len")]
+#[export_name = "gcry_sexp_canon_len"]
 pub extern "C" fn gcry_sexp_canon_len(
     buffer: *const u8,
     length: usize,
@@ -1293,7 +1297,7 @@ pub extern "C" fn gcry_sexp_canon_len(
     }
 }
 
-#[unsafe(export_name = "gcry_sexp_sprint")]
+#[export_name = "gcry_sexp_sprint"]
 pub extern "C" fn gcry_sexp_sprint(
     sexp: *mut gcry_sexp,
     mode: c_int,
@@ -1323,7 +1327,7 @@ pub extern "C" fn gcry_sexp_sprint(
     rendered.len()
 }
 
-#[unsafe(export_name = "gcry_sexp_dump")]
+#[export_name = "gcry_sexp_dump"]
 pub extern "C" fn gcry_sexp_dump(a: *const gcry_sexp) {
     let Some(value) = (unsafe { gcry_sexp::as_ref(a) }) else {
         return;
@@ -1333,7 +1337,7 @@ pub extern "C" fn gcry_sexp_dump(a: *const gcry_sexp) {
     log::emit_message(log::GCRY_LOG_INFO, &String::from_utf8_lossy(&rendered));
 }
 
-#[unsafe(export_name = "gcry_sexp_cons")]
+#[export_name = "gcry_sexp_cons"]
 pub extern "C" fn gcry_sexp_cons(a: *const gcry_sexp, b: *const gcry_sexp) -> *mut gcry_sexp {
     let Some(left) = (unsafe { gcry_sexp::as_ref(a) }) else {
         return null_mut();
@@ -1347,7 +1351,7 @@ pub extern "C" fn gcry_sexp_cons(a: *const gcry_sexp, b: *const gcry_sexp) -> *m
     )
 }
 
-#[unsafe(export_name = "gcry_sexp_alist")]
+#[export_name = "gcry_sexp_alist"]
 pub extern "C" fn gcry_sexp_alist(array: *const *mut gcry_sexp) -> *mut gcry_sexp {
     if array.is_null() {
         return null_mut();
@@ -1370,7 +1374,7 @@ pub extern "C" fn gcry_sexp_alist(array: *const *mut gcry_sexp) -> *mut gcry_sex
     gcry_sexp::new(Sexpr::List(items), secure)
 }
 
-#[unsafe(export_name = "gcry_sexp_append")]
+#[export_name = "gcry_sexp_append"]
 pub extern "C" fn gcry_sexp_append(a: *const gcry_sexp, n: *const gcry_sexp) -> *mut gcry_sexp {
     let Some(left) = (unsafe { gcry_sexp::as_ref(a) }) else {
         return null_mut();
@@ -1387,7 +1391,7 @@ pub extern "C" fn gcry_sexp_append(a: *const gcry_sexp, n: *const gcry_sexp) -> 
     )
 }
 
-#[unsafe(export_name = "gcry_sexp_prepend")]
+#[export_name = "gcry_sexp_prepend"]
 pub extern "C" fn gcry_sexp_prepend(a: *const gcry_sexp, n: *const gcry_sexp) -> *mut gcry_sexp {
     let Some(left) = (unsafe { gcry_sexp::as_ref(a) }) else {
         return null_mut();
@@ -1404,7 +1408,7 @@ pub extern "C" fn gcry_sexp_prepend(a: *const gcry_sexp, n: *const gcry_sexp) ->
     )
 }
 
-#[unsafe(export_name = "gcry_sexp_find_token")]
+#[export_name = "gcry_sexp_find_token"]
 pub extern "C" fn gcry_sexp_find_token(
     list: *mut gcry_sexp,
     tok: *const c_char,
@@ -1424,14 +1428,14 @@ pub extern "C" fn gcry_sexp_find_token(
     find_token_recursive(&value.root, &token, value.secure).unwrap_or(null_mut())
 }
 
-#[unsafe(export_name = "gcry_sexp_length")]
+#[export_name = "gcry_sexp_length"]
 pub extern "C" fn gcry_sexp_length(list: *const gcry_sexp) -> c_int {
     unsafe { gcry_sexp::as_ref(list) }
         .and_then(gcry_sexp::list)
         .map_or(0, |items| items.len() as c_int)
 }
 
-#[unsafe(export_name = "gcry_sexp_nth")]
+#[export_name = "gcry_sexp_nth"]
 pub extern "C" fn gcry_sexp_nth(list: *const gcry_sexp, number: c_int) -> *mut gcry_sexp {
     let Some(value) = (unsafe { gcry_sexp::as_ref(list) }) else {
         return null_mut();
@@ -1441,12 +1445,12 @@ pub extern "C" fn gcry_sexp_nth(list: *const gcry_sexp, number: c_int) -> *mut g
         .unwrap_or(null_mut())
 }
 
-#[unsafe(export_name = "gcry_sexp_car")]
+#[export_name = "gcry_sexp_car"]
 pub extern "C" fn gcry_sexp_car(list: *const gcry_sexp) -> *mut gcry_sexp {
     gcry_sexp_nth(list, 0)
 }
 
-#[unsafe(export_name = "gcry_sexp_cdr")]
+#[export_name = "gcry_sexp_cdr"]
 pub extern "C" fn gcry_sexp_cdr(list: *const gcry_sexp) -> *mut gcry_sexp {
     let Some(value) = (unsafe { gcry_sexp::as_ref(list) }) else {
         return null_mut();
@@ -1462,12 +1466,12 @@ pub extern "C" fn gcry_sexp_cdr(list: *const gcry_sexp) -> *mut gcry_sexp {
     gcry_sexp::new_with_fragment(Sexpr::List(rest), value.secure, value.top_level_fragment)
 }
 
-#[unsafe(export_name = "gcry_sexp_cadr")]
+#[export_name = "gcry_sexp_cadr"]
 pub extern "C" fn gcry_sexp_cadr(list: *const gcry_sexp) -> *mut gcry_sexp {
     gcry_sexp_nth(list, 1)
 }
 
-#[unsafe(export_name = "gcry_sexp_nth_data")]
+#[export_name = "gcry_sexp_nth_data"]
 pub extern "C" fn gcry_sexp_nth_data(
     list: *const gcry_sexp,
     number: c_int,
@@ -1492,7 +1496,7 @@ pub extern "C" fn gcry_sexp_nth_data(
     data.as_ptr().cast()
 }
 
-#[unsafe(export_name = "gcry_sexp_nth_buffer")]
+#[export_name = "gcry_sexp_nth_buffer"]
 pub extern "C" fn gcry_sexp_nth_buffer(
     list: *const gcry_sexp,
     number: c_int,
@@ -1517,7 +1521,7 @@ pub extern "C" fn gcry_sexp_nth_buffer(
     mpi::alloc_output_bytes(data, false)
 }
 
-#[unsafe(export_name = "gcry_sexp_nth_string")]
+#[export_name = "gcry_sexp_nth_string"]
 pub extern "C" fn gcry_sexp_nth_string(list: *mut gcry_sexp, number: c_int) -> *mut c_char {
     let Some(value) = (unsafe { gcry_sexp::as_ref(list) }) else {
         return null_mut();
@@ -1530,7 +1534,7 @@ pub extern "C" fn gcry_sexp_nth_string(list: *mut gcry_sexp, number: c_int) -> *
     mpi::alloc_output_bytes(&bytes, false).cast()
 }
 
-#[unsafe(export_name = "gcry_sexp_nth_mpi")]
+#[export_name = "gcry_sexp_nth_mpi"]
 pub extern "C" fn gcry_sexp_nth_mpi(
     list: *mut gcry_sexp,
     number: c_int,
@@ -1561,7 +1565,7 @@ pub extern "C" fn gcry_sexp_nth_mpi(
     if err == 0 { result } else { null_mut() }
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn safe_gcry_sexp_build_dispatch(
     retsexp: *mut *mut gcry_sexp,
     erroff: *mut usize,
@@ -1599,7 +1603,7 @@ pub extern "C" fn safe_gcry_sexp_build_dispatch(
     }
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn safe_gcry_sexp_vlist_dispatch(
     a: *const gcry_sexp,
     rest: *const *mut gcry_sexp,
@@ -1623,7 +1627,7 @@ pub extern "C" fn safe_gcry_sexp_vlist_dispatch(
     gcry_sexp::new(Sexpr::List(items), secure)
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn safe_gcry_sexp_extract_param_dispatch(
     sexp: *mut gcry_sexp,
     path: *const c_char,

@@ -11,14 +11,14 @@ pub(crate) const GCRY_LOG_DEBUG: c_int = 100;
 
 const DEFAULT_FATAL_MESSAGE: &[u8] = b"Fatal error\0";
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug)]
 struct FatalHandler {
     callback: gcry_handler_error_t,
     opaque: *mut c_void,
 }
 
 #[allow(dead_code)]
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug)]
 struct ProgressHandler {
     callback: gcry_handler_progress_t,
     opaque: *mut c_void,
@@ -26,6 +26,24 @@ struct ProgressHandler {
 
 unsafe impl Send for FatalHandler {}
 unsafe impl Send for ProgressHandler {}
+
+impl Default for FatalHandler {
+    fn default() -> Self {
+        Self {
+            callback: None,
+            opaque: std::ptr::null_mut(),
+        }
+    }
+}
+
+impl Default for ProgressHandler {
+    fn default() -> Self {
+        Self {
+            callback: None,
+            opaque: std::ptr::null_mut(),
+        }
+    }
+}
 
 #[derive(Debug, Default)]
 struct LoggingState {
@@ -37,7 +55,7 @@ struct LoggingState {
 
 unsafe impl Send for LoggingState {}
 
-unsafe extern "C" {
+extern "C" {
     fn safe_cabi_dispatch_log_message(level: c_int, message: *const c_char);
 }
 
@@ -104,7 +122,7 @@ pub(crate) fn fatal_error(code: u32, default_message: &'static [u8]) -> ! {
     std::process::abort();
 }
 
-#[unsafe(export_name = "safe_gcry_set_progress_handler")]
+#[export_name = "safe_gcry_set_progress_handler"]
 pub extern "C" fn gcry_set_progress_handler(cb: gcry_handler_progress_t, cb_data: *mut c_void) {
     lock_state().progress = ProgressHandler {
         callback: cb,
@@ -112,7 +130,7 @@ pub extern "C" fn gcry_set_progress_handler(cb: gcry_handler_progress_t, cb_data
     };
 }
 
-#[unsafe(export_name = "safe_gcry_set_fatalerror_handler")]
+#[export_name = "safe_gcry_set_fatalerror_handler"]
 pub extern "C" fn gcry_set_fatalerror_handler(fnc: gcry_handler_error_t, opaque: *mut c_void) {
     lock_state().fatal = FatalHandler {
         callback: fnc,
@@ -120,12 +138,12 @@ pub extern "C" fn gcry_set_fatalerror_handler(fnc: gcry_handler_error_t, opaque:
     };
 }
 
-#[unsafe(export_name = "safe_gcry_set_gettext_handler")]
+#[export_name = "safe_gcry_set_gettext_handler"]
 pub extern "C" fn gcry_set_gettext_handler(f: gcry_gettext_handler_t) {
     lock_state().gettext = f;
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn safe_gcry_log_debug_dispatch(message: *const c_char) {
     if message.is_null() {
         unsafe {

@@ -5,15 +5,23 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SAFE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO_DIR="$(cd "${SAFE_DIR}/.." && pwd)"
 ORIGINAL_DIR="${REPO_DIR}/original/libgcrypt20-1.10.3"
+INVOCATION_PWD="${PWD}"
+# shellcheck source=./cargo-target-root.sh
+source "${SCRIPT_DIR}/cargo-target-root.sh"
+TARGET_ROOT="$(resolve_target_root "${SAFE_DIR}" "${INVOCATION_PWD}")"
+BOOTSTRAP_ROOT="${TARGET_ROOT}/bootstrap"
 MULTIARCH="$(dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null || echo x86_64-linux-gnu)"
-GENERATED_DIR="${SAFE_DIR}/target/bootstrap/generated"
-STAGE_ROOT="${SAFE_DIR}/target/bootstrap/staging"
+GENERATED_DIR="${BOOTSTRAP_ROOT}/generated"
+STAGE_ROOT="${BOOTSTRAP_ROOT}/staging"
 STAGE_PREFIX="${STAGE_ROOT}/usr"
 STAGE_LIBDIR="${STAGE_PREFIX}/lib/${MULTIARCH}"
-HARNESS_ROOT="${SAFE_DIR}/target/bootstrap/relink-original-objects"
+RELEASE_DIR="${TARGET_ROOT}/release"
+HARNESS_ROOT="${BOOTSTRAP_ROOT}/relink-original-objects"
 AUTOMAKE_LIBDIR="$(automake --print-libdir)"
 PACKAGE_VERSION="1.10.3"
 VERSION_NUMBER_HEX="0x010a03"
+
+mkdir -p "${BOOTSTRAP_ROOT}"
 
 fail() {
   echo "relink-original-objects: $*" >&2
@@ -26,9 +34,9 @@ require_file() {
 
 stage_install_tree() {
   mkdir -p "${STAGE_LIBDIR}" "${STAGE_PREFIX}/include" "${STAGE_LIBDIR}/pkgconfig" "${STAGE_PREFIX}/bin" "${STAGE_PREFIX}/share/aclocal"
-  cp "${SAFE_DIR}/target/release/libgcrypt.so" "${STAGE_LIBDIR}/libgcrypt.so.20"
+  cp "${RELEASE_DIR}/libgcrypt.so" "${STAGE_LIBDIR}/libgcrypt.so.20"
   ln -sfn "libgcrypt.so.20" "${STAGE_LIBDIR}/libgcrypt.so"
-  cp "${SAFE_DIR}/target/release/libgcrypt.a" "${STAGE_LIBDIR}/libgcrypt.a"
+  cp "${RELEASE_DIR}/libgcrypt.a" "${STAGE_LIBDIR}/libgcrypt.a"
   cp "${GENERATED_DIR}/include/gcrypt.h" "${STAGE_PREFIX}/include/gcrypt.h"
   cp "${GENERATED_DIR}/pkgconfig/libgcrypt.pc" "${STAGE_LIBDIR}/pkgconfig/libgcrypt.pc"
   cp "${GENERATED_DIR}/bin/libgcrypt-config" "${STAGE_PREFIX}/bin/libgcrypt-config"
@@ -84,7 +92,7 @@ maybe_disable_new_dtags_flag() {
 
   [[ -n "${LD_LIBRARY_PATH:-}" ]] || return 0
 
-  tmpdir="$(mktemp -d "${SAFE_DIR}/target/bootstrap/dtags.XXXXXX")"
+  tmpdir="$(mktemp -d "${BOOTSTRAP_ROOT}/dtags.XXXXXX")"
   probe_c="${tmpdir}/probe.c"
   probe_bin="${tmpdir}/probe"
   cat >"${probe_c}" <<'EOF'
@@ -260,6 +268,7 @@ main() {
   done
 
   cargo build --manifest-path "${SAFE_DIR}/Cargo.toml" --release --offline
+  "${SCRIPT_DIR}/build-release-lib.sh"
   stage_install_tree
   prepare_harness_tree
   compile_compat_object

@@ -4,6 +4,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SAFE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO_DIR="$(cd "${SAFE_DIR}/.." && pwd)"
+INVOCATION_PWD="${PWD}"
+# shellcheck source=./cargo-target-root.sh
+source "${SCRIPT_DIR}/cargo-target-root.sh"
+TARGET_ROOT="$(resolve_target_root "${SAFE_DIR}" "${INVOCATION_PWD}")"
+BOOTSTRAP_ROOT="${TARGET_ROOT}/bootstrap"
 ORIGINAL_DIR="${REPO_DIR}/original/libgcrypt20-1.10.3"
 UPSTREAM_SOURCE_DIR="${ORIGINAL_DIR}/tests"
 COMPAT_SOURCE_DIR="${ORIGINAL_DIR}/compat"
@@ -59,7 +64,8 @@ write_minimal_g10lib() {
   local destination="$1"
   cat >"${destination}" <<'EOF'
 /* Minimal compat-build subset derived from
-   original/libgcrypt20-1.10.3/src/g10lib.h.
+   original/libgcrypt20-1.10.3/src/g10lib.h and kept aligned with the
+   committed original-build contract.
 
    The imported Linux test harness only needs compat/compat.c to include
    this header so the upstream relative include layout still works.  */
@@ -152,7 +158,8 @@ main() {
   require_dir "${COMPAT_SOURCE_DIR}"
   verify_phase1_sources
 
-  TMPDIR_IMPORT="$(mktemp -d "${SAFE_DIR}/target/bootstrap/import-upstream.XXXXXX")"
+  mkdir -p "${BOOTSTRAP_ROOT}"
+  TMPDIR_IMPORT="$(mktemp -d "${BOOTSTRAP_ROOT}/import-upstream.XXXXXX")"
   trap cleanup EXIT
 
   build_expected_tree "${TMPDIR_IMPORT}"

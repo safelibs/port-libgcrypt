@@ -4,7 +4,7 @@ use std::fs::File;
 use std::io::{self, Read, Write};
 use std::ptr::null_mut;
 
-unsafe extern "C" {
+extern "C" {
     fn gcry_sexp_sscan(
         retsexp: *mut *mut c_void,
         erroff: *mut usize,

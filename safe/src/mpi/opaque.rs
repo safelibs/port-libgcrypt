@@ -21,7 +21,7 @@ fn replace_with_opaque(a: *mut gcry_mpi, ptr: *mut c_void, nbits: c_uint) -> *mu
     raw
 }
 
-#[unsafe(export_name = "gcry_mpi_set_opaque")]
+#[export_name = "gcry_mpi_set_opaque"]
 pub extern "C" fn gcry_mpi_set_opaque(
     a: *mut gcry_mpi,
     p: *mut c_void,
@@ -30,7 +30,7 @@ pub extern "C" fn gcry_mpi_set_opaque(
     replace_with_opaque(a, p, nbits)
 }
 
-#[unsafe(export_name = "gcry_mpi_set_opaque_copy")]
+#[export_name = "gcry_mpi_set_opaque_copy"]
 pub extern "C" fn gcry_mpi_set_opaque_copy(
     a: *mut gcry_mpi,
     p: *const c_void,
@@ -52,7 +52,7 @@ pub extern "C" fn gcry_mpi_set_opaque_copy(
     replace_with_opaque(a, copied, nbits)
 }
 
-#[unsafe(export_name = "gcry_mpi_get_opaque")]
+#[export_name = "gcry_mpi_get_opaque"]
 pub extern "C" fn gcry_mpi_get_opaque(a: *mut gcry_mpi, nbits: *mut c_uint) -> *mut c_void {
     let Some(value) = (unsafe { gcry_mpi::as_ref(a) }) else {
         return null_mut();

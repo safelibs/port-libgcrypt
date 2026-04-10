@@ -13,7 +13,7 @@ pub struct gcry_cipher_handle {
     _private: [u8; 0],
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_cipher_open(
     handle: *mut gcry_cipher_hd_t,
     algo: c_int,
@@ -23,12 +23,12 @@ pub extern "C" fn gcry_cipher_open(
     modes::open(handle, algo, mode, flags)
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_cipher_close(handle: gcry_cipher_hd_t) {
     modes::close(handle)
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_cipher_ctl(
     handle: gcry_cipher_hd_t,
     cmd: c_int,
@@ -38,7 +38,7 @@ pub extern "C" fn gcry_cipher_ctl(
     modes::ctl(handle, cmd, buffer, buflen)
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_cipher_info(
     handle: gcry_cipher_hd_t,
     what: c_int,
@@ -48,7 +48,7 @@ pub extern "C" fn gcry_cipher_info(
     modes::info(handle, what, buffer, nbytes)
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_cipher_algo_info(
     algo: c_int,
     what: c_int,
@@ -58,22 +58,22 @@ pub extern "C" fn gcry_cipher_algo_info(
     registry::algo_info(algo, what, buffer, nbytes)
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_cipher_algo_name(algorithm: c_int) -> *const c_char {
     registry::algo_name(algorithm)
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_cipher_map_name(name: *const c_char) -> c_int {
     registry::map_name(name)
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_cipher_mode_from_oid(string: *const c_char) -> c_int {
     modes::mode_from_oid(string)
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_cipher_encrypt(
     handle: gcry_cipher_hd_t,
     out: *mut c_void,
@@ -84,7 +84,7 @@ pub extern "C" fn gcry_cipher_encrypt(
     block::encrypt(handle, out, outsize, input, inlen)
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_cipher_decrypt(
     handle: gcry_cipher_hd_t,
     out: *mut c_void,
@@ -95,7 +95,7 @@ pub extern "C" fn gcry_cipher_decrypt(
     block::decrypt(handle, out, outsize, input, inlen)
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_cipher_setkey(
     handle: gcry_cipher_hd_t,
     key: *const c_void,
@@ -104,7 +104,7 @@ pub extern "C" fn gcry_cipher_setkey(
     block::setkey(handle, key, keylen)
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_cipher_setiv(
     handle: gcry_cipher_hd_t,
     iv: *const c_void,
@@ -113,7 +113,7 @@ pub extern "C" fn gcry_cipher_setiv(
     block::setiv(handle, iv, ivlen)
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_cipher_setctr(
     handle: gcry_cipher_hd_t,
     ctr: *const c_void,
@@ -122,7 +122,7 @@ pub extern "C" fn gcry_cipher_setctr(
     block::setctr(handle, ctr, ctrlen)
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_cipher_authenticate(
     handle: gcry_cipher_hd_t,
     abuf: *const c_void,
@@ -131,7 +131,7 @@ pub extern "C" fn gcry_cipher_authenticate(
     aead::authenticate(handle, abuf, abuflen)
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_cipher_gettag(
     handle: gcry_cipher_hd_t,
     outtag: *mut c_void,
@@ -140,7 +140,7 @@ pub extern "C" fn gcry_cipher_gettag(
     aead::gettag(handle, outtag, taglen)
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_cipher_checktag(
     handle: gcry_cipher_hd_t,
     intag: *const c_void,
@@ -149,12 +149,12 @@ pub extern "C" fn gcry_cipher_checktag(
     aead::checktag(handle, intag, taglen)
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_cipher_get_algo_keylen(algo: c_int) -> usize {
     registry::get_algo_keylen(algo)
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_cipher_get_algo_blklen(algo: c_int) -> usize {
     registry::get_algo_blklen(algo)
 }

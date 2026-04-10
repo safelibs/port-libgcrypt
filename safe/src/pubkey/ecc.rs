@@ -16,7 +16,7 @@ pub(crate) fn fallback_name(algo: c_int) -> Option<*const c_char> {
     owns_algorithm(algo).then_some(NAME.as_ptr().cast())
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_pk_get_curve(
     key: *mut sexp::gcry_sexp,
     iterator: c_int,
@@ -37,7 +37,7 @@ pub extern "C" fn gcry_pk_get_curve(
     result
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_pk_get_param(algo: c_int, name: *const c_char) -> *mut sexp::gcry_sexp {
     let upstream = unsafe { (encoding::api().pk_get_param)(algo, name) };
     if upstream.is_null() {
@@ -51,7 +51,7 @@ pub extern "C" fn gcry_pk_get_param(algo: c_int, name: *const c_char) -> *mut se
     local.unwrap_or(null_mut())
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_pubkey_get_sexp(
     result: *mut *mut sexp::gcry_sexp,
     mode: c_int,
@@ -86,12 +86,12 @@ pub extern "C" fn gcry_pubkey_get_sexp(
     0
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_ecc_get_algo_keylen(curveid: c_int) -> c_uint {
     unsafe { (encoding::api().ecc_get_algo_keylen)(curveid) }
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_ecc_mul_point(
     curveid: c_int,
     result: *mut u8,

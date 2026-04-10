@@ -37,7 +37,7 @@ pub(crate) fn const_value(no: i32) -> &'static gcry_mpi {
     }
 }
 
-#[unsafe(export_name = "_gcry_mpi_get_const")]
+#[export_name = "_gcry_mpi_get_const"]
 pub extern "C" fn _gcry_mpi_get_const(no: i32) -> *mut gcry_mpi {
     match no {
         1 | 2 | 3 | 4 | 8 => const_value(no) as *const gcry_mpi as *mut gcry_mpi,

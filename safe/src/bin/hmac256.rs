@@ -4,7 +4,7 @@ use std::fs::File;
 use std::io::{self, Read, Write};
 use std::ptr::null_mut;
 
-unsafe extern "C" {
+extern "C" {
     fn gcry_md_open(handle: *mut *mut c_void, algo: c_int, flags: c_uint) -> u32;
     fn gcry_md_close(handle: *mut c_void);
     fn gcry_md_setkey(handle: *mut c_void, key: *const c_void, keylen: usize) -> u32;

@@ -47,7 +47,7 @@ type gcry_error_t = u32;
 type gpg_error_t = u32;
 type gcry_handler_no_mem_t = Option<unsafe extern "C" fn(*mut c_void, usize, c_uint) -> c_int>;
 
-unsafe extern "C" {
+extern "C" {
     fn malloc(size: usize) -> *mut c_void;
     fn calloc(nmemb: usize, size: usize) -> *mut c_void;
     fn realloc(ptr: *mut c_void, size: usize) -> *mut c_void;
@@ -68,13 +68,22 @@ struct AllocationRecord {
     secure: Option<SecureClass>,
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug)]
 struct OutOfCoreHandler {
     callback: gcry_handler_no_mem_t,
     opaque: *mut c_void,
 }
 
 unsafe impl Send for OutOfCoreHandler {}
+
+impl Default for OutOfCoreHandler {
+    fn default() -> Self {
+        Self {
+            callback: None,
+            opaque: std::ptr::null_mut(),
+        }
+    }
+}
 
 #[derive(Debug)]
 struct GlobalState {
@@ -318,7 +327,7 @@ fn error_string(err: u32) -> &'static [u8] {
     }
 }
 
-#[unsafe(export_name = "safe_gcry_check_version")]
+#[export_name = "safe_gcry_check_version"]
 pub extern "C" fn gcry_check_version(req_version: *const c_char) -> *const c_char {
     if req_version.is_null() {
         return PACKAGE_VERSION.as_ptr().cast();
@@ -332,57 +341,57 @@ pub extern "C" fn gcry_check_version(req_version: *const c_char) -> *const c_cha
     }
 }
 
-#[unsafe(export_name = "safe_gcry_err_code_from_errno")]
+#[export_name = "safe_gcry_err_code_from_errno"]
 pub extern "C" fn gcry_err_code_from_errno(err: c_int) -> u32 {
     system_code_from_errno(err)
 }
 
-#[unsafe(export_name = "safe_gcry_err_code_to_errno")]
+#[export_name = "safe_gcry_err_code_to_errno"]
 pub extern "C" fn gcry_err_code_to_errno(code: u32) -> c_int {
     (code & 0x7fff) as c_int
 }
 
-#[unsafe(export_name = "safe_gcry_err_make_from_errno")]
+#[export_name = "safe_gcry_err_make_from_errno"]
 pub extern "C" fn gcry_err_make_from_errno(source: u32, err: c_int) -> u32 {
     make_error(source, system_code_from_errno(err))
 }
 
-#[unsafe(export_name = "safe_gcry_error_from_errno")]
+#[export_name = "safe_gcry_error_from_errno"]
 pub extern "C" fn gcry_error_from_errno(err: c_int) -> u32 {
     gcry_err_make_from_errno(GPG_ERR_SOURCE_GCRYPT, err)
 }
 
-#[unsafe(export_name = "safe_gcry_strerror")]
+#[export_name = "safe_gcry_strerror"]
 pub extern "C" fn gcry_strerror(err: u32) -> *const c_char {
     error_string(err).as_ptr().cast()
 }
 
-#[unsafe(export_name = "safe_gcry_strsource")]
+#[export_name = "safe_gcry_strsource"]
 pub extern "C" fn gcry_strsource(_err: u32) -> *const c_char {
     STR_GCRYPT.as_ptr().cast()
 }
 
-#[unsafe(export_name = "safe_gcry_malloc")]
+#[export_name = "safe_gcry_malloc"]
 pub extern "C" fn gcry_malloc(n: usize) -> *mut c_void {
     plain_alloc(&mut lock_state(), n, false)
 }
 
-#[unsafe(export_name = "safe_gcry_malloc_secure")]
+#[export_name = "safe_gcry_malloc_secure"]
 pub extern "C" fn gcry_malloc_secure(n: usize) -> *mut c_void {
     secure_alloc(&mut lock_state(), n, false, false)
 }
 
-#[unsafe(export_name = "safe_gcry_calloc")]
+#[export_name = "safe_gcry_calloc"]
 pub extern "C" fn gcry_calloc(n: usize, m: usize) -> *mut c_void {
     plain_alloc(&mut lock_state(), n.saturating_mul(m), true)
 }
 
-#[unsafe(export_name = "safe_gcry_calloc_secure")]
+#[export_name = "safe_gcry_calloc_secure"]
 pub extern "C" fn gcry_calloc_secure(n: usize, m: usize) -> *mut c_void {
     secure_alloc(&mut lock_state(), n.saturating_mul(m), true, false)
 }
 
-#[unsafe(export_name = "safe_gcry_realloc")]
+#[export_name = "safe_gcry_realloc"]
 pub extern "C" fn gcry_realloc(a: *mut c_void, n: usize) -> *mut c_void {
     if a.is_null() {
         return gcry_malloc(n);
@@ -419,7 +428,7 @@ pub extern "C" fn gcry_realloc(a: *mut c_void, n: usize) -> *mut c_void {
     record_allocation(&mut state, new_ptr, size, secure)
 }
 
-#[unsafe(export_name = "safe_gcry_strdup")]
+#[export_name = "safe_gcry_strdup"]
 pub extern "C" fn gcry_strdup(string: *const c_char) -> *mut c_char {
     if string.is_null() {
         return null_mut();
@@ -429,7 +438,7 @@ pub extern "C" fn gcry_strdup(string: *const c_char) -> *mut c_char {
     duplicate_static_bytes(&mut lock_state(), bytes)
 }
 
-#[unsafe(export_name = "safe_gcry_is_secure")]
+#[export_name = "safe_gcry_is_secure"]
 pub extern "C" fn gcry_is_secure(a: *const c_void) -> c_int {
     if a.is_null() {
         return 0;
@@ -443,7 +452,7 @@ pub extern "C" fn gcry_is_secure(a: *const c_void) -> c_int {
         .is_some() as c_int
 }
 
-#[unsafe(export_name = "safe_gcry_xcalloc")]
+#[export_name = "safe_gcry_xcalloc"]
 pub extern "C" fn gcry_xcalloc(n: usize, m: usize) -> *mut c_void {
     let ptr = gcry_calloc(n, m);
     if ptr.is_null() {
@@ -452,7 +461,7 @@ pub extern "C" fn gcry_xcalloc(n: usize, m: usize) -> *mut c_void {
     ptr
 }
 
-#[unsafe(export_name = "safe_gcry_xcalloc_secure")]
+#[export_name = "safe_gcry_xcalloc_secure"]
 pub extern "C" fn gcry_xcalloc_secure(n: usize, m: usize) -> *mut c_void {
     let ptr = secure_alloc(&mut lock_state(), n.saturating_mul(m), true, true);
     if ptr.is_null() {
@@ -461,7 +470,7 @@ pub extern "C" fn gcry_xcalloc_secure(n: usize, m: usize) -> *mut c_void {
     ptr
 }
 
-#[unsafe(export_name = "safe_gcry_xmalloc")]
+#[export_name = "safe_gcry_xmalloc"]
 pub extern "C" fn gcry_xmalloc(n: usize) -> *mut c_void {
     let ptr = gcry_malloc(n);
     if ptr.is_null() {
@@ -470,7 +479,7 @@ pub extern "C" fn gcry_xmalloc(n: usize) -> *mut c_void {
     ptr
 }
 
-#[unsafe(export_name = "safe_gcry_xmalloc_secure")]
+#[export_name = "safe_gcry_xmalloc_secure"]
 pub extern "C" fn gcry_xmalloc_secure(n: usize) -> *mut c_void {
     let ptr = secure_alloc(&mut lock_state(), n, false, true);
     if ptr.is_null() {
@@ -485,7 +494,7 @@ pub extern "C" fn gcry_xmalloc_secure(n: usize) -> *mut c_void {
     ptr
 }
 
-#[unsafe(export_name = "safe_gcry_xrealloc")]
+#[export_name = "safe_gcry_xrealloc"]
 pub extern "C" fn gcry_xrealloc(a: *mut c_void, n: usize) -> *mut c_void {
     let ptr = gcry_realloc(a, n);
     if ptr.is_null() {
@@ -494,7 +503,7 @@ pub extern "C" fn gcry_xrealloc(a: *mut c_void, n: usize) -> *mut c_void {
     ptr
 }
 
-#[unsafe(export_name = "safe_gcry_xstrdup")]
+#[export_name = "safe_gcry_xstrdup"]
 pub extern "C" fn gcry_xstrdup(a: *const c_char) -> *mut c_char {
     let ptr = gcry_strdup(a);
     if ptr.is_null() {
@@ -503,7 +512,7 @@ pub extern "C" fn gcry_xstrdup(a: *const c_char) -> *mut c_char {
     ptr
 }
 
-#[unsafe(export_name = "safe_gcry_free")]
+#[export_name = "safe_gcry_free"]
 pub extern "C" fn gcry_free(a: *mut c_void) {
     if a.is_null() {
         return;
@@ -516,7 +525,7 @@ pub extern "C" fn gcry_free(a: *mut c_void) {
     }
 }
 
-#[unsafe(export_name = "safe_gcry_set_outofcore_handler")]
+#[export_name = "safe_gcry_set_outofcore_handler"]
 pub extern "C" fn gcry_set_outofcore_handler(handler: gcry_handler_no_mem_t, opaque: *mut c_void) {
     let mut state = lock_state();
     state.outofcore = OutOfCoreHandler {
@@ -525,7 +534,7 @@ pub extern "C" fn gcry_set_outofcore_handler(handler: gcry_handler_no_mem_t, opa
     };
 }
 
-#[unsafe(export_name = "safe_gcry_random_add_bytes")]
+#[export_name = "safe_gcry_random_add_bytes"]
 pub extern "C" fn gcry_random_add_bytes(
     _buffer: *const c_void,
     _length: usize,
@@ -534,7 +543,7 @@ pub extern "C" fn gcry_random_add_bytes(
     0
 }
 
-#[unsafe(export_name = "safe_gcry_random_bytes")]
+#[export_name = "safe_gcry_random_bytes"]
 pub extern "C" fn gcry_random_bytes(nbytes: usize, _level: c_int) -> *mut c_void {
     let mut state = lock_state();
     let ptr = plain_alloc(&mut state, nbytes, false);
@@ -549,7 +558,7 @@ pub extern "C" fn gcry_random_bytes(nbytes: usize, _level: c_int) -> *mut c_void
     ptr
 }
 
-#[unsafe(export_name = "safe_gcry_random_bytes_secure")]
+#[export_name = "safe_gcry_random_bytes_secure"]
 pub extern "C" fn gcry_random_bytes_secure(nbytes: usize, _level: c_int) -> *mut c_void {
     let mut state = lock_state();
     let ptr = secure_alloc(&mut state, nbytes, false, true);
@@ -564,7 +573,7 @@ pub extern "C" fn gcry_random_bytes_secure(nbytes: usize, _level: c_int) -> *mut
     ptr
 }
 
-#[unsafe(export_name = "safe_gcry_randomize")]
+#[export_name = "safe_gcry_randomize"]
 pub extern "C" fn gcry_randomize(buffer: *mut c_void, length: usize, _level: c_int) {
     if buffer.is_null() || length == 0 {
         return;
@@ -577,12 +586,12 @@ pub extern "C" fn gcry_randomize(buffer: *mut c_void, length: usize, _level: c_i
     }
 }
 
-#[unsafe(export_name = "safe_gcry_create_nonce")]
+#[export_name = "safe_gcry_create_nonce"]
 pub extern "C" fn gcry_create_nonce(buffer: *mut c_void, length: usize) {
     gcry_randomize(buffer, length, 0);
 }
 
-#[unsafe(export_name = "safe_gcry_get_config")]
+#[export_name = "safe_gcry_get_config"]
 pub extern "C" fn gcry_get_config(mode: c_int, what: *const c_char) -> *mut c_char {
     if mode != 0 {
         set_errno(0);
@@ -603,7 +612,7 @@ pub extern "C" fn gcry_get_config(mode: c_int, what: *const c_char) -> *mut c_ch
     duplicate_static_bytes(&mut lock_state(), bytes)
 }
 
-#[unsafe(export_name = "safe_gcry_md_get")]
+#[export_name = "safe_gcry_md_get"]
 pub extern "C" fn gcry_md_get(
     _hd: *mut c_void,
     _algo: c_int,
@@ -613,7 +622,7 @@ pub extern "C" fn gcry_md_get(
     GPG_ERR_NOT_IMPLEMENTED
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn safe_gcry_control_dispatch(
     cmd: u32,
     arg0: usize,
@@ -684,7 +693,7 @@ pub extern "C" fn safe_gcry_control_dispatch(
     }
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn safe_gcry_sexp_build_dispatch(
     retsexp: *mut *mut c_void,
     erroff: *mut usize,
@@ -703,12 +712,12 @@ pub extern "C" fn safe_gcry_sexp_build_dispatch(
     GPG_ERR_NOT_IMPLEMENTED
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn safe_gcry_sexp_vlist_dispatch(_a: *mut c_void) -> *mut c_void {
     null_mut()
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn safe_gcry_sexp_extract_param_dispatch(
     _sexp: *mut c_void,
     _path: *const c_char,
@@ -717,10 +726,10 @@ pub extern "C" fn safe_gcry_sexp_extract_param_dispatch(
     GPG_ERR_NOT_IMPLEMENTED
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn safe_gcry_log_debug_dispatch(_message: *const c_char) {}
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn safe_gcry_stub_zero() -> usize {
     0
 }

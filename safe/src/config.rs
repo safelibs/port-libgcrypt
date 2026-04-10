@@ -10,7 +10,7 @@ use crate::hwfeatures;
 use crate::log;
 use crate::{FILE, GCRYPT_VERSION_NUMBER, PACKAGE_VERSION, set_errno};
 
-unsafe extern "C" {
+extern "C" {
     fn fwrite(ptr: *const c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
 }
 
@@ -170,7 +170,7 @@ pub(crate) fn print_config_to_stream(stream: *mut FILE) {
     }
 }
 
-#[unsafe(export_name = "safe_gcry_get_config")]
+#[export_name = "safe_gcry_get_config"]
 pub extern "C" fn gcry_get_config(mode: c_int, what: *const c_char) -> *mut c_char {
     if mode != 0 {
         set_errno(crate::EINVAL_VALUE);

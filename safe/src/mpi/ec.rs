@@ -7,6 +7,10 @@ use crate::sexp;
 
 use super::gcry_mpi;
 
+const ECDSA_TOKEN: &[u8] = b"ecdsa\0";
+const MPI_PARAM_P: &[u8] = b"p\0";
+const MPI_PARAM_A: &[u8] = b"a\0";
+
 fn zero_target(target: *mut gcry_mpi) {
     if !target.is_null() {
         super::gcry_mpi_set_ui(target, 0);
@@ -22,23 +26,23 @@ fn legacy_ecdsa_param_error(keyparam: *mut sexp::gcry_sexp, curvename: *const c_
         return false;
     }
 
-    let ecdsa = sexp::gcry_sexp_find_token(keyparam, c"ecdsa".as_ptr(), 0);
+    let ecdsa = sexp::gcry_sexp_find_token(keyparam, ECDSA_TOKEN.as_ptr().cast(), 0);
     if ecdsa.is_null() {
         return false;
     }
 
-    let has_p = !sexp::gcry_sexp_find_token(ecdsa, c"p".as_ptr(), 0).is_null();
-    let has_a = !sexp::gcry_sexp_find_token(ecdsa, c"a".as_ptr(), 0).is_null();
+    let has_p = !sexp::gcry_sexp_find_token(ecdsa, MPI_PARAM_P.as_ptr().cast(), 0).is_null();
+    let has_a = !sexp::gcry_sexp_find_token(ecdsa, MPI_PARAM_A.as_ptr().cast(), 0).is_null();
     sexp::gcry_sexp_release(ecdsa);
     !(has_p && has_a)
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_mpi_point_new(nbits: c_uint) -> *mut c_void {
     unsafe { (encoding::api().point_new)(nbits) }
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_mpi_point_release(point: *mut c_void) {
     if !point.is_null() {
         unsafe {
@@ -47,7 +51,7 @@ pub extern "C" fn gcry_mpi_point_release(point: *mut c_void) {
     }
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_mpi_point_copy(point: *mut c_void) -> *mut c_void {
     if point.is_null() {
         null_mut()
@@ -56,7 +60,7 @@ pub extern "C" fn gcry_mpi_point_copy(point: *mut c_void) -> *mut c_void {
     }
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_mpi_point_get(
     x: *mut gcry_mpi,
     y: *mut gcry_mpi,
@@ -93,7 +97,7 @@ pub extern "C" fn gcry_mpi_point_get(
     }
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_mpi_point_snatch_get(
     x: *mut gcry_mpi,
     y: *mut gcry_mpi,
@@ -130,7 +134,7 @@ pub extern "C" fn gcry_mpi_point_snatch_get(
     }
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_mpi_point_set(
     point: *mut c_void,
     x: *mut gcry_mpi,
@@ -170,7 +174,7 @@ pub extern "C" fn gcry_mpi_point_set(
     result
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_mpi_point_snatch_set(
     point: *mut c_void,
     x: *mut gcry_mpi,
@@ -212,7 +216,7 @@ pub extern "C" fn gcry_mpi_point_snatch_set(
     result
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_mpi_ec_new(
     r_ctx: *mut *mut c_void,
     keyparam: *mut sexp::gcry_sexp,
@@ -246,7 +250,7 @@ pub extern "C" fn gcry_mpi_ec_new(
     rc
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_mpi_ec_get_mpi(
     name: *const c_char,
     ctx: *mut c_void,
@@ -268,7 +272,7 @@ pub extern "C" fn gcry_mpi_ec_get_mpi(
     local
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_mpi_ec_get_point(
     name: *const c_char,
     ctx: *mut c_void,
@@ -281,7 +285,7 @@ pub extern "C" fn gcry_mpi_ec_get_point(
     }
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_mpi_ec_set_mpi(
     name: *const c_char,
     newvalue: *mut gcry_mpi,
@@ -302,7 +306,7 @@ pub extern "C" fn gcry_mpi_ec_set_mpi(
     rc
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_mpi_ec_set_point(
     name: *const c_char,
     newvalue: *mut c_void,
@@ -315,7 +319,7 @@ pub extern "C" fn gcry_mpi_ec_set_point(
     unsafe { (encoding::api().ec_set_point)(name, newvalue, ctx) }
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_mpi_ec_decode_point(
     result: *mut c_void,
     value: *mut gcry_mpi,
@@ -336,7 +340,7 @@ pub extern "C" fn gcry_mpi_ec_decode_point(
     rc
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_mpi_ec_get_affine(
     x: *mut gcry_mpi,
     y: *mut gcry_mpi,
@@ -373,7 +377,7 @@ pub extern "C" fn gcry_mpi_ec_get_affine(
     rc
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_mpi_ec_dup(w: *mut c_void, u: *mut c_void, ctx: *mut c_void) {
     if !w.is_null() && !u.is_null() && !ctx.is_null() {
         unsafe {
@@ -382,7 +386,7 @@ pub extern "C" fn gcry_mpi_ec_dup(w: *mut c_void, u: *mut c_void, ctx: *mut c_vo
     }
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_mpi_ec_add(
     w: *mut c_void,
     u: *mut c_void,
@@ -396,7 +400,7 @@ pub extern "C" fn gcry_mpi_ec_add(
     }
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_mpi_ec_sub(
     w: *mut c_void,
     u: *mut c_void,
@@ -410,7 +414,7 @@ pub extern "C" fn gcry_mpi_ec_sub(
     }
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_mpi_ec_mul(
     w: *mut c_void,
     n: *mut gcry_mpi,
@@ -431,7 +435,7 @@ pub extern "C" fn gcry_mpi_ec_mul(
     }
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_mpi_ec_curve_point(w: *mut c_void, ctx: *mut c_void) -> c_int {
     if w.is_null() || ctx.is_null() {
         0

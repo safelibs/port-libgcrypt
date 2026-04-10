@@ -21,7 +21,7 @@ pub struct gcry_kdf_thread_ops_t {
     pub wait_all_jobs: gcry_kdf_wait_all_jobs_fn_t,
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_kdf_derive(
     passphrase: *const c_void,
     passphraselen: usize,
@@ -48,7 +48,7 @@ pub extern "C" fn gcry_kdf_derive(
     }
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_kdf_open(
     hd: *mut gcry_kdf_hd_t,
     algo: c_int,
@@ -83,17 +83,17 @@ pub extern "C" fn gcry_kdf_open(
     }
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_kdf_compute(hd: gcry_kdf_hd_t, ops: *const gcry_kdf_thread_ops_t) -> u32 {
     unsafe { (upstream::lib().kdf_compute)(hd.cast(), ops) }
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_kdf_final(hd: gcry_kdf_hd_t, resultlen: usize, result: *mut c_void) -> u32 {
     unsafe { (upstream::lib().kdf_final)(hd.cast(), resultlen, result) }
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_kdf_close(hd: gcry_kdf_hd_t) {
     unsafe { (upstream::lib().kdf_close)(hd.cast()) }
 }

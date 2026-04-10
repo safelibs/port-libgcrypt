@@ -86,7 +86,7 @@ pub(crate) fn is_registered_secure_object(ptr: *const c_void) -> bool {
     lock_state().secure_objects.contains(&(ptr as usize))
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn gcry_ctx_release(ctx: *mut c_void) {
     if ctx.is_null() {
         return;

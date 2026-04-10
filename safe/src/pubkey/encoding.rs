@@ -85,7 +85,7 @@ type EcPointVoidFn = unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void,
 type EcMulFn = unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, *mut c_void);
 type EcCurvePointFn = unsafe extern "C" fn(*mut c_void, *mut c_void) -> c_int;
 
-unsafe extern "C" {
+extern "C" {
     fn dlopen(filename: *const c_char, flags: c_int) -> *mut c_void;
     fn dlsym(handle: *mut c_void, symbol: *const c_char) -> *mut c_void;
     fn dlerror() -> *const c_char;

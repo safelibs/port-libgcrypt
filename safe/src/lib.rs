@@ -47,7 +47,7 @@ pub(crate) const GCRYPT_VERSION_NUMBER: u32 = 0x010a03;
 pub(crate) const EINVAL_VALUE: c_int = 22;
 pub(crate) const ENOMEM_VALUE: c_int = 12;
 
-unsafe extern "C" {
+extern "C" {
     fn __errno_location() -> *mut c_int;
 }
 
@@ -67,7 +67,7 @@ pub use error::*;
 pub use global::*;
 pub use log::*;
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub extern "C" fn safe_gcry_stub_zero() -> usize {
     0
 }

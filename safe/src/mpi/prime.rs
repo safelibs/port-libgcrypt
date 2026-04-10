@@ -23,7 +23,7 @@ fn random_odd_with_bits(bits: usize) -> Mpz {
     let mut bytes = vec![0u8; nbytes.max(1)];
     os_rng::fill_random(&mut bytes);
     if let Some(first) = bytes.first_mut() {
-        let top_mask = if bits.is_multiple_of(8) {
+        let top_mask = if bits % 8 == 0 {
             0xff
         } else {
             ((1u16 << (bits % 8)) - 1) as u8
@@ -63,7 +63,7 @@ fn build_factor_array(items: Vec<*mut gcry_mpi>) -> *mut *mut gcry_mpi {
     ptr.cast()
 }
 
-#[unsafe(export_name = "gcry_prime_generate")]
+#[export_name = "gcry_prime_generate"]
 pub extern "C" fn gcry_prime_generate(
     prime: *mut *mut gcry_mpi,
     prime_bits: c_uint,
@@ -148,7 +148,7 @@ pub extern "C" fn gcry_prime_generate(
     0
 }
 
-#[unsafe(export_name = "gcry_prime_check")]
+#[export_name = "gcry_prime_check"]
 pub extern "C" fn gcry_prime_check(x: *mut gcry_mpi, _flags: c_uint) -> u32 {
     let Some(value) = (unsafe { gcry_mpi::as_ref(x) }) else {
         return error::gcry_error_from_code(error::GPG_ERR_INV_ARG);
@@ -159,7 +159,7 @@ pub extern "C" fn gcry_prime_check(x: *mut gcry_mpi, _flags: c_uint) -> u32 {
     }
 }
 
-#[unsafe(export_name = "gcry_prime_group_generator")]
+#[export_name = "gcry_prime_group_generator"]
 pub extern "C" fn gcry_prime_group_generator(
     r_g: *mut *mut gcry_mpi,
     prime: *mut gcry_mpi,
@@ -246,7 +246,7 @@ pub extern "C" fn gcry_prime_group_generator(
     }
 }
 
-#[unsafe(export_name = "gcry_prime_release_factors")]
+#[export_name = "gcry_prime_release_factors"]
 pub extern "C" fn gcry_prime_release_factors(factors: *mut *mut gcry_mpi) {
     if factors.is_null() {
         return;

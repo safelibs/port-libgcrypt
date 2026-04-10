@@ -24,10 +24,11 @@ const LIBGCRYPT_DIGESTS: &str = "crc gostr3411-94 md2 md4 md5 rmd160 sha1 sha256
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?);
     let out_dir = PathBuf::from(env::var("OUT_DIR")?);
+    let target_root = cargo_target_root(&out_dir)?;
     let multiarch = deb_host_multiarch();
     let abi_dir = manifest_dir.join("abi");
     let cabi_dir = manifest_dir.join("cabi");
-    let bootstrap_dir = manifest_dir.join("target").join("bootstrap");
+    let bootstrap_dir = target_root.join("bootstrap");
     let generated_dir = bootstrap_dir.join("generated");
     let include_dir = generated_dir.join("include");
     let bin_dir = generated_dir.join("bin");
@@ -105,10 +106,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(system_libgcrypt) = find_system_libgcrypt() {
         println!("cargo:rustc-env=SAFE_SYSTEM_LIBGCRYPT_PATH={system_libgcrypt}");
     }
-    println!(
-        "cargo:rustc-cdylib-link-arg=-Wl,--version-script={}",
-        abi_dir.join("libgcrypt.vers").display()
-    );
     println!("cargo:rustc-cdylib-link-arg=-Wl,--no-gc-sections");
     println!("cargo:rustc-cdylib-link-arg=-Wl,-soname,libgcrypt.so.20");
 
@@ -121,6 +118,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     write_if_changed(&generated_dir.join("manifest.env"), &build_manifest)?;
 
     Ok(())
+}
+
+fn cargo_target_root(out_dir: &Path) -> io::Result<PathBuf> {
+    let profile_dir = out_dir.ancestors().nth(3).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("unexpected OUT_DIR layout: {}", out_dir.display()),
+        )
+    })?;
+
+    profile_dir.parent().map(Path::to_path_buf).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("unexpected OUT_DIR profile root: {}", out_dir.display()),
+        )
+    })
 }
 
 fn render_gcrypt_header(path: &Path) -> io::Result<String> {

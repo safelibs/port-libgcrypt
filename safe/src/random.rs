@@ -232,7 +232,7 @@ pub(crate) fn run_extrng_test(test: *const gcry_drbg_test_vector, output: *mut u
     0
 }
 
-#[unsafe(export_name = "safe_gcry_random_add_bytes")]
+#[export_name = "safe_gcry_random_add_bytes"]
 pub extern "C" fn gcry_random_add_bytes(
     buffer: *const c_void,
     length: usize,
@@ -241,7 +241,7 @@ pub extern "C" fn gcry_random_add_bytes(
     add_random_bytes(buffer, length, quality)
 }
 
-#[unsafe(export_name = "safe_gcry_random_bytes")]
+#[export_name = "safe_gcry_random_bytes"]
 pub extern "C" fn gcry_random_bytes(nbytes: usize, level: c_int) -> *mut c_void {
     let ptr = alloc::gcry_malloc(nbytes.max(1));
     if ptr.is_null() {
@@ -255,7 +255,7 @@ pub extern "C" fn gcry_random_bytes(nbytes: usize, level: c_int) -> *mut c_void 
     ptr
 }
 
-#[unsafe(export_name = "safe_gcry_random_bytes_secure")]
+#[export_name = "safe_gcry_random_bytes_secure"]
 pub extern "C" fn gcry_random_bytes_secure(nbytes: usize, level: c_int) -> *mut c_void {
     let ptr = alloc::gcry_malloc_secure(nbytes.max(1));
     if ptr.is_null() {
@@ -269,7 +269,7 @@ pub extern "C" fn gcry_random_bytes_secure(nbytes: usize, level: c_int) -> *mut 
     ptr
 }
 
-#[unsafe(export_name = "safe_gcry_randomize")]
+#[export_name = "safe_gcry_randomize"]
 pub extern "C" fn gcry_randomize(buffer: *mut c_void, length: usize, level: c_int) {
     if buffer.is_null() || length == 0 {
         return;
@@ -279,7 +279,7 @@ pub extern "C" fn gcry_randomize(buffer: *mut c_void, length: usize, level: c_in
     fill_random_level(slice, level);
 }
 
-#[unsafe(export_name = "safe_gcry_create_nonce")]
+#[export_name = "safe_gcry_create_nonce"]
 pub extern "C" fn gcry_create_nonce(buffer: *mut c_void, length: usize) {
     if buffer.is_null() || length == 0 {
         return;

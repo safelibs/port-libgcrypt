@@ -14,7 +14,7 @@ struct timespec {
     tv_nsec: i64,
 }
 
-unsafe extern "C" {
+extern "C" {
     fn getrandom(buffer: *mut u8, length: usize, flags: u32) -> isize;
     fn getpid() -> i32;
     fn clock_gettime(clock_id: i32, tp: *mut timespec) -> i32;
