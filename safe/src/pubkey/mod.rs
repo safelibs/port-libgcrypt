@@ -50,6 +50,7 @@ pub(crate) const GPG_ERR_DIGEST_ALGO: u32 = 5;
 pub(crate) const GPG_ERR_BAD_SIGNATURE: u32 = 8;
 pub(crate) const GPG_ERR_WRONG_PUBKEY_ALGO: u32 = 41;
 pub(crate) const GPG_ERR_CONFLICT: u32 = 70;
+pub(crate) const GPG_ERR_INV_FLAG: u32 = 72;
 pub(crate) const GPG_ERR_ENCODING_PROBLEM: u32 = 155;
 pub(crate) const GPG_ERR_NO_CRYPT_CTX: u32 = 191;
 pub(crate) const GPG_ERR_WRONG_CRYPT_CTX: u32 = 192;
@@ -60,6 +61,27 @@ pub(crate) enum Family {
     Dsa,
     Elgamal,
     Ecc,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum DataEncoding {
+    Unknown,
+    Raw,
+    Pkcs1,
+    Pkcs1Raw,
+    Oaep,
+    Pss,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct DataFlags {
+    pub(crate) has_flags: bool,
+    pub(crate) raw_explicit: bool,
+    pub(crate) rfc6979: bool,
+    pub(crate) prehash: bool,
+    pub(crate) gost: bool,
+    pub(crate) sm2: bool,
+    pub(crate) eddsa: bool,
 }
 
 pub(crate) struct OwnedMpi(*mut gcry_mpi);
@@ -295,6 +317,73 @@ pub(crate) fn has_flags_list(sexp_ptr: *mut sexp::gcry_sexp) -> bool {
     token_present(sexp_ptr, b"flags\0")
 }
 
+fn set_data_encoding(
+    encoding: &mut DataEncoding,
+    new_encoding: DataEncoding,
+    ignore_invalid: bool,
+) -> Result<(), u32> {
+    if *encoding == DataEncoding::Unknown {
+        *encoding = new_encoding;
+        Ok(())
+    } else if *encoding == new_encoding || ignore_invalid {
+        Ok(())
+    } else {
+        Err(error::gcry_error_from_code(GPG_ERR_INV_FLAG))
+    }
+}
+
+pub(crate) fn parse_data_flags(data: *mut sexp::gcry_sexp) -> Result<(DataEncoding, DataFlags), u32> {
+    let flags = find_token(data, b"flags\0");
+    if flags.is_null() {
+        return Ok((DataEncoding::Unknown, DataFlags::default()));
+    }
+
+    let mut encoding = DataEncoding::Unknown;
+    let mut parsed = DataFlags {
+        has_flags: true,
+        ..DataFlags::default()
+    };
+    let mut ignore_invalid = false;
+    let mut idx = 1;
+    while let Some(value) = nth_data_bytes(flags.raw(), idx) {
+        match value.as_slice() {
+            b"raw" => {
+                set_data_encoding(&mut encoding, DataEncoding::Raw, ignore_invalid)?;
+                parsed.raw_explicit = true;
+            }
+            b"pkcs1" => set_data_encoding(&mut encoding, DataEncoding::Pkcs1, ignore_invalid)?,
+            b"pkcs1-raw" => {
+                set_data_encoding(&mut encoding, DataEncoding::Pkcs1Raw, ignore_invalid)?
+            }
+            b"oaep" => set_data_encoding(&mut encoding, DataEncoding::Oaep, ignore_invalid)?,
+            b"pss" => set_data_encoding(&mut encoding, DataEncoding::Pss, ignore_invalid)?,
+            b"rfc6979" => parsed.rfc6979 = true,
+            b"prehash" => parsed.prehash = true,
+            b"gost" => {
+                set_data_encoding(&mut encoding, DataEncoding::Raw, ignore_invalid)?;
+                parsed.gost = true;
+            }
+            b"sm2" => {
+                set_data_encoding(&mut encoding, DataEncoding::Raw, ignore_invalid)?;
+                parsed.sm2 = true;
+                parsed.raw_explicit = true;
+            }
+            b"eddsa" => {
+                set_data_encoding(&mut encoding, DataEncoding::Raw, ignore_invalid)?;
+                parsed.eddsa = true;
+            }
+            b"djb-tweak" | b"comp" | b"nocomp" | b"param" | b"noparam" | b"no-blinding"
+            | b"use-x931" | b"transient-key" | b"no-keytest" => {}
+            b"igninvflag" => ignore_invalid = true,
+            _ if ignore_invalid => {}
+            _ => return Err(error::gcry_error_from_code(GPG_ERR_INV_FLAG)),
+        }
+        idx += 1;
+    }
+
+    Ok((encoding, parsed))
+}
+
 pub(crate) fn mpi_to_bytes(mpi_ptr: *mut gcry_mpi) -> Option<Vec<u8>> {
     let mpi = unsafe { gcry_mpi::as_ref(mpi_ptr) }?;
     match &mpi.kind {
@@ -447,7 +536,7 @@ pub extern "C" fn gcry_pk_encrypt(
     match family_from_key(pkey) {
         Some(Family::Rsa) => rsa::encrypt(result, data, pkey),
         Some(Family::Elgamal) => elgamal::encrypt(result, data, pkey),
-        Some(Family::Ecc) => ecc::bridge_encrypt(result, data, pkey),
+        Some(Family::Ecc) => ecc::encrypt(result, data, pkey),
         _ => error::gcry_error_from_code(GPG_ERR_PUBKEY_ALGO),
     }
 }
@@ -466,7 +555,7 @@ pub extern "C" fn gcry_pk_decrypt(
     match family_from_key(skey) {
         Some(Family::Rsa) => rsa::decrypt(result, data, skey),
         Some(Family::Elgamal) => elgamal::decrypt(result, data, skey),
-        Some(Family::Ecc) => ecc::bridge_decrypt(result, data, skey),
+        Some(Family::Ecc) => ecc::decrypt(result, data, skey),
         _ => error::gcry_error_from_code(GPG_ERR_PUBKEY_ALGO),
     }
 }
@@ -486,7 +575,7 @@ pub extern "C" fn gcry_pk_sign(
         Some(Family::Rsa) => rsa::sign(result, data, skey),
         Some(Family::Dsa) => dsa::sign(result, data, skey),
         Some(Family::Elgamal) => elgamal::sign(result, data, skey),
-        Some(Family::Ecc) => ecc::bridge_sign(result, data, skey),
+        Some(Family::Ecc) => ecc::sign(result, data, skey),
         _ => error::gcry_error_from_code(GPG_ERR_PUBKEY_ALGO),
     }
 }
@@ -501,7 +590,7 @@ pub extern "C" fn gcry_pk_verify(
         Some(Family::Rsa) => rsa::verify(sigval, data, pkey),
         Some(Family::Dsa) => dsa::verify(sigval, data, pkey),
         Some(Family::Elgamal) => elgamal::verify(sigval, data, pkey),
-        Some(Family::Ecc) => ecc::bridge_verify(sigval, data, pkey),
+        Some(Family::Ecc) => ecc::verify(sigval, data, pkey),
         _ => error::gcry_error_from_code(GPG_ERR_PUBKEY_ALGO),
     }
 }
@@ -512,7 +601,7 @@ pub extern "C" fn gcry_pk_testkey(key: *mut sexp::gcry_sexp) -> u32 {
         Some(Family::Rsa) => rsa::testkey(key),
         Some(Family::Dsa) => dsa::testkey(key),
         Some(Family::Elgamal) => elgamal::testkey(key),
-        Some(Family::Ecc) => ecc::bridge_testkey(key),
+        Some(Family::Ecc) => ecc::testkey(key),
         _ => error::gcry_error_from_code(GPG_ERR_PUBKEY_ALGO),
     }
 }
@@ -531,7 +620,7 @@ pub extern "C" fn gcry_pk_genkey(
         Some(Family::Rsa) => rsa::genkey(result, parms),
         Some(Family::Dsa) => dsa::genkey(result, parms),
         Some(Family::Elgamal) => elgamal::genkey(result, parms),
-        Some(Family::Ecc) => ecc::bridge_genkey(result, parms),
+        Some(Family::Ecc) => ecc::genkey(result, parms),
         _ => error::gcry_error_from_code(GPG_ERR_PUBKEY_ALGO),
     }
 }
@@ -673,7 +762,7 @@ pub extern "C" fn gcry_pk_get_nbits(key: *mut sexp::gcry_sexp) -> c_uint {
         Some(Family::Rsa) => rsa::get_nbits(key),
         Some(Family::Dsa) => dsa::get_nbits(key),
         Some(Family::Elgamal) => elgamal::get_nbits(key),
-        Some(Family::Ecc) => ecc::bridge_get_nbits(key),
+        Some(Family::Ecc) => ecc::get_nbits(key),
         None => 0,
     }
 }

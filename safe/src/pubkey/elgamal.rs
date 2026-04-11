@@ -6,8 +6,9 @@ use crate::mpi::{self, GCRYMPI_FMT_USG, gcry_mpi};
 use crate::sexp;
 
 use super::{
-    GCRY_PK_ELG, GCRY_PK_ELG_E, OwnedMpi, build_sexp, bytes_to_mpi, find_first_token, find_token,
-    has_flags_list, token_mpi, token_usize,
+    DataEncoding, GCRY_PK_ELG, GCRY_PK_ELG_E, GPG_ERR_BAD_SIGNATURE, GPG_ERR_CONFLICT,
+    GPG_ERR_ENCODING_PROBLEM, OwnedMpi, build_sexp, bytes_to_mpi, find_first_token, find_token,
+    parse_data_flags, token_mpi, token_usize,
 };
 
 pub(crate) const NAME: &[u8] = b"elg\0";
@@ -104,13 +105,46 @@ fn mpi_random_less_than(modulus: *mut gcry_mpi) -> OwnedMpi {
     }
 }
 
-fn parse_data_value(data: *mut sexp::gcry_sexp) -> Result<OwnedMpi, u32> {
-    let value = token_mpi(data, TOK_VALUE, GCRYMPI_FMT_USG);
-    if !value.is_null() {
-        return Ok(value);
+fn parse_data_value(data: *mut sexp::gcry_sexp, allow_hash: bool) -> Result<OwnedMpi, u32> {
+    let (encoding, flags) = parse_data_flags(data)?;
+    if !allow_hash && !matches!(encoding, DataEncoding::Unknown | DataEncoding::Raw) {
+        return Err(error::gcry_error_from_code(GPG_ERR_CONFLICT));
     }
-    let list = find_token(data, TOK_VALUE);
-    let bytes = super::nth_data_bytes(list.raw(), 1)
+    if allow_hash
+        && !matches!(
+            encoding,
+            DataEncoding::Unknown
+                | DataEncoding::Raw
+                | DataEncoding::Pkcs1
+                | DataEncoding::Pkcs1Raw
+                | DataEncoding::Pss
+        )
+    {
+        return Err(error::gcry_error_from_code(GPG_ERR_CONFLICT));
+    }
+
+    let hash = find_token(data, b"hash\0");
+    let value = find_token(data, TOK_VALUE);
+    if !hash.is_null() && !value.is_null() {
+        return Err(error::gcry_error_from_code(error::GPG_ERR_INV_OBJ));
+    }
+    if !hash.is_null() {
+        if !allow_hash
+            || (encoding == DataEncoding::Unknown
+                && !(flags.raw_explicit || flags.rfc6979 || flags.gost || flags.sm2))
+        {
+            return Err(error::gcry_error_from_code(GPG_ERR_CONFLICT));
+        }
+        let bytes = super::nth_data_bytes(hash.raw(), 2)
+            .ok_or(error::gcry_error_from_code(error::GPG_ERR_INV_OBJ))?;
+        return Ok(OwnedMpi::new(bytes_to_mpi(&bytes, false)));
+    }
+
+    let mpi_value = token_mpi(data, TOK_VALUE, GCRYMPI_FMT_USG);
+    if !mpi_value.is_null() {
+        return Ok(mpi_value);
+    }
+    let bytes = super::nth_data_bytes(value.raw(), 1)
         .ok_or(error::gcry_error_from_code(error::GPG_ERR_INV_OBJ))?;
     Ok(OwnedMpi::new(bytes_to_mpi(&bytes, false)))
 }
@@ -124,7 +158,7 @@ pub(crate) fn encrypt(
         Ok(value) => value,
         Err(err) => return err,
     };
-    let input = match parse_data_value(data) {
+    let input = match parse_data_value(data, false) {
         Ok(value) => value,
         Err(err) => return err,
     };
@@ -153,6 +187,14 @@ pub(crate) fn decrypt(
     data: *mut sexp::gcry_sexp,
     skey: *mut sexp::gcry_sexp,
 ) -> u32 {
+    let (encoding, _) = match parse_data_flags(data) {
+        Ok(value) => value,
+        Err(err) => return err,
+    };
+    if !matches!(encoding, DataEncoding::Unknown | DataEncoding::Raw) {
+        return error::gcry_error_from_code(GPG_ERR_ENCODING_PROBLEM);
+    }
+
     let key = match parse_key(skey, true) {
         Ok(value) => value,
         Err(err) => return err,
@@ -179,10 +221,10 @@ pub(crate) fn decrypt(
     }
     mpi::arith::gcry_mpi_mulm(plain.raw(), b.raw(), sinv.raw(), key.p.raw());
 
-    let built = if has_flags_list(data) {
-        build_sexp("(value %m)", &[plain.raw() as usize])
-    } else {
+    let built = if find_token(data, b"flags\0").is_null() {
         build_sexp("%m", &[plain.raw() as usize])
+    } else {
+        build_sexp("(value %m)", &[plain.raw() as usize])
     };
     match built {
         Ok(value) => {
@@ -204,7 +246,7 @@ pub(crate) fn sign(
         Ok(value) => value,
         Err(err) => return err,
     };
-    let input = match parse_data_value(data) {
+    let input = match parse_data_value(data, true) {
         Ok(value) => value,
         Err(err) => return err,
     };
@@ -252,7 +294,7 @@ pub(crate) fn verify(
         Ok(value) => value,
         Err(err) => return err,
     };
-    let input = match parse_data_value(data) {
+    let input = match parse_data_value(data, true) {
         Ok(value) => value,
         Err(err) => return err,
     };
@@ -273,7 +315,7 @@ pub(crate) fn verify(
     if mpi_equal(left.raw(), right.raw()) {
         0
     } else {
-        error::gcry_error_from_code(error::GPG_ERR_BAD_DATA)
+        error::gcry_error_from_code(GPG_ERR_BAD_SIGNATURE)
     }
 }
 

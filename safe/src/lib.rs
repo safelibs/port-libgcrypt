@@ -22,7 +22,6 @@ mod pubkey;
 mod random;
 mod secmem;
 mod sexp;
-mod upstream;
 
 pub(crate) type gcry_handler_progress_t =
     Option<unsafe extern "C" fn(*mut c_void, *const c_char, c_int, c_int, c_int)>;
@@ -39,6 +38,15 @@ pub(crate) type gcry_gettext_handler_t =
     Option<unsafe extern "C" fn(*const c_char) -> *const c_char>;
 #[allow(clippy::upper_case_acronyms)]
 pub(crate) type FILE = c_void;
+
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub(crate) struct gcry_buffer_t {
+    pub(crate) size: usize,
+    pub(crate) off: usize,
+    pub(crate) len: usize,
+    pub(crate) data: *mut c_void,
+}
 
 pub(crate) const PACKAGE_VERSION: &str = "1.10.3";
 pub(crate) const PACKAGE_VERSION_BYTES: &[u8] = b"1.10.3\0";

@@ -121,7 +121,7 @@ compile_abi_only_probe() {
     "${COMPAT_DIR}/abi-only-exports.c" \
     -L"${STAGE_LIBDIR}" \
     -Wl,-rpath,"${STAGE_LIBDIR}" \
-    -ldl -lgcrypt -lgpg-error
+    -lgcrypt -lgpg-error
   run_probe "${output}"
 }
 

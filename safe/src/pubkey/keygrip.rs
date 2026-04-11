@@ -8,7 +8,7 @@ use super::{Family, KEYGRIP_LEN, dsa, ecc, elgamal, family_from_key, rsa};
 #[no_mangle]
 pub extern "C" fn gcry_pk_get_keygrip(key: *mut sexp::gcry_sexp, array: *mut u8) -> *mut u8 {
     match family_from_key(key) {
-        Some(Family::Ecc) => ecc::bridge_keygrip(key, array),
+        Some(Family::Ecc) => copy_grip(ecc::keygrip(key), array),
         Some(Family::Rsa) => copy_grip(rsa::keygrip(key), array),
         Some(Family::Dsa) => copy_grip(dsa::keygrip(key), array),
         Some(Family::Elgamal) => copy_grip(elgamal::keygrip(key), array),

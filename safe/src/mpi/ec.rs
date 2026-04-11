@@ -3,17 +3,22 @@ use std::ffi::{c_char, c_int, c_uint, c_void, CStr};
 use std::ptr::null_mut;
 use std::sync::{Mutex, OnceLock};
 
+use sha2::{Digest as _, Sha512};
+use sha3::{
+    Shake256,
+    digest::{ExtendableOutput, Update, XofReader},
+};
+
 use crate::error;
 use crate::global;
 use crate::pubkey;
 use crate::sexp;
-use crate::upstream::{load_symbol, open_upstream_handle};
 
 use super::{
     export_unsigned, gcry_mpi, gcry_mpi_copy, gcry_mpi_release, import_unsigned_bytes, mpz_sgn,
-    MpiKind, Mpz, GCRYMPI_FLAG_SECURE, __gmpz_add, __gmpz_cmp, __gmpz_cmp_ui,
-    __gmpz_fdiv_q_2exp, __gmpz_invert, __gmpz_mod, __gmpz_mul, __gmpz_neg, __gmpz_powm,
-    __gmpz_set_ui, __gmpz_sizeinbase, __gmpz_sub, __gmpz_tstbit, GCRYMPI_FMT_OPAQUE,
+    MpiKind, Mpz, __gmpz_add, __gmpz_add_ui, __gmpz_cmp, __gmpz_cmp_ui, __gmpz_fdiv_q_2exp,
+    __gmpz_invert, __gmpz_mod, __gmpz_mul, __gmpz_neg, __gmpz_powm, __gmpz_set_ui,
+    __gmpz_sizeinbase, __gmpz_sub, __gmpz_sub_ui, __gmpz_tstbit, GCRYMPI_FMT_OPAQUE,
     GCRYMPI_FMT_USG,
 };
 
@@ -29,133 +34,6 @@ const GPG_ERR_BROKEN_PUBKEY: u32 = 195;
 
 const GCRY_ECC_CURVE25519: c_int = 1;
 const GCRY_ECC_CURVE448: c_int = 2;
-
-type UpstreamEcNewFn = unsafe extern "C" fn(*mut *mut c_void, *mut c_void, *const c_char) -> u32;
-type UpstreamEcGetMpiFn = unsafe extern "C" fn(*const c_char, *mut c_void, c_int) -> *mut c_void;
-type UpstreamEcSetMpiFn =
-    unsafe extern "C" fn(*const c_char, *mut c_void, *mut c_void) -> u32;
-type UpstreamEcMulFn = unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, *mut c_void);
-type UpstreamCtxReleaseFn = unsafe extern "C" fn(*mut c_void);
-type UpstreamPointNewFn = unsafe extern "C" fn(c_uint) -> *mut c_void;
-type UpstreamPointReleaseFn = unsafe extern "C" fn(*mut c_void);
-type UpstreamPointSnatchSetFn =
-    unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, *mut c_void) -> *mut c_void;
-type UpstreamPointGetFn = unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, *mut c_void);
-type UpstreamMpiNewFn = unsafe extern "C" fn(c_uint) -> *mut c_void;
-type UpstreamMpiSetFlagFn = unsafe extern "C" fn(*mut c_void, c_int);
-
-struct UpstreamEcApi {
-    _handle: usize,
-    ec_new: UpstreamEcNewFn,
-    ec_get_mpi: UpstreamEcGetMpiFn,
-    ec_set_mpi: UpstreamEcSetMpiFn,
-    ec_mul: UpstreamEcMulFn,
-    ctx_release: UpstreamCtxReleaseFn,
-    point_new: UpstreamPointNewFn,
-    point_release: UpstreamPointReleaseFn,
-    point_snatch_set: UpstreamPointSnatchSetFn,
-    point_get: UpstreamPointGetFn,
-    mpi_new: UpstreamMpiNewFn,
-    mpi_set_flag: UpstreamMpiSetFlagFn,
-}
-
-unsafe impl Send for UpstreamEcApi {}
-unsafe impl Sync for UpstreamEcApi {}
-
-fn upstream_ec_api() -> &'static UpstreamEcApi {
-    static API: OnceLock<UpstreamEcApi> = OnceLock::new();
-    API.get_or_init(|| {
-        let handle = unsafe { open_upstream_handle() };
-        UpstreamEcApi {
-            _handle: handle as usize,
-            ec_new: unsafe { load_symbol(handle, "gcry_mpi_ec_new") },
-            ec_get_mpi: unsafe { load_symbol(handle, "gcry_mpi_ec_get_mpi") },
-            ec_set_mpi: unsafe { load_symbol(handle, "gcry_mpi_ec_set_mpi") },
-            ec_mul: unsafe { load_symbol(handle, "gcry_mpi_ec_mul") },
-            ctx_release: unsafe { load_symbol(handle, "gcry_ctx_release") },
-            point_new: unsafe { load_symbol(handle, "gcry_mpi_point_new") },
-            point_release: unsafe { load_symbol(handle, "gcry_mpi_point_release") },
-            point_snatch_set: unsafe { load_symbol(handle, "gcry_mpi_point_snatch_set") },
-            point_get: unsafe { load_symbol(handle, "gcry_mpi_point_get") },
-            mpi_new: unsafe { load_symbol(handle, "gcry_mpi_new") },
-            mpi_set_flag: unsafe { load_symbol(handle, "gcry_mpi_set_flag") },
-        }
-    })
-}
-
-struct UpstreamCtx(*mut c_void);
-
-impl UpstreamCtx {
-    fn raw(&self) -> *mut c_void {
-        self.0
-    }
-}
-
-impl Drop for UpstreamCtx {
-    fn drop(&mut self) {
-        if !self.0.is_null() {
-            unsafe {
-                (upstream_ec_api().ctx_release)(self.0);
-            }
-        }
-    }
-}
-
-struct UpstreamMpi(*mut c_void);
-
-impl UpstreamMpi {
-    fn raw(&self) -> *mut c_void {
-        self.0
-    }
-
-    fn into_raw(self) -> *mut c_void {
-        let raw = self.0;
-        std::mem::forget(self);
-        raw
-    }
-}
-
-impl Drop for UpstreamMpi {
-    fn drop(&mut self) {
-        unsafe {
-            crate::pubkey::encoding::release_upstream_mpi(self.0);
-        }
-    }
-}
-
-struct UpstreamPoint(*mut c_void);
-
-impl UpstreamPoint {
-    fn raw(&self) -> *mut c_void {
-        self.0
-    }
-}
-
-impl Drop for UpstreamPoint {
-    fn drop(&mut self) {
-        if !self.0.is_null() {
-            unsafe {
-                (upstream_ec_api().point_release)(self.0);
-            }
-        }
-    }
-}
-
-struct UpstreamSexp(*mut c_void);
-
-impl UpstreamSexp {
-    fn raw(&self) -> *mut c_void {
-        self.0
-    }
-}
-
-impl Drop for UpstreamSexp {
-    fn drop(&mut self) {
-        unsafe {
-            crate::pubkey::encoding::release_upstream_sexp(self.0);
-        }
-    }
-}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum CurveModel {
@@ -222,6 +100,7 @@ impl Drop for LocalPoint {
 
 struct EcContext {
     curve: Option<&'static CurveDef>,
+    eddsa_secret: bool,
     p: *mut gcry_mpi,
     a: *mut gcry_mpi,
     b: *mut gcry_mpi,
@@ -1104,6 +983,22 @@ fn curve_by_index(iterator: c_int) -> Option<&'static CurveDef> {
         .nth(iterator as usize)
 }
 
+fn curve_by_genkey_nbits(nbits: c_uint) -> Option<&'static CurveDef> {
+    CURVES
+        .iter()
+        .find(|curve| curve.nbits == nbits && curve.model == CurveModel::Weierstrass)
+}
+
+pub(crate) fn genkey_curve_name_for_nbits(nbits: c_uint) -> Result<&'static str, u32> {
+    let Some(curve) = curve_by_genkey_nbits(nbits) else {
+        return Err(error::gcry_error_from_code(GPG_ERR_UNKNOWN_CURVE));
+    };
+    if !curve_allowed(curve) {
+        return Err(error::gcry_error_from_code(error::GPG_ERR_NOT_SUPPORTED));
+    }
+    Ok(curve.canonical)
+}
+
 fn hex_bytes(text: &str) -> Option<(Vec<u8>, bool)> {
     let mut value = text.trim();
     let mut negative = false;
@@ -1265,6 +1160,93 @@ fn pow_mod(base: &Mpz, exponent: &Mpz, modu: &Mpz) -> Mpz {
     out
 }
 
+fn sqrt_mod_prime(value: &Mpz, modu: &Mpz) -> Option<Mpz> {
+    if mpz_is_zero(value) {
+        return Some(Mpz::from_ui(0));
+    }
+
+    let mut legendre_exp = Mpz::new(0);
+    unsafe {
+        __gmpz_sub_ui(legendre_exp.as_mut_ptr(), modu.as_ptr(), 1);
+        __gmpz_fdiv_q_2exp(legendre_exp.as_mut_ptr(), legendre_exp.as_ptr(), 1);
+    }
+    let legendre = pow_mod(value, &legendre_exp, modu);
+    if unsafe { __gmpz_cmp_ui(legendre.as_ptr(), 1) } != 0 {
+        return None;
+    }
+
+    if unsafe { __gmpz_tstbit(modu.as_ptr(), 1) } != 0 {
+        let mut exp = Mpz::new(0);
+        unsafe {
+            __gmpz_add_ui(exp.as_mut_ptr(), modu.as_ptr(), 1);
+            __gmpz_fdiv_q_2exp(exp.as_mut_ptr(), exp.as_ptr(), 2);
+        }
+        return Some(pow_mod(value, &exp, modu));
+    }
+
+    let mut q = Mpz::new(0);
+    unsafe {
+        __gmpz_sub_ui(q.as_mut_ptr(), modu.as_ptr(), 1);
+    }
+    let mut s = 0usize;
+    while unsafe { __gmpz_tstbit(q.as_ptr(), 0) } == 0 {
+        unsafe {
+            __gmpz_fdiv_q_2exp(q.as_mut_ptr(), q.as_ptr(), 1);
+        }
+        s += 1;
+    }
+
+    let mut z = Mpz::from_ui(2);
+    loop {
+        let non_residue = pow_mod(&z, &legendre_exp, modu);
+        if unsafe { __gmpz_cmp(non_residue.as_ptr(), legendre.as_ptr()) } == 0 {
+            unsafe {
+                __gmpz_add_ui(z.as_mut_ptr(), z.as_ptr(), 1);
+            }
+            continue;
+        }
+        if unsafe { __gmpz_cmp_ui(non_residue.as_ptr(), 0) } == 0 {
+            return None;
+        }
+        break;
+    }
+
+    let mut exp = Mpz::clone_from(q.as_ptr());
+    unsafe {
+        __gmpz_add_ui(exp.as_mut_ptr(), exp.as_ptr(), 1);
+        __gmpz_fdiv_q_2exp(exp.as_mut_ptr(), exp.as_ptr(), 1);
+    }
+    let mut m = s;
+    let mut c = pow_mod(&z, &q, modu);
+    let mut t = pow_mod(value, &q, modu);
+    let mut x = pow_mod(value, &exp, modu);
+
+    while unsafe { __gmpz_cmp_ui(t.as_ptr(), 1) } != 0 {
+        let mut i = 1usize;
+        let mut t2 = square_mod(&t, modu);
+        while i < m && unsafe { __gmpz_cmp_ui(t2.as_ptr(), 1) } != 0 {
+            t2 = square_mod(&t2, modu);
+            i += 1;
+        }
+        if i == m {
+            return None;
+        }
+
+        let mut b_exp = Mpz::from_ui(1);
+        if m > i + 1 {
+            b_exp = Mpz::from_ui((1usize << (m - i - 1)) as _);
+        }
+        let b = pow_mod(&c, &b_exp, modu);
+        let b2 = square_mod(&b, modu);
+        x = mul_mod(&x, &b, modu);
+        t = mul_mod(&t, &b2, modu);
+        c = b2;
+        m = i;
+    }
+
+    Some(x)
+}
+
 fn inv_mod(value: &Mpz, modu: &Mpz) -> Option<Mpz> {
     let mut out = Mpz::new(0);
     let ok = unsafe { __gmpz_invert(out.as_mut_ptr(), value.as_ptr(), modu.as_ptr()) } != 0;
@@ -1384,6 +1366,7 @@ fn h_to_mpi(h: c_uint) -> *mut gcry_mpi {
 fn context_from_curve(curve: &'static CurveDef) -> Option<EcContext> {
     Some(EcContext {
         curve: Some(curve),
+        eddsa_secret: false,
         p: curve_param(curve.p)?,
         a: curve_param(curve.a)?,
         b: curve_param(curve.b)?,
@@ -1436,6 +1419,9 @@ fn legacy_ecdsa_param_error(keyparam: *mut sexp::gcry_sexp, curvename: *const c_
     if keyparam.is_null() || !curvename.is_null() {
         return false;
     }
+    if pubkey::token_present(keyparam, b"curve\0") {
+        return false;
+    }
 
     let ecdsa = sexp::gcry_sexp_find_token(keyparam, ECDSA_TOKEN.as_ptr().cast(), 0);
     if ecdsa.is_null() {
@@ -1476,6 +1462,7 @@ fn parse_custom_context(keyparam: *mut sexp::gcry_sexp) -> Option<EcContext> {
 
     Some(EcContext {
         curve: None,
+        eddsa_secret: false,
         p,
         a,
         b,
@@ -1487,7 +1474,31 @@ fn parse_custom_context(keyparam: *mut sexp::gcry_sexp) -> Option<EcContext> {
     })
 }
 
-fn decode_sec1_uncompressed(bytes: &[u8], nbytes: usize) -> Option<AffinePoint> {
+fn recover_weierstrass_point(ctx: &EcContext, x: Mpz, odd: bool) -> Option<AffinePoint> {
+    let p = mpz_from_mpi(ctx.p)?;
+    let a = mpz_from_mpi(ctx.a)?;
+    let b = mpz_from_mpi(ctx.b)?;
+    if unsafe { __gmpz_cmp(x.as_ptr(), p.as_ptr()) } >= 0 {
+        return None;
+    }
+
+    let x2 = square_mod(&x, &p);
+    let x3 = mul_mod(&x2, &x, &p);
+    let ax = mul_mod(&a, &x, &p);
+    let rhs = add_mod(&add_mod(&x3, &ax, &p), &b, &p);
+    let mut y = sqrt_mod_prime(&rhs, &p)?;
+    if mpz_is_odd(&y) != odd {
+        y = sub_mod(&p, &y, &p);
+    }
+    Some(AffinePoint { x, y })
+}
+
+fn decode_sec1_point(ctx: &EcContext, bytes: &[u8], nbytes: usize) -> Option<AffinePoint> {
+    if bytes.len() == nbytes + 1 && matches!(bytes.first(), Some(0x02 | 0x03)) {
+        let x = import_unsigned_bytes(&bytes[1..]);
+        return recover_weierstrass_point(ctx, x, bytes[0] == 0x03);
+    }
+
     let body = if bytes.len() == 1 + 2 * nbytes && bytes.first() == Some(&0x04) {
         &bytes[1..]
     } else if bytes.len() == 2 * nbytes {
@@ -1655,7 +1666,7 @@ fn decode_point_bytes(ctx: &EcContext, bytes: &[u8]) -> Option<PointValue> {
     match ctx.model() {
         CurveModel::Weierstrass => {
             let nbytes = bytes_for_bits(ctx.nbits());
-            decode_sec1_uncompressed(bytes, nbytes).map(PointValue::Affine)
+            decode_sec1_point(ctx, bytes, nbytes).map(PointValue::Affine)
         }
         CurveModel::Edwards => decode_eddsa_point(ctx, bytes).map(|point| {
             if mpz_is_zero(&point.x) && unsafe { __gmpz_cmp_ui(point.y.as_ptr(), 1) == 0 } {
@@ -2097,8 +2108,11 @@ fn opaque_secret_from_bytes(bytes: &[u8], secure: bool) -> Result<pubkey::OwnedM
 }
 
 fn named_context_opaque_secret(keyparam: *mut sexp::gcry_sexp, curve: &CurveDef) -> bool {
-    curve.model == CurveModel::Montgomery
-        || (curve.eddsa && pubkey::flag_present(keyparam, b"eddsa\0"))
+    curve.model == CurveModel::Montgomery || named_context_eddsa_secret(keyparam, curve)
+}
+
+fn named_context_eddsa_secret(keyparam: *mut sexp::gcry_sexp, curve: &CurveDef) -> bool {
+    curve.canonical == "Ed448" || (curve.eddsa && pubkey::flag_present(keyparam, b"eddsa\0"))
 }
 
 fn normalize_named_opaque_secret(
@@ -2145,6 +2159,7 @@ fn parse_named_context(
         context_from_curve(curve).ok_or(error::gcry_error_from_code(error::GPG_ERR_INV_OBJ))?;
 
     if !keyparam.is_null() {
+        ctx.eddsa_secret = named_context_eddsa_secret(keyparam, curve);
         let q = point_from_keyparam(keyparam, "q", Some(&ctx))?;
         if !q.is_null() {
             ctx.q = q;
@@ -2169,204 +2184,111 @@ fn parse_named_context(
     Ok(ctx)
 }
 
-fn build_local_context_sexp(
-    ctx: &EcContext,
-    include_d: bool,
-) -> Result<*mut sexp::gcry_sexp, u32> {
-    if let Some(curve) = ctx.curve {
-        return if include_d && !ctx.d.is_null() {
-            if curve.eddsa {
-                pubkey::build_sexp(
-                    "(private-key(ecc(curve %s)(flags eddsa)(d%m)))",
-                    &[
-                        pubkey::ptr_to_arg(curve.canonical_cstr.as_ptr()),
-                        pubkey::ptr_to_arg(ctx.d),
-                    ],
-                )
-            } else if curve.model == CurveModel::Montgomery && curve.canonical == "Curve25519" {
-                pubkey::build_sexp(
-                    "(private-key(ecc(curve %s)(flags djb-tweak)(d%m)))",
-                    &[
-                        pubkey::ptr_to_arg(curve.canonical_cstr.as_ptr()),
-                        pubkey::ptr_to_arg(ctx.d),
-                    ],
-                )
-            } else {
-                pubkey::build_sexp(
-                    "(private-key(ecc(curve %s)(d%m)))",
-                    &[
-                        pubkey::ptr_to_arg(curve.canonical_cstr.as_ptr()),
-                        pubkey::ptr_to_arg(ctx.d),
-                    ],
-                )
-            }
-        } else if curve.eddsa {
-            pubkey::build_sexp(
-                "(public-key(ecc(curve %s)(flags eddsa)))",
-                &[pubkey::ptr_to_arg(curve.canonical_cstr.as_ptr())],
-            )
-        } else if curve.model == CurveModel::Montgomery && curve.canonical == "Curve25519" {
-            pubkey::build_sexp(
-                "(public-key(ecc(curve %s)(flags djb-tweak)))",
-                &[pubkey::ptr_to_arg(curve.canonical_cstr.as_ptr())],
-            )
-        } else {
-            pubkey::build_sexp(
-                "(public-key(ecc(curve %s)))",
-                &[pubkey::ptr_to_arg(curve.canonical_cstr.as_ptr())],
-            )
-        };
-    }
-
-    let g_point = unsafe { LocalPoint::as_ref(ctx.g.cast()) }
-        .ok_or_else(|| error::gcry_error_from_code(GPG_ERR_BAD_CRYPT_CTX))?;
-    let g_value =
-        point_value_from_handle(g_point, ctx).ok_or_else(|| error::gcry_error_from_code(GPG_ERR_BAD_CRYPT_CTX))?;
-    let g_mpi =
-        encode_sec1(&g_value, ctx).ok_or_else(|| error::gcry_error_from_code(GPG_ERR_BAD_CRYPT_CTX))?;
-    let built = if include_d && !ctx.d.is_null() {
-        pubkey::build_sexp(
-            "(private-key(ecc(p%m)(a%m)(b%m)(g%m)(n%m)(h%u)(d%m)))",
-            &[
-                pubkey::ptr_to_arg(ctx.p),
-                pubkey::ptr_to_arg(ctx.a),
-                pubkey::ptr_to_arg(ctx.b),
-                pubkey::ptr_to_arg(g_mpi),
-                pubkey::ptr_to_arg(ctx.n),
-                pubkey::usize_to_arg(ctx.h as usize),
-                pubkey::ptr_to_arg(ctx.d),
-            ],
-        )
-    } else {
-        pubkey::build_sexp(
-            "(public-key(ecc(p%m)(a%m)(b%m)(g%m)(n%m)(h%u)))",
-            &[
-                pubkey::ptr_to_arg(ctx.p),
-                pubkey::ptr_to_arg(ctx.a),
-                pubkey::ptr_to_arg(ctx.b),
-                pubkey::ptr_to_arg(g_mpi),
-                pubkey::ptr_to_arg(ctx.n),
-                pubkey::usize_to_arg(ctx.h as usize),
-            ],
-        )
-    };
-    gcry_mpi_release(g_mpi);
-    built
-}
-
-fn upstream_context_from_local(ctx: &EcContext, include_d: bool) -> Result<UpstreamCtx, u32> {
-    let local = pubkey::OwnedSexp::new(build_local_context_sexp(ctx, false)?);
-    let upstream = UpstreamSexp(crate::pubkey::encoding::sexp_to_upstream(local.raw())?);
-    let mut raw = null_mut();
-    let rc = unsafe { (upstream_ec_api().ec_new)(&mut raw, upstream.raw(), null_mut()) };
-    if rc != 0 {
-        return Err(rc);
-    }
-    let upstream_ctx = UpstreamCtx(raw);
-    if include_d && !ctx.d.is_null() {
-        let d_name = b"d\0".as_ptr().cast();
-        let upstream_d = upstream_secret_mpi(ctx.d, true)?;
-        let rc = unsafe { (upstream_ec_api().ec_set_mpi)(d_name, upstream_d.raw(), upstream_ctx.raw()) };
-        if rc != 0 {
-            return Err(rc);
-        }
-    }
-    Ok(upstream_ctx)
-}
-
-fn upstream_secret_mpi(local: *mut gcry_mpi, secret: bool) -> Result<UpstreamMpi, u32> {
-    let is_opaque = unsafe { gcry_mpi::as_ref(local) }.is_some_and(gcry_mpi::is_opaque);
-    let upstream = if is_opaque && secret && !mpi_secure(local) {
-        let mut nbits = 0u32;
-        let data = crate::mpi::opaque::gcry_mpi_get_opaque(local, &mut nbits);
-        let nbytes = (nbits as usize).div_ceil(8);
-        let bytes = if nbytes == 0 {
-            &[]
-        } else {
-            unsafe { std::slice::from_raw_parts(data.cast::<u8>(), nbytes) }
-        };
-        let secure_copy = opaque_secret_from_bytes(bytes, true)?;
-        crate::pubkey::encoding::local_to_upstream_mpi(secure_copy.raw())?
-    } else {
-        crate::pubkey::encoding::local_to_upstream_mpi(local)?
-    };
-    if secret
-        || unsafe { gcry_mpi::as_ref(local) }
-            .is_some_and(|mpi| mpi.secure || mpi.secret_sensitive)
-    {
-        if !is_opaque {
-            unsafe {
-                (upstream_ec_api().mpi_set_flag)(upstream, GCRYMPI_FLAG_SECURE as c_int);
-            }
-        }
-    }
-    Ok(UpstreamMpi(upstream))
-}
-
-fn upstream_point_from_local(point: &LocalPoint, secret: bool) -> Result<UpstreamPoint, u32> {
-    let x = upstream_secret_mpi(point.x, secret)?;
-    let y = upstream_secret_mpi(point.y, secret)?;
-    let z = upstream_secret_mpi(point.z, secret)?;
-    let raw = unsafe { (upstream_ec_api().point_new)(0) };
-    if raw.is_null() {
-        return Err(error::gcry_error_from_errno(crate::ENOMEM_VALUE));
-    }
-    unsafe {
-        (upstream_ec_api().point_snatch_set)(raw, x.into_raw(), y.into_raw(), z.into_raw());
-    }
-    Ok(UpstreamPoint(raw))
-}
-
-fn mark_local_mpi_secure(mpi: *mut gcry_mpi, secure: bool) {
-    if secure && !mpi.is_null() {
-        super::gcry_mpi_set_flag(mpi, GCRYMPI_FLAG_SECURE as c_int);
-    }
-}
-
-fn assign_local_point_from_upstream(
-    dest: &mut LocalPoint,
-    upstream_point: &UpstreamPoint,
-    secure: bool,
-) -> u32 {
-    let x = UpstreamMpi(unsafe { (upstream_ec_api().mpi_new)(0) });
-    let y = UpstreamMpi(unsafe { (upstream_ec_api().mpi_new)(0) });
-    let z = UpstreamMpi(unsafe { (upstream_ec_api().mpi_new)(0) });
-    if x.raw().is_null() || y.raw().is_null() || z.raw().is_null() {
-        return error::gcry_error_from_errno(crate::ENOMEM_VALUE);
-    }
-    unsafe {
-        (upstream_ec_api().point_get)(x.raw(), y.raw(), z.raw(), upstream_point.raw());
-    }
-    let rc = crate::pubkey::encoding::assign_local_from_upstream_mpi(dest.x, x.raw());
-    if rc != 0 {
-        return rc;
-    }
-    let rc = crate::pubkey::encoding::assign_local_from_upstream_mpi(dest.y, y.raw());
-    if rc != 0 {
-        return rc;
-    }
-    let rc = crate::pubkey::encoding::assign_local_from_upstream_mpi(dest.z, z.raw());
-    if rc != 0 {
-        return rc;
-    }
-    mark_local_mpi_secure(dest.x, secure);
-    mark_local_mpi_secure(dest.y, secure);
-    mark_local_mpi_secure(dest.z, secure);
-    0
-}
-
-fn upstream_point_value(name: &str, ctx: &EcContext, include_d: bool) -> Option<PointValue> {
-    let upstream_ctx = upstream_context_from_local(ctx, include_d).ok()?;
-    let name_c = std::ffi::CString::new(name).expect("mpi name");
-    let upstream_mpi =
-        UpstreamMpi(unsafe { (upstream_ec_api().ec_get_mpi)(name_c.as_ptr(), upstream_ctx.raw(), 1) });
-    if upstream_mpi.raw().is_null() {
+fn clamp_montgomery_scalar(curve: &CurveDef, bytes: &[u8]) -> Option<Mpz> {
+    let nbytes = bytes_for_bits(curve.nbits);
+    if nbytes == 0 {
         return None;
     }
-    let local_mpi = crate::pubkey::encoding::upstream_to_local_mpi(upstream_mpi.raw()).ok()?;
-    let bytes = pubkey::mpi_to_bytes(local_mpi);
-    gcry_mpi_release(local_mpi);
-    bytes.and_then(|bytes| decode_point_bytes(ctx, &bytes))
+
+    let mut scalar = bytes.to_vec();
+    scalar.truncate(nbytes);
+    scalar.resize(nbytes, 0);
+
+    match curve.canonical {
+        "Curve25519" => {
+            scalar[0] &= 248;
+            scalar[nbytes - 1] &= 127;
+            scalar[nbytes - 1] |= 64;
+        }
+        "X448" => {
+            scalar[0] &= 252;
+            scalar[nbytes - 1] |= 128;
+        }
+        _ => return None,
+    }
+
+    Some(mpz_from_le(&scalar))
+}
+
+fn hash_shake256(input: &[u8], out_len: usize) -> Vec<u8> {
+    let mut state = Shake256::default();
+    state.update(input);
+    let mut reader = state.finalize_xof();
+    let mut out = vec![0u8; out_len];
+    reader.read(&mut out);
+    out
+}
+
+fn eddsa_secret_scalar(curve: &CurveDef, seed: &[u8]) -> Option<Mpz> {
+    let b = match curve.canonical {
+        "Ed25519" => 32usize,
+        "Ed448" => 57usize,
+        _ => return None,
+    };
+
+    let digest = match curve.canonical {
+        "Ed25519" => Sha512::digest(seed).to_vec(),
+        "Ed448" => hash_shake256(seed, 2 * b),
+        _ => return None,
+    };
+    if digest.len() < 2 * b {
+        return None;
+    }
+
+    let mut scalar = digest[..b].to_vec();
+    scalar.reverse();
+    match curve.canonical {
+        "Ed25519" => {
+            scalar[0] = (scalar[0] & 0x7f) | 0x40;
+            scalar[b - 1] &= 0xf8;
+        }
+        "Ed448" => {
+            scalar[0] = 0;
+            scalar[1] |= 0x80;
+            scalar[b - 1] &= 0xfc;
+        }
+        _ => return None,
+    }
+
+    Some(import_unsigned_bytes(&scalar))
+}
+
+fn eddsa_seed_from_numeric(curve: &CurveDef, value: &Mpz) -> Option<Vec<u8>> {
+    let b = match curve.canonical {
+        "Ed25519" => 32usize,
+        "Ed448" => 57usize,
+        _ => return None,
+    };
+    let mut seed = export_unsigned(value.as_ptr());
+    if seed.len() < b {
+        let mut padded = vec![0u8; b - seed.len()];
+        padded.extend_from_slice(&seed);
+        seed = padded;
+    }
+    Some(seed)
+}
+
+fn scalar_from_mpi_for_curve(ptr: *mut gcry_mpi, ctx: &EcContext) -> Option<Mpz> {
+    let mpi = unsafe { gcry_mpi::as_ref(ptr) }?;
+    match &mpi.kind {
+        MpiKind::Numeric(value) => {
+            if ctx.eddsa_secret && ptr == ctx.d {
+                eddsa_secret_scalar(ctx.curve?, &eddsa_seed_from_numeric(ctx.curve?, value)?)
+            } else {
+                Some(Mpz::clone_from(value.as_ptr()))
+            }
+        }
+        MpiKind::Opaque(value) => {
+            let curve = ctx.curve?;
+            if curve.model == CurveModel::Montgomery {
+                clamp_montgomery_scalar(curve, value.as_slice())
+            } else if ctx.eddsa_secret {
+                eddsa_secret_scalar(curve, value.as_slice())
+            } else {
+                None
+            }
+        }
+    }
 }
 
 fn register_context(ptr: *mut EcContext) {
@@ -2398,17 +2320,15 @@ fn ensure_public_point(ctx: &mut EcContext) -> Option<()> {
     if !ctx.q.is_null() {
         return Some(());
     }
-    // Private-point derivation stays on the hardened upstream EC path instead
-    // of reintroducing a local secret-scalar multiply over the generic Mpz core.
-    let q_name = if ctx.curve.is_some_and(|curve| curve.eddsa) {
-        "q@eddsa"
-    } else {
-        "q"
-    };
-    let point = upstream_point_value(q_name, ctx, true)?;
-
     let mut q = LocalPoint::boxed();
-    write_point_value(&mut q, point, mpi_secure(ctx.d));
+    let ctx_ptr = (ctx as *mut EcContext).cast();
+    gcry_mpi_ec_mul(
+        (&mut *q as *mut LocalPoint).cast(),
+        ctx.d,
+        ctx.g.cast(),
+        ctx_ptr,
+    );
+    point_value_from_handle(q.as_ref(), ctx)?;
     ctx.q = Box::into_raw(q);
     Some(())
 }
@@ -3215,35 +3135,9 @@ pub extern "C" fn gcry_mpi_ec_mul(
     let Some(source) = (unsafe { LocalPoint::as_ref(u) }) else {
         return;
     };
-    let secure = point_secure(source) || mpi_secure(n);
-    let secret_scalar = unsafe { gcry_mpi::as_ref(n) }
-        .is_some_and(|mpi| mpi.secure || mpi.secret_sensitive || mpi.is_opaque());
-
-    if secret_scalar {
-        // Secret scalar multiplication must stay on the hardened upstream EC
-        // implementation; do not fall back to the local Mpz-based point loops.
-        if let Ok(upstream_ctx) = upstream_context_from_local(ctx, false) {
-            if let Ok(upstream_n) = upstream_secret_mpi(n, true) {
-                if let Ok(upstream_u) = upstream_point_from_local(source, point_secure(source)) {
-                    let upstream_w = UpstreamPoint(unsafe { (upstream_ec_api().point_new)(0) });
-                    if !upstream_w.raw().is_null() {
-                        unsafe {
-                            (upstream_ec_api().ec_mul)(
-                                upstream_w.raw(),
-                                upstream_n.raw(),
-                                upstream_u.raw(),
-                                upstream_ctx.raw(),
-                            );
-                        }
-                        if assign_local_point_from_upstream(dest, &upstream_w, secure) == 0 {
-                            return;
-                        }
-                    }
-                }
-            }
-        }
-        return;
-    }
+    let secure = point_secure(source)
+        || unsafe { gcry_mpi::as_ref(n) }
+            .is_some_and(|mpi| mpi.secure || mpi.secret_sensitive);
 
     match ctx.model() {
         CurveModel::Montgomery => {
@@ -3253,7 +3147,7 @@ pub extern "C" fn gcry_mpi_ec_mul(
             let PointValue::Affine(point) = point else {
                 return;
             };
-            let Some(scalar) = mpz_from_mpi(n) else {
+            let Some(scalar) = scalar_from_mpi_for_curve(n, ctx) else {
                 return;
             };
             let Some(x) = montgomery_ladder(&scalar, &point.x, ctx) else {
@@ -3272,7 +3166,7 @@ pub extern "C" fn gcry_mpi_ec_mul(
             let Some(base) = point_value_from_handle(source, ctx) else {
                 return;
             };
-            let Some(scalar) = mpz_from_mpi(n) else {
+            let Some(scalar) = scalar_from_mpi_for_curve(n, ctx) else {
                 return;
             };
             let Some(result) = scalar_mul_affine(base, &scalar, ctx) else {

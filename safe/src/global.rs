@@ -10,10 +10,9 @@ use crate::hwfeatures;
 use crate::log;
 use crate::random;
 use crate::secmem::{self, SecureMemoryState};
-use crate::upstream;
 use crate::{
-    gcry_handler_alloc_t, gcry_handler_free_t, gcry_handler_no_mem_t, gcry_handler_realloc_t,
-    gcry_handler_secure_check_t, PACKAGE_VERSION_BYTES,
+    gcry_buffer_t, gcry_handler_alloc_t, gcry_handler_free_t, gcry_handler_no_mem_t,
+    gcry_handler_realloc_t, gcry_handler_secure_check_t, PACKAGE_VERSION_BYTES,
 };
 
 pub(crate) const GCRY_RNG_TYPE_STANDARD: c_int = 1;
@@ -490,14 +489,6 @@ pub extern "C" fn safe_gcry_control_dispatch(
                 Ok(value) => value,
                 Err(code) => return control_result(code),
             };
-            if let Some(ref names) = sanitized {
-                // Keep the remaining bridge-backed pubkey path on the same
-                // pre-init hardware-feature floor as the local runtime shell.
-                let upstream_rc = upstream::disable_hw_features_preinit(names.as_c_str());
-                if upstream_rc != 0 {
-                    return upstream_rc;
-                }
-            }
             hwfeatures::remember_disabled_features(
                 &mut state.disabled_hw_features,
                 sanitized.as_deref(),
@@ -543,7 +534,7 @@ pub extern "C" fn safe_gcry_control_dispatch(
             drop(state);
             return control_result(random::drbg_reinit(
                 arg0 as *const c_char,
-                arg1 as *const crate::upstream::gcry_buffer_t,
+                arg1 as *const gcry_buffer_t,
                 arg2 as c_int,
                 arg3,
             ));

@@ -6,7 +6,7 @@ use crate::drbg::{self, DrbgStats};
 use crate::error;
 use crate::global;
 use crate::os_rng;
-use crate::upstream::gcry_buffer_t;
+use crate::gcry_buffer_t;
 
 pub(crate) const GCRY_WEAK_RANDOM: c_int = 0;
 #[allow(dead_code)]

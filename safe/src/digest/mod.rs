@@ -17,7 +17,7 @@ use streebog::{Streebog256, Streebog512};
 
 use crate::alloc;
 use crate::error;
-use crate::upstream::gcry_buffer_t;
+use crate::gcry_buffer_t;
 
 const GCRYCTL_RESET: c_int = 4;
 const GCRYCTL_FINALIZE: c_int = 5;

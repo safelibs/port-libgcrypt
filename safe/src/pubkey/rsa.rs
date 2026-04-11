@@ -7,10 +7,10 @@ use crate::random;
 use crate::sexp;
 
 use super::{
-    GCRY_PK_RSA, GCRY_PK_RSA_E, GCRY_PK_RSA_S, GPG_ERR_BAD_SIGNATURE,
-    GPG_ERR_DIGEST_ALGO, GPG_ERR_ENCODING_PROBLEM, GPG_ERR_WRONG_PUBKEY_ALGO, OwnedMpi,
-    build_sexp, bytes_to_mpi, find_first_token, find_token, flag_present, has_flags_list,
-    token_data_bytes, token_mpi, token_string_value, token_usize,
+    DataEncoding, DataFlags, GCRY_PK_RSA, GCRY_PK_RSA_E, GCRY_PK_RSA_S, GPG_ERR_BAD_SIGNATURE,
+    GPG_ERR_CONFLICT, GPG_ERR_DIGEST_ALGO, GPG_ERR_ENCODING_PROBLEM, OwnedMpi, build_sexp,
+    bytes_to_mpi, find_first_token, find_token, parse_data_flags, token_data_bytes, token_mpi,
+    token_string_value, token_usize,
 };
 
 pub(crate) const NAME: &[u8] = b"rsa\0";
@@ -31,14 +31,6 @@ const TOK_LABEL: &[u8] = b"label\0";
 const TOK_RANDOM_OVERRIDE: &[u8] = b"random-override\0";
 const TOK_SALT_LENGTH: &[u8] = b"salt-length\0";
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Encoding {
-    Raw,
-    Pkcs1,
-    Oaep,
-    Pss,
-}
-
 struct RsaPublicKey {
     n: OwnedMpi,
     e: OwnedMpi,
@@ -53,7 +45,8 @@ struct RsaSecretKey {
 }
 
 struct RsaData {
-    encoding: Encoding,
+    encoding: DataEncoding,
+    flags: DataFlags,
     value_bytes: Option<Vec<u8>>,
     value_mpi: Option<OwnedMpi>,
     hash: Option<(c_int, Vec<u8>)>,
@@ -61,7 +54,6 @@ struct RsaData {
     label: Option<Vec<u8>>,
     salt_length: Option<usize>,
     random_override: Option<Vec<u8>>,
-    has_flags: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -205,6 +197,17 @@ fn random_nonzero_bytes(len: usize) -> Vec<u8> {
 }
 
 fn parse_hash_algo_name(name: &str) -> Result<c_int, u32> {
+    let oid_algo = match name {
+        "oid.1.3.14.3.2.29" => Some(algorithms::map_name("sha1")),
+        "oid.2.16.840.1.101.3.4.2.1" => Some(algorithms::map_name("sha256")),
+        "oid.2.16.840.1.101.3.4.2.2" => Some(algorithms::map_name("sha384")),
+        "oid.2.16.840.1.101.3.4.2.3" => Some(algorithms::map_name("sha512")),
+        _ => None,
+    };
+    if let Some(algo) = oid_algo.filter(|algo| *algo != 0) {
+        return Ok(algo);
+    }
+
     let name = CString::new(name).expect("hash name");
     let algo = digest::gcry_md_map_name(name.as_ptr());
     if algo == 0 || digest::gcry_md_get_algo_dlen(algo) == 0 {
@@ -215,14 +218,11 @@ fn parse_hash_algo_name(name: &str) -> Result<c_int, u32> {
 }
 
 fn parse_data(data: *mut sexp::gcry_sexp) -> Result<RsaData, u32> {
-    let encoding = if flag_present(data, b"pss\0") {
-        Encoding::Pss
-    } else if flag_present(data, b"oaep\0") {
-        Encoding::Oaep
-    } else if flag_present(data, b"pkcs1\0") {
-        Encoding::Pkcs1
+    let (encoding, flags) = parse_data_flags(data)?;
+    let encoding = if encoding == DataEncoding::Unknown {
+        DataEncoding::Raw
     } else {
-        Encoding::Raw
+        encoding
     };
 
     let value_token = find_token(data, TOK_VALUE);
@@ -260,6 +260,7 @@ fn parse_data(data: *mut sexp::gcry_sexp) -> Result<RsaData, u32> {
 
     Ok(RsaData {
         encoding,
+        flags,
         value_bytes,
         value_mpi,
         hash,
@@ -267,7 +268,6 @@ fn parse_data(data: *mut sexp::gcry_sexp) -> Result<RsaData, u32> {
         label: token_data_bytes(data, TOK_LABEL),
         salt_length: token_usize(data, TOK_SALT_LENGTH),
         random_override: token_data_bytes(data, TOK_RANDOM_OVERRIDE),
-        has_flags: has_flags_list(data),
     })
 }
 
@@ -337,6 +337,19 @@ fn pkcs1_encode_for_sig(nbits: usize, algo: c_int, digest_bytes: &[u8]) -> Resul
     frame.push(0);
     frame.extend_from_slice(oid);
     frame.extend_from_slice(digest_bytes);
+    Ok(frame)
+}
+
+fn pkcs1_raw_encode_for_sig(nbits: usize, value: &[u8]) -> Result<Vec<u8>, u32> {
+    let nframe = nbits.div_ceil(8);
+    if value.len() + 11 > nframe {
+        return Err(error::gcry_error_from_code(error::GPG_ERR_TOO_SHORT));
+    }
+    let mut frame = Vec::with_capacity(nframe);
+    frame.extend_from_slice(&[0, 1]);
+    frame.extend(std::iter::repeat_n(0xff, nframe - value.len() - 3));
+    frame.push(0);
+    frame.extend_from_slice(value);
     Ok(frame)
 }
 
@@ -514,47 +527,147 @@ fn pss_verify(
     }
 }
 
-fn sign_digest_bytes(input: &RsaData, nbits: usize) -> Result<Vec<u8>, u32> {
-    let (algo, digest_bytes) = input
-        .hash
+fn value_octets(input: &RsaData) -> Result<Vec<u8>, u32> {
+    input
+        .value_bytes
+        .clone()
+        .or_else(|| {
+            input
+                .value_mpi
+                .as_ref()
+                .map(|value| super::mpi_to_bytes(value.raw()).unwrap_or_default())
+        })
+        .ok_or(error::gcry_error_from_code(error::GPG_ERR_INV_OBJ))
+}
+
+fn value_scalar_bytes(input: &RsaData) -> Result<Vec<u8>, u32> {
+    input
+        .value_mpi
         .as_ref()
-        .ok_or(error::gcry_error_from_code(error::GPG_ERR_INV_OBJ))?;
-    match input.encoding {
-        Encoding::Raw => Ok(digest_bytes.clone()),
-        Encoding::Pkcs1 => pkcs1_encode_for_sig(nbits, *algo, digest_bytes),
-        Encoding::Pss => pss_encode(
+        .map(|value| super::mpi_to_bytes(value.raw()).unwrap_or_default())
+        .or_else(|| input.value_bytes.clone())
+        .ok_or(error::gcry_error_from_code(error::GPG_ERR_INV_OBJ))
+}
+
+fn raw_sign_input_bytes(input: &RsaData) -> Result<Vec<u8>, u32> {
+    match (&input.hash, input.value_bytes.as_ref(), input.value_mpi.as_ref()) {
+        (Some((_, digest)), None, None) => {
+            if input.flags.raw_explicit {
+                Ok(digest.clone())
+            } else {
+                Err(error::gcry_error_from_code(GPG_ERR_CONFLICT))
+            }
+        }
+        (Some(_), Some(_), _) | (Some(_), _, Some(_)) => {
+            Err(error::gcry_error_from_code(error::GPG_ERR_INV_OBJ))
+        }
+        (None, _, _) => {
+            if input.flags.rfc6979 {
+                Err(error::gcry_error_from_code(GPG_ERR_CONFLICT))
+            } else {
+                value_scalar_bytes(input)
+            }
+        }
+    }
+}
+
+fn pkcs1_sign_input(input: &RsaData, nbits: usize) -> Result<Vec<u8>, u32> {
+    if let Some((algo, digest_bytes)) = input.hash.as_ref() {
+        pkcs1_encode_for_sig(nbits, *algo, digest_bytes)
+    } else if input.flags.prehash {
+        pkcs1_encode_for_sig(
             nbits,
-            *algo,
-            digest_bytes,
-            input.salt_length.unwrap_or(digest_bytes.len()),
-            input.random_override.as_deref(),
-        ),
-        Encoding::Oaep => Err(error::gcry_error_from_code(GPG_ERR_WRONG_PUBKEY_ALGO)),
+            input
+                .hash_algo
+                .ok_or(error::gcry_error_from_code(GPG_ERR_DIGEST_ALGO))?,
+            &hash_bytes(
+                input
+                    .hash_algo
+                    .ok_or(error::gcry_error_from_code(GPG_ERR_DIGEST_ALGO))?,
+                &value_octets(input)?,
+            )?,
+        )
+    } else if input.value_bytes.is_some() || input.value_mpi.is_some() {
+        Err(error::gcry_error_from_code(GPG_ERR_CONFLICT))
+    } else {
+        Err(error::gcry_error_from_code(error::GPG_ERR_INV_OBJ))
+    }
+}
+
+fn pss_sign_input(input: &RsaData, nbits: usize) -> Result<(c_int, Vec<u8>, Vec<u8>), u32> {
+    let (algo, digest_bytes) = if let Some((algo, digest_bytes)) = input.hash.as_ref() {
+        (*algo, digest_bytes.clone())
+    } else if let Some(algo) = input.hash_algo {
+        (algo, hash_bytes(algo, &value_octets(input)?)?)
+    } else if input.value_bytes.is_some() || input.value_mpi.is_some() {
+        return Err(error::gcry_error_from_code(GPG_ERR_CONFLICT));
+    } else {
+        return Err(error::gcry_error_from_code(error::GPG_ERR_INV_OBJ));
+    };
+    let encoded = pss_encode(
+        nbits,
+        algo,
+        &digest_bytes,
+        input.salt_length.unwrap_or(digest_bytes.len()),
+        input.random_override.as_deref(),
+    )?;
+    Ok((algo, digest_bytes, encoded))
+}
+
+fn sign_input_bytes(input: &RsaData, nbits: usize) -> Result<Vec<u8>, u32> {
+    match input.encoding {
+        DataEncoding::Raw => raw_sign_input_bytes(input),
+        DataEncoding::Pkcs1 => pkcs1_sign_input(input, nbits),
+        DataEncoding::Pkcs1Raw => {
+            if input.hash.is_some() {
+                Err(error::gcry_error_from_code(GPG_ERR_CONFLICT))
+            } else if input.value_bytes.is_some() || input.value_mpi.is_some() {
+                pkcs1_raw_encode_for_sig(nbits, &value_octets(input)?)
+            } else {
+                Err(error::gcry_error_from_code(error::GPG_ERR_INV_OBJ))
+            }
+        }
+        DataEncoding::Pss => pss_sign_input(input, nbits).map(|(_, _, encoded)| encoded),
+        DataEncoding::Oaep => Err(error::gcry_error_from_code(GPG_ERR_CONFLICT)),
+        DataEncoding::Unknown => Err(error::gcry_error_from_code(error::GPG_ERR_INV_OBJ)),
     }
 }
 
 fn encrypt_input_bytes(input: &RsaData, nbits: usize) -> Result<Vec<u8>, u32> {
     match input.encoding {
-        Encoding::Raw => {
-            if let Some(mpi) = input.value_mpi.as_ref() {
-                Ok(super::mpi_to_bytes(mpi.raw()).unwrap_or_default())
+        DataEncoding::Raw => {
+            if input.hash.is_some() {
+                Err(error::gcry_error_from_code(GPG_ERR_CONFLICT))
             } else {
-                Ok(input.value_bytes.clone().unwrap_or_default())
+                value_scalar_bytes(input)
             }
         }
-        Encoding::Pkcs1 => pkcs1_encode_for_enc(
+        DataEncoding::Pkcs1 => {
+            if input.hash.is_some() {
+                return Err(error::gcry_error_from_code(GPG_ERR_CONFLICT));
+            }
+            pkcs1_encode_for_enc(
             nbits,
-            input.value_bytes.as_deref().unwrap_or(&[]),
+            &value_octets(input)?,
             input.random_override.as_deref(),
-        ),
-        Encoding::Oaep => oaep_encode(
+        )
+        }
+        DataEncoding::Oaep => {
+            if input.hash.is_some() {
+                return Err(error::gcry_error_from_code(GPG_ERR_CONFLICT));
+            }
+            oaep_encode(
             nbits,
             input.hash_algo.unwrap_or(algorithms::map_name("sha1")),
-            input.value_bytes.as_deref().unwrap_or(&[]),
+            &value_octets(input)?,
             input.label.as_deref(),
             input.random_override.as_deref(),
-        ),
-        Encoding::Pss => Err(error::gcry_error_from_code(GPG_ERR_WRONG_PUBKEY_ALGO)),
+        )
+        }
+        DataEncoding::Pkcs1Raw | DataEncoding::Pss => {
+            Err(error::gcry_error_from_code(GPG_ERR_CONFLICT))
+        }
+        DataEncoding::Unknown => Err(error::gcry_error_from_code(error::GPG_ERR_INV_OBJ)),
     }
 }
 
@@ -610,23 +723,25 @@ pub(crate) fn decrypt(
     let plain = OwnedMpi::new(rsa_private(cipher.raw(), &key));
     let nbits = mpi::gcry_mpi_get_nbits(key.public.n.raw()) as usize;
     let built = match input.encoding {
-        Encoding::Pkcs1 => pkcs1_decode_for_enc(nbits, plain.raw())
+        DataEncoding::Pkcs1 => pkcs1_decode_for_enc(nbits, plain.raw())
             .and_then(|bytes| build_sexp("(value %b)", &[bytes.len(), bytes.as_ptr() as usize])),
-        Encoding::Oaep => oaep_decode(
+        DataEncoding::Oaep => oaep_decode(
             nbits,
             input.hash_algo.unwrap_or(algorithms::map_name("sha1")),
             plain.raw(),
             input.label.as_deref(),
         )
         .and_then(|bytes| build_sexp("(value %b)", &[bytes.len(), bytes.as_ptr() as usize])),
-        Encoding::Raw => {
-            if input.has_flags {
+        DataEncoding::Raw => {
+            if input.flags.has_flags {
                 build_sexp("(value %m)", &[plain.raw() as usize])
             } else {
                 build_sexp("%m", &[plain.raw() as usize])
             }
         }
-        Encoding::Pss => Err(error::gcry_error_from_code(GPG_ERR_WRONG_PUBKEY_ALGO)),
+        DataEncoding::Pkcs1Raw | DataEncoding::Pss | DataEncoding::Unknown => {
+            Err(error::gcry_error_from_code(GPG_ERR_CONFLICT))
+        }
     };
     match built {
         Ok(value) => {
@@ -653,7 +768,7 @@ pub(crate) fn sign(
         Err(err) => return err,
     };
     let nbits = mpi::gcry_mpi_get_nbits(key.public.n.raw()) as usize;
-    let encoded = match sign_digest_bytes(&input, nbits) {
+    let encoded = match sign_input_bytes(&input, nbits) {
         Ok(value) => value,
         Err(err) => return err,
     };
@@ -691,14 +806,11 @@ pub(crate) fn verify(
     let decoded = OwnedMpi::new(rsa_public(sig.raw(), &key));
     let nbits = mpi::gcry_mpi_get_nbits(key.n.raw()) as usize;
     match input.encoding {
-        Encoding::Raw => {
-            let expected = input
-                .value_mpi
-                .as_ref()
-                .map(|value| super::mpi_to_bytes(value.raw()).unwrap_or_default())
-                .or_else(|| input.value_bytes.clone())
-                .or_else(|| input.hash.as_ref().map(|(_, value)| value.clone()))
-                .unwrap_or_default();
+        DataEncoding::Raw => {
+            let expected = match raw_sign_input_bytes(&input) {
+                Ok(value) => value,
+                Err(err) => return err,
+            };
             let have = super::mpi_to_bytes(decoded.raw()).unwrap_or_default();
             if have == expected {
                 0
@@ -706,8 +818,8 @@ pub(crate) fn verify(
                 error::gcry_error_from_code(GPG_ERR_BAD_SIGNATURE)
             }
         }
-        Encoding::Pkcs1 => {
-            let expected = match sign_digest_bytes(&input, nbits) {
+        DataEncoding::Pkcs1 => {
+            let expected = match pkcs1_sign_input(&input, nbits) {
                 Ok(value) => value,
                 Err(err) => return err,
             };
@@ -717,16 +829,30 @@ pub(crate) fn verify(
                 error::gcry_error_from_code(GPG_ERR_BAD_SIGNATURE)
             }
         }
-        Encoding::Pss => {
-            let (algo, digest_bytes) = input
-                .hash
-                .as_ref()
-                .ok_or(error::gcry_error_from_code(error::GPG_ERR_INV_OBJ))
-                .unwrap();
+        DataEncoding::Pkcs1Raw => {
+            let raw_value = match value_octets(&input) {
+                Ok(value) => value,
+                Err(err) => return err,
+            };
+            let expected = match pkcs1_raw_encode_for_sig(nbits, &raw_value) {
+                Ok(value) => value,
+                Err(err) => return err,
+            };
+            if mpi_fixed_bytes(decoded.raw(), nbits.div_ceil(8)) == expected {
+                0
+            } else {
+                error::gcry_error_from_code(GPG_ERR_BAD_SIGNATURE)
+            }
+        }
+        DataEncoding::Pss => {
+            let (algo, digest_bytes, _) = match pss_sign_input(&input, nbits) {
+                Ok(value) => value,
+                Err(err) => return err,
+            };
             match pss_verify(
                 nbits,
-                *algo,
-                digest_bytes,
+                algo,
+                &digest_bytes,
                 decoded.raw(),
                 input.salt_length.unwrap_or(digest_bytes.len()),
             ) {
@@ -734,7 +860,7 @@ pub(crate) fn verify(
                 Err(err) => err,
             }
         }
-        Encoding::Oaep => error::gcry_error_from_code(GPG_ERR_WRONG_PUBKEY_ALGO),
+        DataEncoding::Oaep | DataEncoding::Unknown => error::gcry_error_from_code(GPG_ERR_CONFLICT),
     }
 }
 

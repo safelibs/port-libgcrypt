@@ -6,12 +6,12 @@ use crate::digest;
 use crate::error;
 use crate::mpi::{self, GCRYMPI_FMT_USG, gcry_mpi};
 use crate::sexp;
-use crate::upstream::gcry_buffer_t;
+use crate::gcry_buffer_t;
 
 use super::{
-    GCRY_PK_DSA, GPG_ERR_DIGEST_ALGO, OwnedMpi, build_sexp, bytes_to_mpi, find_first_token,
-    find_token, flag_present, mpi_to_bytes, token_data_bytes, token_mpi, token_present,
-    token_usize,
+    DataEncoding, GCRY_PK_DSA, GPG_ERR_BAD_SIGNATURE, GPG_ERR_CONFLICT, GPG_ERR_DIGEST_ALGO,
+    OwnedMpi, build_sexp, bytes_to_mpi, find_first_token, find_token, flag_present, mpi_to_bytes,
+    parse_data_flags, token_data_bytes, token_mpi, token_present, token_string_value, token_usize,
 };
 
 pub(crate) const NAME: &[u8] = b"dsa\0";
@@ -155,7 +155,7 @@ fn mpi_from_ui(value: usize) -> OwnedMpi {
     OwnedMpi::new(raw)
 }
 
-fn mpi_random_less_than(modulus: *mut gcry_mpi) -> OwnedMpi {
+pub(crate) fn mpi_random_less_than(modulus: *mut gcry_mpi) -> OwnedMpi {
     let bits = mpi::gcry_mpi_get_nbits(modulus) as c_int;
     loop {
         let candidate = OwnedMpi::new(mpi::gcry_mpi_new(0));
@@ -180,24 +180,37 @@ fn mpi_fixed_bytes(value: *mut gcry_mpi, len: usize) -> Vec<u8> {
     bytes
 }
 
-fn normalize_hash_bytes(data: &[u8], qbits: usize) -> Vec<u8> {
-    let qbytes = qbits.div_ceil(8);
-    let mut out = if data.len() > qbytes {
-        data[..qbytes].to_vec()
-    } else {
-        data.to_vec()
-    };
-    if out.is_empty() {
-        out.push(0);
+fn bits_to_int_mpi(data: &[u8], total_bits: usize, qbits: usize) -> OwnedMpi {
+    let value = OwnedMpi::new(bytes_to_mpi(data, false));
+    if total_bits > qbits {
+        mpi::gcry_mpi_rshift(value.raw(), value.raw(), (total_bits - qbits) as _);
     }
-    let excess = out.len() * 8 - qbits;
-    if excess != 0 {
-        out[0] &= 0xff >> excess;
-    }
-    out
+    value
 }
 
-fn digest_hmac(algo: c_int, key: &[u8], chunks: &[&[u8]]) -> Result<Vec<u8>, u32> {
+fn normalize_hash_mpi(data: &[u8], qbits: usize) -> OwnedMpi {
+    bits_to_int_mpi(data, data.len() * 8, qbits)
+}
+
+fn bits2octets(data: &[u8], q: *mut gcry_mpi, qbits: usize) -> Vec<u8> {
+    let value = bits_to_int_mpi(data, data.len() * 8, qbits);
+    if !value.is_null() && mpi::gcry_mpi_cmp(value.raw(), q) >= 0 {
+        let reduced = OwnedMpi::new(mpi::gcry_mpi_new(0));
+        mpi::arith::gcry_mpi_sub(reduced.raw(), value.raw(), q);
+        return mpi_fixed_bytes(reduced.raw(), qbits.div_ceil(8));
+    }
+    mpi_fixed_bytes(value.raw(), qbits.div_ceil(8))
+}
+
+pub(crate) struct ParsedSignInput {
+    pub(crate) input: OwnedMpi,
+    pub(crate) hash_algo: Option<c_int>,
+    pub(crate) label: Option<Vec<u8>>,
+    pub(crate) use_rfc6979: bool,
+    pub(crate) raw_hash: Option<Vec<u8>>,
+}
+
+pub(crate) fn digest_hmac(algo: c_int, key: &[u8], chunks: &[&[u8]]) -> Result<Vec<u8>, u32> {
     let outlen = digest::gcry_md_get_algo_dlen(algo) as usize;
     if outlen == 0 {
         return Err(error::gcry_error_from_code(error::GPG_ERR_INV_ARG));
@@ -230,7 +243,12 @@ fn digest_hmac(algo: c_int, key: &[u8], chunks: &[&[u8]]) -> Result<Vec<u8>, u32
     if rc == 0 { Ok(out) } else { Err(rc) }
 }
 
-fn rfc6979_generate_k(x: *mut gcry_mpi, q: *mut gcry_mpi, hash_algo: c_int, digest: &[u8]) -> Result<*mut gcry_mpi, u32> {
+pub(crate) fn rfc6979_generate_k(
+    x: *mut gcry_mpi,
+    q: *mut gcry_mpi,
+    hash_algo: c_int,
+    digest: &[u8],
+) -> Result<*mut gcry_mpi, u32> {
     let qbits = mpi::gcry_mpi_get_nbits(q) as usize;
     let rolen = qbits.div_ceil(8);
     let holen = digest::gcry_md_get_algo_dlen(hash_algo) as usize;
@@ -239,20 +257,7 @@ fn rfc6979_generate_k(x: *mut gcry_mpi, q: *mut gcry_mpi, hash_algo: c_int, dige
     }
 
     let bx = mpi_fixed_bytes(x, rolen);
-    let bh1 = {
-        let h1 = bytes_to_mpi(&normalize_hash_bytes(digest, qbits), false);
-        let reduced = if mpi::gcry_mpi_cmp(h1, q) >= 0 {
-            let tmp = OwnedMpi::new(mpi::gcry_mpi_new(0));
-            mpi::arith::gcry_mpi_sub(tmp.raw(), h1, q);
-            mpi::gcry_mpi_release(h1);
-            tmp.into_raw()
-        } else {
-            h1
-        };
-        let out = mpi_fixed_bytes(reduced, rolen);
-        mpi::gcry_mpi_release(reduced);
-        out
-    };
+    let bh1 = bits2octets(digest, q, qbits);
 
     let mut v = vec![0x01; holen];
     let mut k = vec![0x00; holen];
@@ -287,22 +292,43 @@ fn rfc6979_generate_k(x: *mut gcry_mpi, q: *mut gcry_mpi, hash_algo: c_int, dige
             t.extend_from_slice(&v);
         }
         t.truncate(rolen);
-        let candidate = bytes_to_mpi(&normalize_hash_bytes(&t, qbits), false);
-        if !candidate.is_null() && !mpi_is_zero(candidate) && mpi::gcry_mpi_cmp(candidate, q) < 0 {
-            return Ok(candidate);
+        let candidate = bits_to_int_mpi(&t, t.len() * 8, qbits);
+        if !candidate.is_null()
+            && !mpi_is_zero(candidate.raw())
+            && mpi::gcry_mpi_cmp(candidate.raw(), q) < 0
+        {
+            return Ok(candidate.into_raw());
         }
         let mut prefix = Vec::with_capacity(v.len() + 1);
         prefix.extend_from_slice(&v);
         prefix.push(0x00);
         k = digest_hmac(hash_algo, &k, &[&prefix])?;
         v = digest_hmac(hash_algo, &k, &[&v])?;
-        mpi::gcry_mpi_release(candidate);
     }
 }
 
-fn parse_sign_input(data: *mut sexp::gcry_sexp, qbits: usize) -> Result<(Vec<u8>, Option<c_int>, Option<Vec<u8>>, bool), u32> {
+pub(crate) fn parse_sign_input(
+    data: *mut sexp::gcry_sexp,
+    qbits: usize,
+) -> Result<ParsedSignInput, u32> {
+    let (encoding, flags) = parse_data_flags(data)?;
+    if !matches!(
+        encoding,
+        DataEncoding::Unknown | DataEncoding::Raw | DataEncoding::Pkcs1 | DataEncoding::Pkcs1Raw | DataEncoding::Pss
+    ) {
+        return Err(error::gcry_error_from_code(GPG_ERR_CONFLICT));
+    }
+
     let hash = find_token(data, TOK_HASH);
-    let digest = if !hash.is_null() {
+    let value = find_token(data, TOK_VALUE);
+    let (input, hash_algo, raw_hash) = if !hash.is_null() && !value.is_null() {
+        return Err(error::gcry_error_from_code(error::GPG_ERR_INV_OBJ));
+    } else if !hash.is_null() {
+        if encoding == DataEncoding::Unknown
+            && !(flags.raw_explicit || flags.rfc6979 || flags.gost || flags.sm2)
+        {
+            return Err(error::gcry_error_from_code(GPG_ERR_CONFLICT));
+        }
         let algo_name = super::nth_string(hash.raw(), 1)
             .ok_or(error::gcry_error_from_code(error::GPG_ERR_INV_OBJ))?;
         let digest = super::nth_data_bytes(hash.raw(), 2)
@@ -312,49 +338,71 @@ fn parse_sign_input(data: *mut sexp::gcry_sexp, qbits: usize) -> Result<(Vec<u8>
         if mapped == 0 {
             return Err(error::gcry_error_from_code(GPG_ERR_DIGEST_ALGO));
         }
-        (digest, Some(mapped))
-    } else {
-        let value = token_mpi(data, TOK_VALUE, GCRYMPI_FMT_USG);
-        if value.is_null() {
-            return Err(error::gcry_error_from_code(error::GPG_ERR_INV_OBJ));
+        (normalize_hash_mpi(&digest, qbits), Some(mapped), Some(digest))
+    } else if !value.is_null() {
+        if flags.rfc6979 {
+            return Err(error::gcry_error_from_code(GPG_ERR_CONFLICT));
         }
-        (mpi_to_bytes(value.raw()).unwrap_or_default(), None)
+        if flags.prehash {
+            let digest = super::nth_data_bytes(value.raw(), 1)
+                .ok_or(error::gcry_error_from_code(error::GPG_ERR_INV_OBJ))?;
+            let mapped = token_string_value(data, b"hash-algo\0")
+                .map(|algo_name| {
+                    let algo = CString::new(algo_name).expect("hash name");
+                    digest::gcry_md_map_name(algo.as_ptr())
+                })
+                .filter(|algo| *algo != 0)
+                .ok_or(error::gcry_error_from_code(GPG_ERR_DIGEST_ALGO))?;
+            (normalize_hash_mpi(&digest, qbits), Some(mapped), Some(digest))
+        } else {
+            let value = token_mpi(data, TOK_VALUE, GCRYMPI_FMT_USG);
+            if value.is_null() {
+                return Err(error::gcry_error_from_code(error::GPG_ERR_INV_OBJ));
+            }
+            (value, None, None)
+        }
+    } else {
+        return Err(error::gcry_error_from_code(error::GPG_ERR_INV_OBJ));
     };
 
-    Ok((
-        normalize_hash_bytes(&digest.0, qbits),
-        digest.1,
-        token_data_bytes(data, TOK_LABEL),
-        flag_present(data, b"rfc6979\0"),
-    ))
+    Ok(ParsedSignInput {
+        input,
+        hash_algo,
+        label: token_data_bytes(data, TOK_LABEL),
+        use_rfc6979: flag_present(data, b"rfc6979\0"),
+        raw_hash,
+    })
 }
 
 fn sign_with_key(key: &DsaKey, data: *mut sexp::gcry_sexp) -> Result<(*mut gcry_mpi, *mut gcry_mpi), u32> {
     let qbits = key.qbits();
-    let (digest, hash_algo, label, use_rfc6979) = parse_sign_input(data, qbits)?;
+    let parsed = parse_sign_input(data, qbits)?;
     let x = key
         .x
         .as_ref()
         .ok_or(error::gcry_error_from_code(error::GPG_ERR_NO_OBJ))?;
-
-    let hash = OwnedMpi::new(bytes_to_mpi(&digest, false));
-    if hash.is_null() {
+    if parsed.input.is_null() {
         return Err(error::gcry_error_from_code(error::GPG_ERR_INV_OBJ));
     }
 
     loop {
-        let k = if let Some(label) = label.as_ref() {
+        let k = if let Some(label) = parsed.label.as_ref() {
             let candidate = bytes_to_mpi(label, false);
             if candidate.is_null() {
                 return Err(error::gcry_error_from_code(error::GPG_ERR_INV_OBJ));
             }
             candidate
-        } else if use_rfc6979 {
+        } else if parsed.use_rfc6979 {
             rfc6979_generate_k(
                 x.raw(),
                 key.q.raw(),
-                hash_algo.ok_or(error::gcry_error_from_code(GPG_ERR_DIGEST_ALGO))?,
-                &digest,
+                parsed
+                    .hash_algo
+                    .ok_or(error::gcry_error_from_code(GPG_ERR_DIGEST_ALGO))?,
+                parsed
+                    .raw_hash
+                    .as_deref()
+                    .ok_or(error::gcry_error_from_code(GPG_ERR_CONFLICT))?,
             )?
         } else {
             mpi_random_less_than(key.q.raw()).into_raw()
@@ -376,7 +424,7 @@ fn sign_with_key(key: &DsaKey, data: *mut sexp::gcry_sexp) -> Result<(*mut gcry_
 
         mpi::arith::gcry_mpi_mulm(tmp.raw(), x.raw(), r.raw(), key.q.raw());
         let sum = OwnedMpi::new(mpi::gcry_mpi_new(0));
-        mpi::arith::gcry_mpi_addm(sum.raw(), hash.raw(), tmp.raw(), key.q.raw());
+        mpi::arith::gcry_mpi_addm(sum.raw(), parsed.input.raw(), tmp.raw(), key.q.raw());
 
         let s = OwnedMpi::new(mpi::gcry_mpi_new(0));
         mpi::arith::gcry_mpi_mulm(s.raw(), kinv.raw(), sum.raw(), key.q.raw());
@@ -437,11 +485,13 @@ pub(crate) fn verify(
         return error::gcry_error_from_code(error::GPG_ERR_BAD_DATA);
     }
 
-    let (digest, _, _, _) = match parse_sign_input(data, key.qbits()) {
+    let parsed = match parse_sign_input(data, key.qbits()) {
         Ok(value) => value,
         Err(err) => return err,
     };
-    let hash = OwnedMpi::new(bytes_to_mpi(&digest, false));
+    if parsed.input.is_null() {
+        return error::gcry_error_from_code(error::GPG_ERR_INV_OBJ);
+    }
 
     let w = OwnedMpi::new(mpi::gcry_mpi_new(0));
     if mpi::arith::gcry_mpi_invm(w.raw(), s.raw(), key.q.raw()) == 0 {
@@ -450,7 +500,7 @@ pub(crate) fn verify(
 
     let u1 = OwnedMpi::new(mpi::gcry_mpi_new(0));
     let u2 = OwnedMpi::new(mpi::gcry_mpi_new(0));
-    mpi::arith::gcry_mpi_mulm(u1.raw(), hash.raw(), w.raw(), key.q.raw());
+    mpi::arith::gcry_mpi_mulm(u1.raw(), parsed.input.raw(), w.raw(), key.q.raw());
     mpi::arith::gcry_mpi_mulm(u2.raw(), r.raw(), w.raw(), key.q.raw());
 
     let gu1 = OwnedMpi::new(mpi::gcry_mpi_new(0));
@@ -464,7 +514,7 @@ pub(crate) fn verify(
     if mpi_equal(v.raw(), r.raw()) {
         0
     } else {
-        error::gcry_error_from_code(error::GPG_ERR_BAD_DATA)
+        error::gcry_error_from_code(GPG_ERR_BAD_SIGNATURE)
     }
 }
 

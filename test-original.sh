@@ -135,7 +135,6 @@ assert_uses_built_libgcrypt() {
 
   trace=$(env \
     LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}" \
-    SAFE_SYSTEM_LIBGCRYPT_PATH="${SAFE_SYSTEM_LIBGCRYPT_PATH:-}" \
     LD_TRACE_LOADED_OBJECTS=1 \
     "$@" 2>/dev/null || true)
   loaded=$(awk '/libgcrypt\.so\.20/ {print $3; exit}' <<<"$trace")
@@ -194,23 +193,6 @@ copy_committed_repo_inputs() {
   REPO_DIR="$SAFE_WORKTREE"
 }
 
-stash_upstream_libgcrypt() {
-  local system_lib real_lib base
-
-  system_lib=$(ldconfig -p | awk '/libgcrypt\.so\.20 .*=>/ && !found {print $NF; found=1} END {if (!found) exit 1}')
-  [[ -n "$system_lib" ]] || {
-    echo "failed to locate system libgcrypt.so.20" >&2
-    return 1
-  }
-
-  real_lib=$(readlink -f "$system_lib")
-  base=$(basename "$real_lib")
-  mkdir -p /opt/libgcrypt-upstream
-  cp "$real_lib" "/opt/libgcrypt-upstream/$base"
-  ln -sfn "$base" /opt/libgcrypt-upstream/libgcrypt.so.20
-  export SAFE_SYSTEM_LIBGCRYPT_PATH=/opt/libgcrypt-upstream/libgcrypt.so.20
-}
-
 build_safe_debs() {
   local cargo_home
   cargo_home=$(mktemp -d)
@@ -226,7 +208,6 @@ build_safe_debs() {
 install_safe_debs() {
   local multiarch
 
-  stash_upstream_libgcrypt
   dpkg -i "$REPO_DIR"/safe/dist/libgcrypt20_*.deb "$REPO_DIR"/safe/dist/libgcrypt20-dev_*.deb
 
   multiarch="$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
@@ -239,8 +220,7 @@ install_safe_debs() {
 run_safe_helper_smoke() {
   (
     cd "$REPO_DIR"
-    SAFE_SYSTEM_LIBGCRYPT_PATH="${SAFE_SYSTEM_LIBGCRYPT_PATH}" \
-      safe/scripts/check-installed-tools.sh --dist safe/dist
+    safe/scripts/check-installed-tools.sh --dist safe/dist
   )
 }
 
@@ -347,7 +327,6 @@ test_gnome_keyring() {
     dbus-run-session -- bash -lc '
       set -euo pipefail
       export LD_LIBRARY_PATH='"'"$LD_LIBRARY_PATH"'"'
-      export SAFE_SYSTEM_LIBGCRYPT_PATH='"'"${SAFE_SYSTEM_LIBGCRYPT_PATH:-}"'"'
       export HOME='"'"$HOME"'"'
 
       eval "$(gnome-keyring-daemon --start --components=secrets)"
@@ -553,7 +532,6 @@ test_munge() {
 
   runuser -u munge -- env \
     LD_LIBRARY_PATH="$LD_LIBRARY_PATH" \
-    SAFE_SYSTEM_LIBGCRYPT_PATH="${SAFE_SYSTEM_LIBGCRYPT_PATH:-}" \
     munged --pid-file /run/munge/munged.pid --socket /run/munge/munge.socket.2
   munged_pid=$(cat /run/munge/munged.pid)
 

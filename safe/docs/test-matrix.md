@@ -23,7 +23,7 @@ Phase ownership follows the current repo documentation:
 - Phase 3: S-expression and MPI core ownership.
 - Phase 4: digest, MAC, RNG, and KDF ownership.
 - Phase 5: symmetric-cipher ownership.
-- Phase 6: public-key, ECC, keygrip, and context ownership.
+- Phase 6: public-key, ECC, keygrip, and context ownership, including removal of the final runtime upstream bridge.
 - Phase 7: imported upstream test-harness/build-contract ownership for helper binaries that are not implementation milestones on their own.
 
 | Name | First enabled phase | Coverage type | Execution |
@@ -86,7 +86,7 @@ Phase 8 adds two compatibility-specific harnesses on top of the phase-1 original
 | Header-visible macro surface | Phase 8 | targeted compatibility smoke | `safe/scripts/run-compat-smoke.sh --all` compiles and runs `gcry_md_putc`, `gcry_fast_random_poll`, and `gcry_fips_mode_active` against the generated and staged headers |
 | Public variadic entries | Phase 8 | targeted compatibility smoke | `safe/scripts/run-compat-smoke.sh --all` compiles and calls `gcry_control`, `gcry_sexp_build`, `gcry_sexp_vlist`, `gcry_sexp_extract_param`, and `gcry_log_debug` from C |
 | `gcry_md_get` | Phase 8 | ABI-only smoke | `safe/scripts/run-compat-smoke.sh --all` uses a dedicated C probe with the local declaration carried by `src/visibility.h` and compares the returned digest bytes against `gcry_md_read` |
-| `gcry_pk_register` | Phase 8 | ABI-only smoke | `safe/scripts/run-compat-smoke.sh --all` checks `GCRYPT_1.6` export presence and performs a `dlsym`-based runtime probe without reintroducing the symbol to the installed public header |
+| `gcry_pk_register` | Phase 8 | ABI-only smoke | `safe/scripts/run-compat-smoke.sh --all` checks `GCRYPT_1.6` export presence and links a dedicated C probe directly against the staged safe library without reintroducing the symbol to the installed public header |
 | Installed `pkg-config` surface | Phase 8 | development-metadata smoke | `safe/scripts/run-compat-smoke.sh --all` compiles the public smoke probe using the staged `libgcrypt.pc` file |
 | Installed `libgcrypt-config` surface | Phase 8 | development-metadata smoke | `safe/scripts/run-compat-smoke.sh --all` compiles the public smoke probe using the staged `libgcrypt-config` output |
 | Installed `libgcrypt.m4` surface | Phase 8 | development-metadata smoke | `safe/scripts/run-compat-smoke.sh --all` runs an Autoconf configure smoke using the staged `libgcrypt.m4` macro |

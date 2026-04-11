@@ -34,7 +34,7 @@ main() {
     -Wl,--no-gc-sections \
     -Wl,--whole-archive "${STATICLIB}" \
     -Wl,--no-whole-archive \
-    -lgpg-error -lgmp -ldl -lpthread -lm -lc -lgcc_s
+    -lgpg-error -lgmp -lpthread -lm -lc -lgcc_s
   mv -f "${tmp_shared}" "${SHAREDLIB}"
 }
 

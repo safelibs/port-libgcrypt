@@ -23,6 +23,9 @@ override_dh_auto_clean:
 	rm -rf debian/cargo-home debian/tmp
 	cargo clean --manifest-path Cargo.toml
 
+override_dh_clean:
+	dh_clean -XCargo.toml.orig
+
 override_dh_auto_build:
 	test -d vendor
 	test -f Cargo.lock
@@ -36,7 +39,7 @@ override_dh_auto_build:
 		-Wl,--no-gc-sections \
 		-Wl,--whole-archive "$(RUST_STATICLIB)" \
 		-Wl,--no-whole-archive \
-		-lgpg-error -lgmp -ldl -lpthread -lm -lc -lgcc_s
+		-lgpg-error -lgmp -lpthread -lm -lc -lgcc_s
 	mv -f "$(RUST_SHARED_LIB).tmp" "$(RUST_SHARED_LIB)"
 
 override_dh_auto_install:

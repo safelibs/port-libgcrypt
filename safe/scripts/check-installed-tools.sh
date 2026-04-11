@@ -66,9 +66,6 @@ PKGCONFIGDIR="${LIBDIR}/pkgconfig"
 ACLOCALDIR="${SYSROOT}/usr/share/aclocal"
 SYSTEM_PKGCONFIG_PATHS="$(pkg-config --variable pc_path pkg-config)"
 AUTOMAKE_LIBDIR="$(automake --print-libdir)"
-UPSTREAM_LIBGCRYPT="${SAFE_SYSTEM_LIBGCRYPT_PATH:-$(ldconfig -p | awk '/libgcrypt.so\.20 .*=>/ && !found {print $NF; found=1} END {if (!found) exit 1}')}"
-
-[[ -n "${UPSTREAM_LIBGCRYPT}" ]] || fail "could not locate the upstream libgcrypt runtime helper"
 
 require_file "${BINDIR}/dumpsexp"
 require_file "${BINDIR}/hmac256"
@@ -87,7 +84,6 @@ run_with_sysroot() {
   (
     unset LD_PRELOAD
     export LD_LIBRARY_PATH="${LIBDIR}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
-    export SAFE_SYSTEM_LIBGCRYPT_PATH="${UPSTREAM_LIBGCRYPT}"
     exec "$@"
   )
 }
