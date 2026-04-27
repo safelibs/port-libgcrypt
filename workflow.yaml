@@ -1,0 +1,2009 @@
+name: libgcrypt-safe-linear-workflow
+backend: codex
+max_bounces: 999
+linear: true
+yaml_source_mode: inline-only
+verifier_encoding: explicit-phases
+
+phases:
+  - id: impl_p01_bootstrap_workspace
+    type: implement
+    bounce_target: null
+    prompt: |-
+      {% raw %}
+      Role: Software engineer implementing phase `impl_p01_bootstrap_workspace` (Bootstrap safe workspace and ABI contract mirror).
+      
+      Repository Root: `/home/yans/safelibs/pipeline/ports/port-libgcrypt`
+      
+      Phase Contract
+      - This prompt is self-contained. The agent sees only this prompt.
+      - Consume or update the existing artifacts listed below in place. Do not refetch, recollect, rediscover, or regenerate them from scratch.
+      - Treat tracked workspace artifacts as authoritative inputs and update them in place instead of inventing alternate topology.
+      - Keep the workflow topology unchanged. The explicit verifier phase(s) for this implement phase are `check_p01_bootstrap_workspace`, each with fixed `bounce_target: impl_p01_bootstrap_workspace`.
+      - Finish this phase with exactly one final git commit whose subject begins with `impl_p01_bootstrap_workspace:` and force-update the local tag `phase/impl_p01_bootstrap_workspace` to that commit before yielding.
+      - The verifier will treat `HEAD^..HEAD` as the complete phase diff for this phase, so do not leave hidden intermediate phase commits.
+      - Commit work to git before yielding.
+      
+      Phase Name
+      `Bootstrap safe workspace and ABI contract mirror`
+      
+      Implement Phase ID
+      `impl_p01_bootstrap_workspace`
+      
+      Verification Phases
+      - `check_p01_bootstrap_workspace`: verify that `safe/` builds a shared-library skeleton with the correct file layout, SONAME and linker inputs, generated header, ABI audit wiring, and committed upstream-test build plumbing before subsystem work starts.
+      
+      Preexisting Inputs
+      - `original/libgcrypt20-1.10.3/configure.ac`
+      - `original/libgcrypt20-1.10.3/config.h.in`
+      - `original/libgcrypt20-1.10.3/src/Makefile.am`
+      - `original/libgcrypt20-1.10.3/src/gcrypt.h.in`
+      - `original/libgcrypt20-1.10.3/src/gcrypt-testapi.h`
+      - `original/libgcrypt20-1.10.3/src/visibility.h`
+      - `original/libgcrypt20-1.10.3/src/g10lib.h`
+      - `original/libgcrypt20-1.10.3/src/libgcrypt.vers`
+      - `original/libgcrypt20-1.10.3/src/libgcrypt.def`
+      - `original/libgcrypt20-1.10.3/src/libgcrypt.m4`
+      - `original/libgcrypt20-1.10.3/src/libgcrypt.pc.in`
+      - `original/libgcrypt20-1.10.3/src/libgcrypt-config.in`
+      - `original/libgcrypt20-1.10.3/debian/libgcrypt20.install`
+      - `original/libgcrypt20-1.10.3/debian/libgcrypt20-dev.install`
+      - `original/libgcrypt20-1.10.3/debian/libgcrypt20.dirs`
+      - `original/libgcrypt20-1.10.3/debian/libgcrypt20.postinst`
+      - `original/libgcrypt20-1.10.3/debian/clean-up-unmanaged-libraries`
+      - `original/libgcrypt20-1.10.3/debian/libgcrypt20.symbols`
+      - `original/libgcrypt20-1.10.3/debian/patches/12_lessdeps_libgcrypt-config.diff`
+      - `original/libgcrypt20-1.10.3/debian/patches/15_multiarchpath_in_-L.diff`
+      - `original/libgcrypt20-1.10.3/tests/Makefile.am`
+      - `original/libgcrypt20-1.10.3/tests/testdrv.c`
+      - `original/libgcrypt20-1.10.3/tests/basic-disable-all-hwf.in`
+      - `original/libgcrypt20-1.10.3/tests/hashtest-256g.in`
+      - `original/libgcrypt20-1.10.3/compat/Makefile.am`
+      - `original/libgcrypt20-1.10.3/compat/`
+      
+      New Outputs
+      - `safe/` Cargo workspace skeleton
+      - `safe/Cargo.lock`
+      - Repo-local Cargo vendor tree or an explicit std-only offline Cargo configuration
+      - `safe/docs/abi-map.md`
+      - `safe/abi/` copies of all upstream ABI spec files
+      - Committed upstream-test build-support artifacts under `safe/tests/original-build/`
+      - `safe/scripts/check-abi.sh`
+      - `safe/scripts/run-original-tests.sh`
+      
+      File Changes
+      - `safe/Cargo.toml`
+      - `safe/Cargo.lock`
+      - `safe/build.rs`
+      - `safe/.cargo/config.toml`
+      - `safe/vendor/`
+      - `safe/src/lib.rs`
+      - `safe/src/ffi.rs`
+      - `safe/cabi/exports.c`
+      - `safe/cabi/exports.h`
+      - `safe/abi/gcrypt.h.in`
+      - `safe/abi/gcrypt-testapi.h`
+      - `safe/abi/visibility.h`
+      - `safe/abi/libgcrypt.vers`
+      - `safe/abi/libgcrypt.def`
+      - `safe/abi/libgcrypt.m4`
+      - `safe/abi/libgcrypt.pc.in`
+      - `safe/abi/libgcrypt-config.in`
+      - `safe/docs/abi-map.md`
+      - `safe/tests/original-build/config.h`
+      - `safe/tests/original-build/test-build-vars.mk`
+      - `safe/tests/original-build/basic-disable-all-hwf`
+      - `safe/tests/original-build/hashtest-256g`
+      - `safe/scripts/check-abi.sh`
+      - `safe/scripts/run-original-tests.sh`
+      
+      Implementation Details
+      - Create `safe/` from scratch as a Rust package with `crate-type = ["cdylib", "staticlib", "rlib"]`, commit `Cargo.lock`, and structure the workspace so later Debian builds consume locked crate versions without changing the public surface.
+      - Enforce offline Cargo reproducibility from phase 1 onward:
+        - `cargo build --manifest-path safe/Cargo.toml --release --offline` must pass.
+        - If third-party crates are used, vendor them into `safe/vendor/` and configure `safe/.cargo/config.toml` to replace crates.io with that committed tree.
+        - If the port stays `std`-only, still configure `safe/.cargo/config.toml` and helper scripts so later verifiers fail closed on network access.
+      - Make the shared library install as `libgcrypt.so.20` with SONAME `libgcrypt.so.20`, plus the `libgcrypt.so` linker symlink and `libgcrypt.a`.
+      - Vendor the upstream ABI specification files into `safe/abi/`, including `libgcrypt.m4`; do not hand-rewrite enums, macros, control codes, or autoconf metadata from scratch.
+      - Generate `gcrypt.h` from vendored `gcrypt.h.in` and preserve the public enums, flags, `struct gcry_thread_cbs`, `GCRY_THREAD_OPTION_*` constants, `GCRY_THREAD_OPTION_PTH_IMPL`, `GCRY_THREAD_OPTION_PTHREAD_IMPL`, `gcry_md_handle` layout, `gcry_kdf_thread_ops_t` layout, and macro helpers such as `gcry_cipher_reset`, `gcry_md_putc`, `gcry_md_final`, `gcry_fast_random_poll`, and `gcry_fips_mode_active`.
+      - Generate `libgcrypt-config` and `libgcrypt.pc` with Debian/Ubuntu-compatible behavior:
+        - `libgcrypt-config --libs` emits `-lgcrypt` without `-lgpg-error`.
+        - Standard multiarch library directories are not emitted as `-L`.
+        - The dev install layout includes `/usr/share/aclocal/libgcrypt.m4`.
+      - Add a minimal C shim layer in `safe/cabi/` for the five public variadic ABI entry points:
+        - `gcry_control`
+        - `gcry_sexp_build`
+        - `gcry_sexp_vlist`
+        - `gcry_sexp_extract_param`
+        - `gcry_log_debug`
+      - Keep the C shim limited to argument marshaling and forwarding into non-variadic Rust helpers.
+      - Seed `safe/docs/abi-map.md` from `safe/abi/libgcrypt.vers`, `safe/abi/gcrypt.h.in`, and `safe/abi/visibility.h` with one row per exported symbol, ownership classification, planned implementation location, and planned verifier or harness coverage.
+      - Record in `safe/docs/abi-map.md` that `gcry_md_get` and `gcry_pk_register` are the two Linux version-script exports not declared by installed `gcrypt.h`, with `gcry_md_get` owned by phase 4 and `gcry_pk_register` owned by phase 6.
+      - Create `safe/scripts/check-abi.sh` to verify SONAME, `GCRYPT_1.6` version-script input, generated header presence, thread-compatibility macro smoke compilation, direct C compilation and linkage for the five variadic entry points, pkg-config output, Debian-patched `libgcrypt-config` behavior, presence of `libgcrypt.m4`, and the exported symbol set against `original/libgcrypt20-1.10.3/src/libgcrypt.vers`.
+      - Commit the autotools-derived upstream test-build artifacts under `safe/tests/original-build/`:
+        - `config.h` derived from `original/libgcrypt20-1.10.3/config.h.in` with the Ubuntu 24.04/Linux macro values actually needed by the selected tests and Linux `compat/` path.
+        - Define at minimum the values consumed directly by `compat/compat.c` and the Linux test suite, including `PACKAGE_VERSION`, `BUILD_REVISION`, `BUILD_TIMESTAMP`, `HAVE_CONFIG_H`, `HAVE_W32_SYSTEM`, and `HAVE_W32CE_SYSTEM`, plus any additional feature macros required to compile the selected upstream tests on Ubuntu 24.04.
+        - `test-build-vars.mk` recording fixed wrapper values including `EXEEXT=""` and `RUN_LARGE_DATA_TESTS=yes`.
+        - Rendered wrappers for `basic-disable-all-hwf` and `hashtest-256g`.
+      - Create `safe/scripts/run-original-tests.sh` to compile selected source files directly from `original/libgcrypt20-1.10.3/tests/` against the safe build products while consuming the committed phase-1 build-support artifacts, using `-DHAVE_CONFIG_H=1`, `-I safe/tests/original-build`, the Linux `compat/` file set implied by `original/libgcrypt20-1.10.3/compat/Makefile.am`, `GCRYPT_IN_REGRESSION_TEST=1`, and the upstream `--disable-new-dtags` workaround when `LD_LIBRARY_PATH` is set.
+      - Add a `--verify-plumbing` mode to `safe/scripts/run-original-tests.sh` that proves the committed `config.h`, substitution manifest, rendered wrapper scripts, and selected `compat/` build path exist and are the exact artifacts used by the harness.
+      - Provide skeleton exports for all 217 real versioned symbols immediately, using non-crashing compatibility stubs with return-type-appropriate placeholder behavior until later phases replace them.
+      {% endraw %}
+  - id: check_p01_bootstrap_workspace
+    type: check
+    bounce_target: impl_p01_bootstrap_workspace
+    prompt: |-
+      {% raw %}
+      Reviewer role: Independent verification reviewer for `check_p01_bootstrap_workspace`, reviewing `impl_p01_bootstrap_workspace` (Bootstrap safe workspace and ABI contract mirror).
+      
+      Repository Root: `/home/yans/safelibs/pipeline/ports/port-libgcrypt`
+      
+      This prompt is self-contained. The agent sees only this prompt.
+      Do not modify files.
+      
+      Start with commit-range validation before any other review.
+      - Run `git rev-parse HEAD`.
+      - Run `git rev-parse phase/impl_p01_bootstrap_workspace` and verify that `HEAD` matches `phase/impl_p01_bootstrap_workspace`.
+      - Treat `HEAD^..HEAD` as the complete phase diff for this review. Do not infer or synthesize multi-commit phase ranges.
+      - Verify that `git log -1 --format=%s` begins with `impl_p01_bootstrap_workspace:`.
+      
+      Specific Things to Verify
+      - The implementation satisfies the phase purpose for `check_p01_bootstrap_workspace`: verify that `safe/` builds a shared-library skeleton with the correct file layout, SONAME and linker inputs, generated header, ABI audit wiring, and committed upstream-test build plumbing before subsystem work starts.
+      - The implementation consumed or updated the listed preexisting inputs in place instead of refetching or regenerating them from scratch.
+      - The implementation produced the listed new outputs and updated the listed file areas in place.
+      - The fixed `bounce_target` for failure is `impl_p01_bootstrap_workspace`.
+      - The implementation finished as exactly one final phase commit and tag update, with no hidden intermediate phase commits.
+      - `cargo build --manifest-path safe/Cargo.toml --release --offline` succeeds.
+      - `safe/scripts/check-abi.sh --bootstrap` confirms SONAME, exported symbol inventory, generated header preservation, Debian-patched development metadata, and the five public variadic entry points.
+      - `safe/scripts/run-original-tests.sh --verify-plumbing version t-secmem` proves the committed `config.h`, wrapper manifest, rendered wrapper scripts, and `compat/` inputs are the exact artifacts used by the early harness.
+      - Manual review confirms `safe/tests/original-build/config.h` is committed from `original/libgcrypt20-1.10.3/config.h.in` and explicitly carries the required Linux test-build macros, including `PACKAGE_VERSION`, `BUILD_REVISION`, `BUILD_TIMESTAMP`, `HAVE_CONFIG_H`, `HAVE_W32_SYSTEM`, and `HAVE_W32CE_SYSTEM`.
+      - Manual review confirms generated `gcrypt.h` preserves `struct gcry_thread_cbs`, the `GCRY_THREAD_OPTION_*` constants, and the `GCRY_THREAD_OPTION_PTH_IMPL` / `GCRY_THREAD_OPTION_PTHREAD_IMPL` macros.
+      - Manual review confirms `safe/docs/abi-map.md` includes all 217 real versioned symbols from `safe/abi/libgcrypt.vers`, marks `gcry_md_get` as `visibility.h`-only, marks `gcry_pk_register` as ABI-only, and assigns explicit planned coverage ownership to every export.
+      
+      Preexisting Inputs
+      - `original/libgcrypt20-1.10.3/configure.ac`
+      - `original/libgcrypt20-1.10.3/config.h.in`
+      - `original/libgcrypt20-1.10.3/src/Makefile.am`
+      - `original/libgcrypt20-1.10.3/src/gcrypt.h.in`
+      - `original/libgcrypt20-1.10.3/src/gcrypt-testapi.h`
+      - `original/libgcrypt20-1.10.3/src/visibility.h`
+      - `original/libgcrypt20-1.10.3/src/g10lib.h`
+      - `original/libgcrypt20-1.10.3/src/libgcrypt.vers`
+      - `original/libgcrypt20-1.10.3/src/libgcrypt.def`
+      - `original/libgcrypt20-1.10.3/src/libgcrypt.m4`
+      - `original/libgcrypt20-1.10.3/src/libgcrypt.pc.in`
+      - `original/libgcrypt20-1.10.3/src/libgcrypt-config.in`
+      - `original/libgcrypt20-1.10.3/debian/libgcrypt20.install`
+      - `original/libgcrypt20-1.10.3/debian/libgcrypt20-dev.install`
+      - `original/libgcrypt20-1.10.3/debian/libgcrypt20.dirs`
+      - `original/libgcrypt20-1.10.3/debian/libgcrypt20.postinst`
+      - `original/libgcrypt20-1.10.3/debian/clean-up-unmanaged-libraries`
+      - `original/libgcrypt20-1.10.3/debian/libgcrypt20.symbols`
+      - `original/libgcrypt20-1.10.3/debian/patches/12_lessdeps_libgcrypt-config.diff`
+      - `original/libgcrypt20-1.10.3/debian/patches/15_multiarchpath_in_-L.diff`
+      - `original/libgcrypt20-1.10.3/tests/Makefile.am`
+      - `original/libgcrypt20-1.10.3/tests/testdrv.c`
+      - `original/libgcrypt20-1.10.3/tests/basic-disable-all-hwf.in`
+      - `original/libgcrypt20-1.10.3/tests/hashtest-256g.in`
+      - `original/libgcrypt20-1.10.3/compat/Makefile.am`
+      - `original/libgcrypt20-1.10.3/compat/`
+      
+      Expected New Outputs
+      - `safe/` Cargo workspace skeleton
+      - `safe/Cargo.lock`
+      - Repo-local Cargo vendor tree or an explicit std-only offline Cargo configuration
+      - `safe/docs/abi-map.md`
+      - `safe/abi/` copies of all upstream ABI spec files
+      - Committed upstream-test build-support artifacts under `safe/tests/original-build/`
+      - `safe/scripts/check-abi.sh`
+      - `safe/scripts/run-original-tests.sh`
+      
+      Files And Areas To Review
+      - `safe/Cargo.toml`
+      - `safe/Cargo.lock`
+      - `safe/build.rs`
+      - `safe/.cargo/config.toml`
+      - `safe/vendor/`
+      - `safe/src/lib.rs`
+      - `safe/src/ffi.rs`
+      - `safe/cabi/exports.c`
+      - `safe/cabi/exports.h`
+      - `safe/abi/gcrypt.h.in`
+      - `safe/abi/gcrypt-testapi.h`
+      - `safe/abi/visibility.h`
+      - `safe/abi/libgcrypt.vers`
+      - `safe/abi/libgcrypt.def`
+      - `safe/abi/libgcrypt.m4`
+      - `safe/abi/libgcrypt.pc.in`
+      - `safe/abi/libgcrypt-config.in`
+      - `safe/docs/abi-map.md`
+      - `safe/tests/original-build/config.h`
+      - `safe/tests/original-build/test-build-vars.mk`
+      - `safe/tests/original-build/basic-disable-all-hwf`
+      - `safe/tests/original-build/hashtest-256g`
+      - `safe/scripts/check-abi.sh`
+      - `safe/scripts/run-original-tests.sh`
+      
+      Success Criteria And Review Contract
+      - `cargo build --manifest-path safe/Cargo.toml --release --offline` succeeds.
+      - `safe/scripts/check-abi.sh --bootstrap` confirms SONAME, exported symbol inventory, generated header preservation, Debian-patched development metadata, and the five public variadic entry points.
+      - `safe/scripts/run-original-tests.sh --verify-plumbing version t-secmem` proves the committed `config.h`, wrapper manifest, rendered wrapper scripts, and `compat/` inputs are the exact artifacts used by the early harness.
+      - Manual review confirms `safe/tests/original-build/config.h` is committed from `original/libgcrypt20-1.10.3/config.h.in` and explicitly carries the required Linux test-build macros, including `PACKAGE_VERSION`, `BUILD_REVISION`, `BUILD_TIMESTAMP`, `HAVE_CONFIG_H`, `HAVE_W32_SYSTEM`, and `HAVE_W32CE_SYSTEM`.
+      - Manual review confirms generated `gcrypt.h` preserves `struct gcry_thread_cbs`, the `GCRY_THREAD_OPTION_*` constants, and the `GCRY_THREAD_OPTION_PTH_IMPL` / `GCRY_THREAD_OPTION_PTHREAD_IMPL` macros.
+      - Manual review confirms `safe/docs/abi-map.md` includes all 217 real versioned symbols from `safe/abi/libgcrypt.vers`, marks `gcry_md_get` as `visibility.h`-only, marks `gcry_pk_register` as ABI-only, and assigns explicit planned coverage ownership to every export.
+      
+      Commands To Run
+      ```bash
+      git rev-parse HEAD
+      git rev-parse phase/impl_p01_bootstrap_workspace
+      bash -lc 'test "$(git rev-parse HEAD)" = "$(git rev-parse phase/impl_p01_bootstrap_workspace)"'
+      bash -lc 'subject="$(git log -1 --format=%s)"; test "${subject#impl_p01_bootstrap_workspace:}" != "$subject"'
+      git diff --check HEAD^..HEAD
+      cargo build --manifest-path safe/Cargo.toml --release --offline
+      safe/scripts/check-abi.sh --bootstrap
+      safe/scripts/run-original-tests.sh --verify-plumbing version t-secmem
+      ```
+      
+      End with exactly one verdict line:
+      VERDICT: PASS
+      VERDICT: FAIL: <reason>
+      {% endraw %}
+  - id: impl_p02_runtime_shell
+    type: implement
+    bounce_target: null
+    prompt: |-
+      {% raw %}
+      Role: Software engineer implementing phase `impl_p02_runtime_shell` (Runtime shell: version, control, config, allocation, and secure memory).
+      
+      Repository Root: `/home/yans/safelibs/pipeline/ports/port-libgcrypt`
+      
+      Phase Contract
+      - This prompt is self-contained. The agent sees only this prompt.
+      - Consume or update the existing artifacts listed below in place. Do not refetch, recollect, rediscover, or regenerate them from scratch.
+      - Treat tracked workspace artifacts as authoritative inputs and update them in place instead of inventing alternate topology.
+      - Keep the workflow topology unchanged. The explicit verifier phase(s) for this implement phase are `check_p02_runtime_shell`, each with fixed `bounce_target: impl_p02_runtime_shell`.
+      - Finish this phase with exactly one final git commit whose subject begins with `impl_p02_runtime_shell:` and force-update the local tag `phase/impl_p02_runtime_shell` to that commit before yielding.
+      - The verifier will treat `HEAD^..HEAD` as the complete phase diff for this phase, so do not leave hidden intermediate phase commits.
+      - The final phase commit must be a single-commit successor of `phase/impl_p01_bootstrap_workspace`, so `git rev-parse HEAD^` must equal `git rev-parse phase/impl_p01_bootstrap_workspace`.
+      - Commit work to git before yielding.
+      
+      Phase Name
+      `Runtime shell: version, control, config, allocation, and secure memory`
+      
+      Implement Phase ID
+      `impl_p02_runtime_shell`
+      
+      Verification Phases
+      - `check_p02_runtime_shell`: verify the non-cryptographic runtime shell that everything else depends on: version negotiation, `gcry_control`, handler registration, config reporting, secure-memory allocation, the obsolete-but-public thread-callback compatibility hook, and the minimal secure random allocation needed by `t-secmem`.
+      
+      Preexisting Inputs
+      - `safe/Cargo.toml`
+      - `safe/Cargo.lock`
+      - `safe/build.rs`
+      - `safe/.cargo/config.toml`
+      - `safe/src/`
+      - `safe/cabi/`
+      - `safe/abi/`
+      - `safe/docs/abi-map.md`
+      - `safe/tests/original-build/`
+      - `safe/scripts/check-abi.sh`
+      - `safe/scripts/run-original-tests.sh`
+      - `original/libgcrypt20-1.10.3/src/global.c`
+      - `original/libgcrypt20-1.10.3/src/misc.c`
+      - `original/libgcrypt20-1.10.3/src/secmem.c`
+      - `original/libgcrypt20-1.10.3/src/stdmem.c`
+      - `original/libgcrypt20-1.10.3/src/context.c`
+      - `original/libgcrypt20-1.10.3/src/fips.c`
+      - `original/libgcrypt20-1.10.3/src/hwfeatures.c`
+      - `original/libgcrypt20-1.10.3/tests/version.c`
+      - `original/libgcrypt20-1.10.3/tests/t-secmem.c`
+      - `original/libgcrypt20-1.10.3/compat/`
+      - `relevant_cves.json`
+      
+      New Outputs
+      - Working Rust runtime shell
+      - Updated `safe/docs/abi-map.md`
+      
+      File Changes
+      - `safe/src/lib.rs`
+      - `safe/src/global.rs`
+      - `safe/src/alloc.rs`
+      - `safe/src/secmem.rs`
+      - `safe/src/log.rs`
+      - `safe/src/config.rs`
+      - `safe/src/context.rs`
+      - `safe/src/error.rs`
+      - `safe/src/os_rng.rs`
+      - `safe/cabi/exports.c`
+      - `safe/scripts/check-abi.sh`
+      - `safe/docs/abi-map.md`
+      
+      Implementation Details
+      - Implement `gcry_check_version` with upstream-compatible version-string negotiation so `GCRYPT_VERSION` in the header matches the library result.
+      - Keep the ABI-visible library version at upstream `1.10.3` / `GCRYPT_1.6`; Debian revision metadata can vary later.
+      - Implement the libgpg-error wrapper surface:
+        - `gcry_strerror`
+        - `gcry_strsource`
+        - `gcry_err_code_from_errno`
+        - `gcry_err_code_to_errno`
+        - `gcry_err_make_from_errno`
+        - `gcry_error_from_errno`
+      - Implement the allocation surface:
+        - `gcry_malloc`, `gcry_calloc`, `gcry_realloc`, `gcry_strdup`, `gcry_free`
+        - Secure allocation variants
+        - The xmalloc/xcalloc/xstrdup family
+        - `gcry_is_secure`
+        - `gcry_set_allocation_handler`
+        - `gcry_set_outofcore_handler`
+      - Port secure-memory behavior with a Rust allocator backed by locked pages where possible, confining unsafe code to OS boundaries such as `mlock`, `mmap`, zeroization, and raw pointer handoff.
+      - Implement log, progress, fatal, and gettext handler registration and dispatch.
+      - Implement `gcry_control` command handling for the non-crypto control plane from `original/libgcrypt20-1.10.3/src/gcrypt.h.in:255-337` and `src/global.c`, including verbosity and debug flags, secure-memory controls, initialization queries, config printing, FIPS queries and requests, hardware-feature disable requests, RNG type getters and setters, the private regression controls that do not require full crypto yet, and `GCRYCTL_SET_THREAD_CBS` as an upstream-compatible dummy compatibility hook that ignores callback contents, resets the preferred RNG type to default, and forces global initialization without reviving legacy thread-library installation.
+      - Preserve upstream truthy semantics where `gcry_control(..._P)` returns `GPG_ERR_GENERAL` as success.
+      - Implement `gcry_get_config` and `GCRYCTL_PRINT_CONFIG` with upstream-compatible key names and formatting, including the `version`, `cpu-arch`, and `rng-type` lines used by `tests/version.c`.
+      - Implement minimal secure random allocation for `gcry_random_bytes_secure`, sufficient for `t-secmem`, with the full RNG design deferred to phase 4.
+      - Extend `safe/scripts/check-abi.sh` with a runtime `--thread-cbs-noop` mode that compiles a C probe against the generated header, expands `GCRY_THREAD_OPTION_PTHREAD_IMPL`, calls `gcry_control(GCRYCTL_SET_THREAD_CBS, &gcry_threads_pthread)`, and verifies the compatibility no-op succeeds without dereferencing callback pointers while also resetting the preferred RNG type to the default and forcing global initialization.
+      - Update `safe/docs/abi-map.md` to mark runtime-shell symbols as implemented and identify any remaining phase-owned stubs.
+      {% endraw %}
+  - id: check_p02_runtime_shell
+    type: check
+    bounce_target: impl_p02_runtime_shell
+    prompt: |-
+      {% raw %}
+      Reviewer role: Independent verification reviewer for `check_p02_runtime_shell`, reviewing `impl_p02_runtime_shell` (Runtime shell: version, control, config, allocation, and secure memory).
+      
+      Repository Root: `/home/yans/safelibs/pipeline/ports/port-libgcrypt`
+      
+      This prompt is self-contained. The agent sees only this prompt.
+      Do not modify files.
+      
+      Start with commit-range validation before any other review.
+      - Run `git rev-parse HEAD`.
+      - Run `git rev-parse phase/impl_p02_runtime_shell` and verify that `HEAD` matches `phase/impl_p02_runtime_shell`.
+      - Run `git rev-parse HEAD^` and `git rev-parse phase/impl_p01_bootstrap_workspace`, and verify that the first parent matches `phase/impl_p01_bootstrap_workspace`.
+      - Treat `HEAD^..HEAD` as the complete phase diff for this review. Do not infer or synthesize multi-commit phase ranges.
+      - Verify that `git log -1 --format=%s` begins with `impl_p02_runtime_shell:`.
+      
+      Specific Things to Verify
+      - The implementation satisfies the phase purpose for `check_p02_runtime_shell`: verify the non-cryptographic runtime shell that everything else depends on: version negotiation, `gcry_control`, handler registration, config reporting, secure-memory allocation, the obsolete-but-public thread-callback compatibility hook, and the minimal secure random allocation needed by `t-secmem`.
+      - The implementation consumed or updated the listed preexisting inputs in place instead of refetching or regenerating them from scratch.
+      - The implementation produced the listed new outputs and updated the listed file areas in place.
+      - The fixed `bounce_target` for failure is `impl_p02_runtime_shell`.
+      - The implementation finished as exactly one final phase commit and tag update, with no hidden intermediate phase commits.
+      - `cargo build --manifest-path safe/Cargo.toml --release --offline` succeeds.
+      - `safe/scripts/check-abi.sh --thread-cbs-noop` proves the public thread-compatibility surface remains available and that `GCRYCTL_SET_THREAD_CBS` behaves as the required compatibility no-op while resetting the preferred RNG type to the default and forcing global initialization.
+      - `safe/scripts/run-original-tests.sh version t-secmem` passes against the safe build.
+      - `gcry_get_config("no-such-item")` returns `NULL` with `errno == 0`, matching `tests/version.c`.
+      - `safe/docs/abi-map.md` reflects the implemented runtime-shell symbols and remaining ownership boundaries.
+      
+      Preexisting Inputs
+      - `safe/Cargo.toml`
+      - `safe/Cargo.lock`
+      - `safe/build.rs`
+      - `safe/.cargo/config.toml`
+      - `safe/src/`
+      - `safe/cabi/`
+      - `safe/abi/`
+      - `safe/docs/abi-map.md`
+      - `safe/tests/original-build/`
+      - `safe/scripts/check-abi.sh`
+      - `safe/scripts/run-original-tests.sh`
+      - `original/libgcrypt20-1.10.3/src/global.c`
+      - `original/libgcrypt20-1.10.3/src/misc.c`
+      - `original/libgcrypt20-1.10.3/src/secmem.c`
+      - `original/libgcrypt20-1.10.3/src/stdmem.c`
+      - `original/libgcrypt20-1.10.3/src/context.c`
+      - `original/libgcrypt20-1.10.3/src/fips.c`
+      - `original/libgcrypt20-1.10.3/src/hwfeatures.c`
+      - `original/libgcrypt20-1.10.3/tests/version.c`
+      - `original/libgcrypt20-1.10.3/tests/t-secmem.c`
+      - `original/libgcrypt20-1.10.3/compat/`
+      - `relevant_cves.json`
+      
+      Expected New Outputs
+      - Working Rust runtime shell
+      - Updated `safe/docs/abi-map.md`
+      
+      Files And Areas To Review
+      - `safe/src/lib.rs`
+      - `safe/src/global.rs`
+      - `safe/src/alloc.rs`
+      - `safe/src/secmem.rs`
+      - `safe/src/log.rs`
+      - `safe/src/config.rs`
+      - `safe/src/context.rs`
+      - `safe/src/error.rs`
+      - `safe/src/os_rng.rs`
+      - `safe/cabi/exports.c`
+      - `safe/scripts/check-abi.sh`
+      - `safe/docs/abi-map.md`
+      
+      Success Criteria And Review Contract
+      - `cargo build --manifest-path safe/Cargo.toml --release --offline` succeeds.
+      - `safe/scripts/check-abi.sh --thread-cbs-noop` proves the public thread-compatibility surface remains available and that `GCRYCTL_SET_THREAD_CBS` behaves as the required compatibility no-op while resetting the preferred RNG type to the default and forcing global initialization.
+      - `safe/scripts/run-original-tests.sh version t-secmem` passes against the safe build.
+      - `gcry_get_config("no-such-item")` returns `NULL` with `errno == 0`, matching `tests/version.c`.
+      - `safe/docs/abi-map.md` reflects the implemented runtime-shell symbols and remaining ownership boundaries.
+      
+      Commands To Run
+      ```bash
+      git rev-parse HEAD
+      git rev-parse phase/impl_p02_runtime_shell
+      bash -lc 'test "$(git rev-parse HEAD)" = "$(git rev-parse phase/impl_p02_runtime_shell)"'
+      git rev-parse HEAD^
+      git rev-parse phase/impl_p01_bootstrap_workspace
+      bash -lc 'test "$(git rev-parse HEAD^)" = "$(git rev-parse phase/impl_p01_bootstrap_workspace)"'
+      bash -lc 'subject="$(git log -1 --format=%s)"; test "${subject#impl_p02_runtime_shell:}" != "$subject"'
+      git diff --check HEAD^..HEAD
+      cargo build --manifest-path safe/Cargo.toml --release --offline
+      safe/scripts/check-abi.sh --thread-cbs-noop
+      safe/scripts/run-original-tests.sh version t-secmem
+      ```
+      
+      End with exactly one verdict line:
+      VERDICT: PASS
+      VERDICT: FAIL: <reason>
+      {% endraw %}
+  - id: impl_p03_sexp_mpi_core
+    type: implement
+    bounce_target: null
+    prompt: |-
+      {% raw %}
+      Role: Software engineer implementing phase `impl_p03_sexp_mpi_core` (S-expressions, MPI core, and prime operations).
+      
+      Repository Root: `/home/yans/safelibs/pipeline/ports/port-libgcrypt`
+      
+      Phase Contract
+      - This prompt is self-contained. The agent sees only this prompt.
+      - Consume or update the existing artifacts listed below in place. Do not refetch, recollect, rediscover, or regenerate them from scratch.
+      - Treat tracked workspace artifacts as authoritative inputs and update them in place instead of inventing alternate topology.
+      - Keep the workflow topology unchanged. The explicit verifier phase(s) for this implement phase are `check_p03_sexp_mpi_core`, each with fixed `bounce_target: impl_p03_sexp_mpi_core`.
+      - Finish this phase with exactly one final git commit whose subject begins with `impl_p03_sexp_mpi_core:` and force-update the local tag `phase/impl_p03_sexp_mpi_core` to that commit before yielding.
+      - The verifier will treat `HEAD^..HEAD` as the complete phase diff for this phase, so do not leave hidden intermediate phase commits.
+      - The final phase commit must be a single-commit successor of `phase/impl_p02_runtime_shell`, so `git rev-parse HEAD^` must equal `git rev-parse phase/impl_p02_runtime_shell`.
+      - Commit work to git before yielding.
+      
+      Phase Name
+      `S-expressions, MPI core, and prime operations`
+      
+      Implement Phase ID
+      `impl_p03_sexp_mpi_core`
+      
+      Verification Phases
+      - `check_p03_sexp_mpi_core`: verify that the direct libgcrypt data-model APIs now work: S-expression parsing and serialization, MPI arithmetic, opaque MPIs, and prime operations.
+      
+      Preexisting Inputs
+      - `safe/Cargo.toml`
+      - `safe/Cargo.lock`
+      - `safe/build.rs`
+      - `safe/.cargo/config.toml`
+      - `safe/src/`
+      - `safe/cabi/`
+      - `safe/abi/`
+      - `safe/docs/abi-map.md`
+      - `safe/tests/original-build/`
+      - `safe/scripts/check-abi.sh`
+      - `safe/scripts/run-original-tests.sh`
+      - `original/libgcrypt20-1.10.3/src/sexp.c`
+      - `original/libgcrypt20-1.10.3/mpi/`
+      - `original/libgcrypt20-1.10.3/tests/mpitests.c`
+      - `original/libgcrypt20-1.10.3/tests/t-sexp.c`
+      - `original/libgcrypt20-1.10.3/tests/t-convert.c`
+      - `original/libgcrypt20-1.10.3/tests/t-mpi-bit.c`
+      - `original/libgcrypt20-1.10.3/tests/prime.c`
+      - `original/libgcrypt20-1.10.3/compat/`
+      - `relevant_cves.json`
+      
+      New Outputs
+      - Working Rust S-expression parser and serializer
+      - Working Rust MPI layer
+      - Prime generation and checking support
+      - Updated `safe/docs/abi-map.md`
+      
+      File Changes
+      - `safe/src/sexp.rs`
+      - `safe/src/mpi/mod.rs`
+      - `safe/src/mpi/arith.rs`
+      - `safe/src/mpi/scan.rs`
+      - `safe/src/mpi/opaque.rs`
+      - `safe/src/mpi/prime.rs`
+      - `safe/src/mpi/consts.rs`
+      - `safe/src/context.rs`
+      - `safe/docs/abi-map.md`
+      
+      Implementation Details
+      - Implement the full `gcry_sexp_*` API surface, including canonical and raw parsing, builders from format strings and arrays, structured traversal (`car`, `cdr`, `cadr`, `nth_*`, `find_token`, `extract_param`), canonical-length calculation, and sprint and dump support.
+      - Replace the phase-1 stubs behind `gcry_sexp_build`, `gcry_sexp_vlist`, and `gcry_sexp_extract_param` with working Rust-backed logic while retaining the explicit C varargs entry shims.
+      - Keep ownership-transfer behavior exact for `gcry_sexp_create`, `gcry_sexp_release`, and `gcry_sexp_nth_buffer`.
+      - Implement MPI allocation and ownership APIs:
+        - `gcry_mpi_new`, `gcry_mpi_snew`, `gcry_mpi_copy`, `gcry_mpi_snatch`, `gcry_mpi_release`
+        - Flag handling and opaque-object support
+        - Import, export, and print helpers
+      - Implement core arithmetic and bit operations with secret-aware constant-time paths where required.
+      - Implement `_gcry_mpi_get_const` and the `GCRYMPI_CONST_*` header macros.
+      - Match upstream opaque-MPI bit-length behavior for `gcry_mpi_set_opaque` and `gcry_mpi_get_opaque`.
+      - Implement prime generation, prime checking, and group-generator APIs on top of the MPI layer.
+      - Keep MPI internals reusable for phase 6 public-key work.
+      - Apply CVE-driven design constraints early: modular exponentiation must support later constant-time use, and secret MPIs must carry metadata that routes them into constant-time or blinded paths in later phases.
+      {% endraw %}
+  - id: check_p03_sexp_mpi_core
+    type: check
+    bounce_target: impl_p03_sexp_mpi_core
+    prompt: |-
+      {% raw %}
+      Reviewer role: Independent verification reviewer for `check_p03_sexp_mpi_core`, reviewing `impl_p03_sexp_mpi_core` (S-expressions, MPI core, and prime operations).
+      
+      Repository Root: `/home/yans/safelibs/pipeline/ports/port-libgcrypt`
+      
+      This prompt is self-contained. The agent sees only this prompt.
+      Do not modify files.
+      
+      Start with commit-range validation before any other review.
+      - Run `git rev-parse HEAD`.
+      - Run `git rev-parse phase/impl_p03_sexp_mpi_core` and verify that `HEAD` matches `phase/impl_p03_sexp_mpi_core`.
+      - Run `git rev-parse HEAD^` and `git rev-parse phase/impl_p02_runtime_shell`, and verify that the first parent matches `phase/impl_p02_runtime_shell`.
+      - Treat `HEAD^..HEAD` as the complete phase diff for this review. Do not infer or synthesize multi-commit phase ranges.
+      - Verify that `git log -1 --format=%s` begins with `impl_p03_sexp_mpi_core:`.
+      
+      Specific Things to Verify
+      - The implementation satisfies the phase purpose for `check_p03_sexp_mpi_core`: verify that the direct libgcrypt data-model APIs now work: S-expression parsing and serialization, MPI arithmetic, opaque MPIs, and prime operations.
+      - The implementation consumed or updated the listed preexisting inputs in place instead of refetching or regenerating them from scratch.
+      - The implementation produced the listed new outputs and updated the listed file areas in place.
+      - The fixed `bounce_target` for failure is `impl_p03_sexp_mpi_core`.
+      - The implementation finished as exactly one final phase commit and tag update, with no hidden intermediate phase commits.
+      - `cargo build --manifest-path safe/Cargo.toml --release --offline` succeeds.
+      - `safe/scripts/run-original-tests.sh mpitests t-sexp t-convert t-mpi-bit prime` passes against the safe build.
+      - Ownership and opaque-MPI semantics match upstream behavior closely enough for the imported regression coverage.
+      - `safe/docs/abi-map.md` marks all `gcry_sexp_*`, `gcry_mpi_*`, `gcry_prime_*`, and `_gcry_mpi_get_const` exports as implemented.
+      
+      Preexisting Inputs
+      - `safe/Cargo.toml`
+      - `safe/Cargo.lock`
+      - `safe/build.rs`
+      - `safe/.cargo/config.toml`
+      - `safe/src/`
+      - `safe/cabi/`
+      - `safe/abi/`
+      - `safe/docs/abi-map.md`
+      - `safe/tests/original-build/`
+      - `safe/scripts/check-abi.sh`
+      - `safe/scripts/run-original-tests.sh`
+      - `original/libgcrypt20-1.10.3/src/sexp.c`
+      - `original/libgcrypt20-1.10.3/mpi/`
+      - `original/libgcrypt20-1.10.3/tests/mpitests.c`
+      - `original/libgcrypt20-1.10.3/tests/t-sexp.c`
+      - `original/libgcrypt20-1.10.3/tests/t-convert.c`
+      - `original/libgcrypt20-1.10.3/tests/t-mpi-bit.c`
+      - `original/libgcrypt20-1.10.3/tests/prime.c`
+      - `original/libgcrypt20-1.10.3/compat/`
+      - `relevant_cves.json`
+      
+      Expected New Outputs
+      - Working Rust S-expression parser and serializer
+      - Working Rust MPI layer
+      - Prime generation and checking support
+      - Updated `safe/docs/abi-map.md`
+      
+      Files And Areas To Review
+      - `safe/src/sexp.rs`
+      - `safe/src/mpi/mod.rs`
+      - `safe/src/mpi/arith.rs`
+      - `safe/src/mpi/scan.rs`
+      - `safe/src/mpi/opaque.rs`
+      - `safe/src/mpi/prime.rs`
+      - `safe/src/mpi/consts.rs`
+      - `safe/src/context.rs`
+      - `safe/docs/abi-map.md`
+      
+      Success Criteria And Review Contract
+      - `cargo build --manifest-path safe/Cargo.toml --release --offline` succeeds.
+      - `safe/scripts/run-original-tests.sh mpitests t-sexp t-convert t-mpi-bit prime` passes against the safe build.
+      - Ownership and opaque-MPI semantics match upstream behavior closely enough for the imported regression coverage.
+      - `safe/docs/abi-map.md` marks all `gcry_sexp_*`, `gcry_mpi_*`, `gcry_prime_*`, and `_gcry_mpi_get_const` exports as implemented.
+      
+      Commands To Run
+      ```bash
+      git rev-parse HEAD
+      git rev-parse phase/impl_p03_sexp_mpi_core
+      bash -lc 'test "$(git rev-parse HEAD)" = "$(git rev-parse phase/impl_p03_sexp_mpi_core)"'
+      git rev-parse HEAD^
+      git rev-parse phase/impl_p02_runtime_shell
+      bash -lc 'test "$(git rev-parse HEAD^)" = "$(git rev-parse phase/impl_p02_runtime_shell)"'
+      bash -lc 'subject="$(git log -1 --format=%s)"; test "${subject#impl_p03_sexp_mpi_core:}" != "$subject"'
+      git diff --check HEAD^..HEAD
+      cargo build --manifest-path safe/Cargo.toml --release --offline
+      safe/scripts/run-original-tests.sh mpitests t-sexp t-convert t-mpi-bit prime
+      ```
+      
+      End with exactly one verdict line:
+      VERDICT: PASS
+      VERDICT: FAIL: <reason>
+      {% endraw %}
+  - id: impl_p04_rng_digest_mac_kdf
+    type: implement
+    bounce_target: null
+    prompt: |-
+      {% raw %}
+      Role: Software engineer implementing phase `impl_p04_rng_digest_mac_kdf` (Full RNG, digests, MACs, and KDFs).
+      
+      Repository Root: `/home/yans/safelibs/pipeline/ports/port-libgcrypt`
+      
+      Phase Contract
+      - This prompt is self-contained. The agent sees only this prompt.
+      - Consume or update the existing artifacts listed below in place. Do not refetch, recollect, rediscover, or regenerate them from scratch.
+      - Treat tracked workspace artifacts as authoritative inputs and update them in place instead of inventing alternate topology.
+      - Keep the workflow topology unchanged. The explicit verifier phase(s) for this implement phase are `check_p04_rng_digest_mac_kdf`, each with fixed `bounce_target: impl_p04_rng_digest_mac_kdf`.
+      - Finish this phase with exactly one final git commit whose subject begins with `impl_p04_rng_digest_mac_kdf:` and force-update the local tag `phase/impl_p04_rng_digest_mac_kdf` to that commit before yielding.
+      - The verifier will treat `HEAD^..HEAD` as the complete phase diff for this phase, so do not leave hidden intermediate phase commits.
+      - The final phase commit must be a single-commit successor of `phase/impl_p03_sexp_mpi_core`, so `git rev-parse HEAD^` must equal `git rev-parse phase/impl_p03_sexp_mpi_core`.
+      - Commit work to git before yielding.
+      
+      Phase Name
+      `Full RNG, digests, MACs, and KDFs`
+      
+      Implement Phase ID
+      `impl_p04_rng_digest_mac_kdf`
+      
+      Verification Phases
+      - `check_p04_rng_digest_mac_kdf`: verify the random subsystem, digest layer, MAC layer, and KDF layer, including private regression hooks and algorithm-info control paths.
+      
+      Preexisting Inputs
+      - `safe/Cargo.toml`
+      - `safe/Cargo.lock`
+      - `safe/build.rs`
+      - `safe/.cargo/config.toml`
+      - `safe/src/`
+      - `safe/cabi/`
+      - `safe/abi/`
+      - `safe/docs/abi-map.md`
+      - `safe/tests/original-build/`
+      - `safe/scripts/check-abi.sh`
+      - `safe/scripts/run-original-tests.sh`
+      - `original/libgcrypt20-1.10.3/random/`
+      - `original/libgcrypt20-1.10.3/cipher/md.c`
+      - `original/libgcrypt20-1.10.3/cipher/mac.c`
+      - `original/libgcrypt20-1.10.3/cipher/kdf.c`
+      - `original/libgcrypt20-1.10.3/tests/random.c`
+      - `original/libgcrypt20-1.10.3/tests/hashtest.c`
+      - `original/libgcrypt20-1.10.3/tests/hmac.c`
+      - `original/libgcrypt20-1.10.3/tests/t-kdf.c`
+      - `original/libgcrypt20-1.10.3/src/gcrypt-testapi.h`
+      - `original/libgcrypt20-1.10.3/compat/`
+      - `relevant_cves.json`
+      
+      New Outputs
+      - Full RNG implementation
+      - Digest, MAC, and KDF implementations
+      - Updated `safe/docs/abi-map.md`
+      - Initial `safe/docs/cve-matrix.md`
+      
+      File Changes
+      - `safe/src/random.rs`
+      - `safe/src/drbg.rs`
+      - `safe/src/digest/mod.rs`
+      - `safe/src/digest/algorithms.rs`
+      - `safe/src/mac.rs`
+      - `safe/src/kdf.rs`
+      - `safe/src/os_rng.rs`
+      - `safe/cabi/exports.c`
+      - `safe/docs/abi-map.md`
+      - `safe/docs/cve-matrix.md`
+      
+      Implementation Details
+      - Implement the upstream random API semantics for `gcry_randomize`, `gcry_random_bytes`, `gcry_random_bytes_secure`, `gcry_random_add_bytes`, `gcry_create_nonce`, `gcry_mpi_randomize`, preferred-RNG controls, `GCRYCTL_FAST_POLL`, `GCRYCTL_GET_CURRENT_RNG_TYPE`, and the private regression controls used by `gcrypt-testapi.h`.
+      - Design the RNG around a modern DRBG backed by OS entropy and explicit reseed and fork handling instead of reproducing the old mixing design; this is the phase-4 mitigation for `CVE-2016-6313`.
+      - Match the fork behavior tested by `tests/random.c`, ensuring `gcry_randomize` and `gcry_create_nonce` do not repeat parent output after fork.
+      - Implement the complete digest and MAC registry surface and the `*_algo_info` control paths behind header macros such as `gcry_md_test_algo`, `gcry_md_get_asnoid`, and `gcry_mac_test_algo`.
+      - Preserve the public `gcry_md_handle` layout and `gcry_md_putc` buffering semantics exactly.
+      - Implement the hidden-but-exported digest compatibility symbol `gcry_md_get` with upstream-compatible buffer, error, and FIPS-state semantics, document it in `safe/docs/abi-map.md` as phase-4-owned, and leave its concrete ABI-only smoke coverage to phase 8 because installed `gcrypt.h` does not declare it.
+      - Implement KDFs and threaded KDF dispatch for `gcry_kdf_open`, `gcry_kdf_compute`, `gcry_kdf_final`, and `gcry_kdf_close`, covering S2K, PBKDF1, PBKDF2, scrypt, Argon2, and Balloon as defined by the public enums.
+      - Keep digest, MAC, and KDF algorithm names and `map_name` strings exactly aligned with upstream because tests and downstream software depend on them.
+      - Record RNG and timing-side-channel mitigations in `safe/docs/cve-matrix.md`.
+      - If any public KDF enum or subalgorithm remains unexercised after this phase, record that gap in `safe/docs/abi-map.md` so phase 8 can add targeted compatibility smoke coverage.
+      {% endraw %}
+  - id: check_p04_rng_digest_mac_kdf
+    type: check
+    bounce_target: impl_p04_rng_digest_mac_kdf
+    prompt: |-
+      {% raw %}
+      Reviewer role: Independent verification reviewer for `check_p04_rng_digest_mac_kdf`, reviewing `impl_p04_rng_digest_mac_kdf` (Full RNG, digests, MACs, and KDFs).
+      
+      Repository Root: `/home/yans/safelibs/pipeline/ports/port-libgcrypt`
+      
+      This prompt is self-contained. The agent sees only this prompt.
+      Do not modify files.
+      
+      Start with commit-range validation before any other review.
+      - Run `git rev-parse HEAD`.
+      - Run `git rev-parse phase/impl_p04_rng_digest_mac_kdf` and verify that `HEAD` matches `phase/impl_p04_rng_digest_mac_kdf`.
+      - Run `git rev-parse HEAD^` and `git rev-parse phase/impl_p03_sexp_mpi_core`, and verify that the first parent matches `phase/impl_p03_sexp_mpi_core`.
+      - Treat `HEAD^..HEAD` as the complete phase diff for this review. Do not infer or synthesize multi-commit phase ranges.
+      - Verify that `git log -1 --format=%s` begins with `impl_p04_rng_digest_mac_kdf:`.
+      
+      Specific Things to Verify
+      - The implementation satisfies the phase purpose for `check_p04_rng_digest_mac_kdf`: verify the random subsystem, digest layer, MAC layer, and KDF layer, including private regression hooks and algorithm-info control paths.
+      - The implementation consumed or updated the listed preexisting inputs in place instead of refetching or regenerating them from scratch.
+      - The implementation produced the listed new outputs and updated the listed file areas in place.
+      - The fixed `bounce_target` for failure is `impl_p04_rng_digest_mac_kdf`.
+      - The implementation finished as exactly one final phase commit and tag update, with no hidden intermediate phase commits.
+      - `cargo build --manifest-path safe/Cargo.toml --release --offline` succeeds.
+      - `safe/scripts/run-original-tests.sh random hashtest hmac t-kdf` passes.
+      - `safe/docs/cve-matrix.md` explicitly covers `CVE-2016-6313` and the digest, MAC, and KDF timing obligations.
+      - `safe/docs/abi-map.md` marks `gcry_md_get` as implemented while still reserving its ABI-only smoke verification for phase 8.
+      
+      Preexisting Inputs
+      - `safe/Cargo.toml`
+      - `safe/Cargo.lock`
+      - `safe/build.rs`
+      - `safe/.cargo/config.toml`
+      - `safe/src/`
+      - `safe/cabi/`
+      - `safe/abi/`
+      - `safe/docs/abi-map.md`
+      - `safe/tests/original-build/`
+      - `safe/scripts/check-abi.sh`
+      - `safe/scripts/run-original-tests.sh`
+      - `original/libgcrypt20-1.10.3/random/`
+      - `original/libgcrypt20-1.10.3/cipher/md.c`
+      - `original/libgcrypt20-1.10.3/cipher/mac.c`
+      - `original/libgcrypt20-1.10.3/cipher/kdf.c`
+      - `original/libgcrypt20-1.10.3/tests/random.c`
+      - `original/libgcrypt20-1.10.3/tests/hashtest.c`
+      - `original/libgcrypt20-1.10.3/tests/hmac.c`
+      - `original/libgcrypt20-1.10.3/tests/t-kdf.c`
+      - `original/libgcrypt20-1.10.3/src/gcrypt-testapi.h`
+      - `original/libgcrypt20-1.10.3/compat/`
+      - `relevant_cves.json`
+      
+      Expected New Outputs
+      - Full RNG implementation
+      - Digest, MAC, and KDF implementations
+      - Updated `safe/docs/abi-map.md`
+      - Initial `safe/docs/cve-matrix.md`
+      
+      Files And Areas To Review
+      - `safe/src/random.rs`
+      - `safe/src/drbg.rs`
+      - `safe/src/digest/mod.rs`
+      - `safe/src/digest/algorithms.rs`
+      - `safe/src/mac.rs`
+      - `safe/src/kdf.rs`
+      - `safe/src/os_rng.rs`
+      - `safe/cabi/exports.c`
+      - `safe/docs/abi-map.md`
+      - `safe/docs/cve-matrix.md`
+      
+      Success Criteria And Review Contract
+      - `cargo build --manifest-path safe/Cargo.toml --release --offline` succeeds.
+      - `safe/scripts/run-original-tests.sh random hashtest hmac t-kdf` passes.
+      - `safe/docs/cve-matrix.md` explicitly covers `CVE-2016-6313` and the digest, MAC, and KDF timing obligations.
+      - `safe/docs/abi-map.md` marks `gcry_md_get` as implemented while still reserving its ABI-only smoke verification for phase 8.
+      
+      Commands To Run
+      ```bash
+      git rev-parse HEAD
+      git rev-parse phase/impl_p04_rng_digest_mac_kdf
+      bash -lc 'test "$(git rev-parse HEAD)" = "$(git rev-parse phase/impl_p04_rng_digest_mac_kdf)"'
+      git rev-parse HEAD^
+      git rev-parse phase/impl_p03_sexp_mpi_core
+      bash -lc 'test "$(git rev-parse HEAD^)" = "$(git rev-parse phase/impl_p03_sexp_mpi_core)"'
+      bash -lc 'subject="$(git log -1 --format=%s)"; test "${subject#impl_p04_rng_digest_mac_kdf:}" != "$subject"'
+      git diff --check HEAD^..HEAD
+      cargo build --manifest-path safe/Cargo.toml --release --offline
+      safe/scripts/run-original-tests.sh random hashtest hmac t-kdf
+      ```
+      
+      End with exactly one verdict line:
+      VERDICT: PASS
+      VERDICT: FAIL: <reason>
+      {% endraw %}
+  - id: impl_p05_symmetric_ciphers
+    type: implement
+    bounce_target: null
+    prompt: |-
+      {% raw %}
+      Role: Software engineer implementing phase `impl_p05_symmetric_ciphers` (Symmetric ciphers and mode dispatcher).
+      
+      Repository Root: `/home/yans/safelibs/pipeline/ports/port-libgcrypt`
+      
+      Phase Contract
+      - This prompt is self-contained. The agent sees only this prompt.
+      - Consume or update the existing artifacts listed below in place. Do not refetch, recollect, rediscover, or regenerate them from scratch.
+      - Treat tracked workspace artifacts as authoritative inputs and update them in place instead of inventing alternate topology.
+      - Keep the workflow topology unchanged. The explicit verifier phase(s) for this implement phase are `check_p05_symmetric_ciphers`, each with fixed `bounce_target: impl_p05_symmetric_ciphers`.
+      - Finish this phase with exactly one final git commit whose subject begins with `impl_p05_symmetric_ciphers:` and force-update the local tag `phase/impl_p05_symmetric_ciphers` to that commit before yielding.
+      - The verifier will treat `HEAD^..HEAD` as the complete phase diff for this phase, so do not leave hidden intermediate phase commits.
+      - The final phase commit must be a single-commit successor of `phase/impl_p04_rng_digest_mac_kdf`, so `git rev-parse HEAD^` must equal `git rev-parse phase/impl_p04_rng_digest_mac_kdf`.
+      - Commit work to git before yielding.
+      
+      Phase Name
+      `Symmetric ciphers and mode dispatcher`
+      
+      Implement Phase ID
+      `impl_p05_symmetric_ciphers`
+      
+      Verification Phases
+      - `check_p05_symmetric_ciphers`: verify the symmetric-cipher handle model, registry, mode semantics, AEAD and tag behavior, S-box controls, reset and finalize behavior, and hardware-feature-disable plumbing.
+      
+      Preexisting Inputs
+      - `safe/Cargo.toml`
+      - `safe/Cargo.lock`
+      - `safe/build.rs`
+      - `safe/.cargo/config.toml`
+      - `safe/src/`
+      - `safe/cabi/`
+      - `safe/abi/`
+      - `safe/docs/abi-map.md`
+      - `safe/docs/cve-matrix.md`
+      - `safe/tests/original-build/`
+      - `safe/scripts/check-abi.sh`
+      - `safe/scripts/run-original-tests.sh`
+      - `original/libgcrypt20-1.10.3/cipher/`
+      - `original/libgcrypt20-1.10.3/tests/basic.c`
+      - `original/libgcrypt20-1.10.3/tests/aeswrap.c`
+      - `original/libgcrypt20-1.10.3/tests/t-lock.c`
+      - `original/libgcrypt20-1.10.3/tests/basic-disable-all-hwf.in`
+      - `original/libgcrypt20-1.10.3/src/hwfeatures.c`
+      - `original/libgcrypt20-1.10.3/src/gcrypt-testapi.h`
+      - `original/libgcrypt20-1.10.3/compat/`
+      - `relevant_cves.json`
+      
+      New Outputs
+      - Full symmetric cipher subsystem
+      - Updated `safe/docs/abi-map.md`
+      - Updated `safe/docs/cve-matrix.md`
+      
+      File Changes
+      - `safe/src/cipher/mod.rs`
+      - `safe/src/cipher/registry.rs`
+      - `safe/src/cipher/modes.rs`
+      - `safe/src/cipher/aead.rs`
+      - `safe/src/cipher/block.rs`
+      - `safe/src/cipher/stream.rs`
+      - `safe/src/hwfeatures.rs`
+      - `safe/src/global.rs`
+      - `safe/docs/abi-map.md`
+      - `safe/docs/cve-matrix.md`
+      
+      Implementation Details
+      - Implement every algorithm ID in `enum gcry_cipher_algos` and every mode in `enum gcry_cipher_modes`.
+      - Preserve upstream handle semantics for `gcry_cipher_open`, `gcry_cipher_close`, `gcry_cipher_ctl`, `gcry_cipher_info`, `gcry_cipher_algo_info`, `gcry_cipher_encrypt`, `gcry_cipher_decrypt`, `gcry_cipher_authenticate`, `gcry_cipher_gettag`, `gcry_cipher_checktag`, `gcry_cipher_setkey`, `gcry_cipher_setiv`, and `gcry_cipher_setctr`.
+      - Match the macro-backed control behavior for `gcry_cipher_reset`, `gcry_cipher_sync`, `gcry_cipher_cts`, `gcry_cipher_set_sbox`, `gcry_cipher_final`, and `gcry_cipher_set_decryption_tag`.
+      - Match the `basic.c` expectations that reset clears IV and CTR state where upstream does while preserving mode-specific subkeys where upstream does.
+      - Implement `GCRYCTL_DISABLE_HWF` so `basic-disable-all-hwf` can force software paths while preserving the exposed feature names and disable semantics.
+      - Avoid table-based software AES in the portable fallback; use constant-time software or hardware-gated implementations to address `CVE-2019-12904`.
+      - Implement GOST S-box selection and weak-key control behavior needed by `basic.c` and `gcrypt-testapi.h`.
+      - Update `safe/docs/cve-matrix.md` with symmetric-side timing notes and chosen mitigations.
+      {% endraw %}
+  - id: check_p05_symmetric_ciphers
+    type: check
+    bounce_target: impl_p05_symmetric_ciphers
+    prompt: |-
+      {% raw %}
+      Reviewer role: Independent verification reviewer for `check_p05_symmetric_ciphers`, reviewing `impl_p05_symmetric_ciphers` (Symmetric ciphers and mode dispatcher).
+      
+      Repository Root: `/home/yans/safelibs/pipeline/ports/port-libgcrypt`
+      
+      This prompt is self-contained. The agent sees only this prompt.
+      Do not modify files.
+      
+      Start with commit-range validation before any other review.
+      - Run `git rev-parse HEAD`.
+      - Run `git rev-parse phase/impl_p05_symmetric_ciphers` and verify that `HEAD` matches `phase/impl_p05_symmetric_ciphers`.
+      - Run `git rev-parse HEAD^` and `git rev-parse phase/impl_p04_rng_digest_mac_kdf`, and verify that the first parent matches `phase/impl_p04_rng_digest_mac_kdf`.
+      - Treat `HEAD^..HEAD` as the complete phase diff for this review. Do not infer or synthesize multi-commit phase ranges.
+      - Verify that `git log -1 --format=%s` begins with `impl_p05_symmetric_ciphers:`.
+      
+      Specific Things to Verify
+      - The implementation satisfies the phase purpose for `check_p05_symmetric_ciphers`: verify the symmetric-cipher handle model, registry, mode semantics, AEAD and tag behavior, S-box controls, reset and finalize behavior, and hardware-feature-disable plumbing.
+      - The implementation consumed or updated the listed preexisting inputs in place instead of refetching or regenerating them from scratch.
+      - The implementation produced the listed new outputs and updated the listed file areas in place.
+      - The fixed `bounce_target` for failure is `impl_p05_symmetric_ciphers`.
+      - The implementation finished as exactly one final phase commit and tag update, with no hidden intermediate phase commits.
+      - `cargo build --manifest-path safe/Cargo.toml --release --offline` succeeds.
+      - `safe/scripts/run-original-tests.sh aeswrap basic basic-disable-all-hwf t-lock` passes.
+      - `safe/docs/cve-matrix.md` explains the software AES fallback choice and why it avoids secret-indexed table lookups.
+      - `safe/docs/abi-map.md` reflects the implemented symmetric-cipher surface and any remaining later-phase ownership.
+      
+      Preexisting Inputs
+      - `safe/Cargo.toml`
+      - `safe/Cargo.lock`
+      - `safe/build.rs`
+      - `safe/.cargo/config.toml`
+      - `safe/src/`
+      - `safe/cabi/`
+      - `safe/abi/`
+      - `safe/docs/abi-map.md`
+      - `safe/docs/cve-matrix.md`
+      - `safe/tests/original-build/`
+      - `safe/scripts/check-abi.sh`
+      - `safe/scripts/run-original-tests.sh`
+      - `original/libgcrypt20-1.10.3/cipher/`
+      - `original/libgcrypt20-1.10.3/tests/basic.c`
+      - `original/libgcrypt20-1.10.3/tests/aeswrap.c`
+      - `original/libgcrypt20-1.10.3/tests/t-lock.c`
+      - `original/libgcrypt20-1.10.3/tests/basic-disable-all-hwf.in`
+      - `original/libgcrypt20-1.10.3/src/hwfeatures.c`
+      - `original/libgcrypt20-1.10.3/src/gcrypt-testapi.h`
+      - `original/libgcrypt20-1.10.3/compat/`
+      - `relevant_cves.json`
+      
+      Expected New Outputs
+      - Full symmetric cipher subsystem
+      - Updated `safe/docs/abi-map.md`
+      - Updated `safe/docs/cve-matrix.md`
+      
+      Files And Areas To Review
+      - `safe/src/cipher/mod.rs`
+      - `safe/src/cipher/registry.rs`
+      - `safe/src/cipher/modes.rs`
+      - `safe/src/cipher/aead.rs`
+      - `safe/src/cipher/block.rs`
+      - `safe/src/cipher/stream.rs`
+      - `safe/src/hwfeatures.rs`
+      - `safe/src/global.rs`
+      - `safe/docs/abi-map.md`
+      - `safe/docs/cve-matrix.md`
+      
+      Success Criteria And Review Contract
+      - `cargo build --manifest-path safe/Cargo.toml --release --offline` succeeds.
+      - `safe/scripts/run-original-tests.sh aeswrap basic basic-disable-all-hwf t-lock` passes.
+      - `safe/docs/cve-matrix.md` explains the software AES fallback choice and why it avoids secret-indexed table lookups.
+      - `safe/docs/abi-map.md` reflects the implemented symmetric-cipher surface and any remaining later-phase ownership.
+      
+      Commands To Run
+      ```bash
+      git rev-parse HEAD
+      git rev-parse phase/impl_p05_symmetric_ciphers
+      bash -lc 'test "$(git rev-parse HEAD)" = "$(git rev-parse phase/impl_p05_symmetric_ciphers)"'
+      git rev-parse HEAD^
+      git rev-parse phase/impl_p04_rng_digest_mac_kdf
+      bash -lc 'test "$(git rev-parse HEAD^)" = "$(git rev-parse phase/impl_p04_rng_digest_mac_kdf)"'
+      bash -lc 'subject="$(git log -1 --format=%s)"; test "${subject#impl_p05_symmetric_ciphers:}" != "$subject"'
+      git diff --check HEAD^..HEAD
+      cargo build --manifest-path safe/Cargo.toml --release --offline
+      safe/scripts/run-original-tests.sh aeswrap basic basic-disable-all-hwf t-lock
+      ```
+      
+      End with exactly one verdict line:
+      VERDICT: PASS
+      VERDICT: FAIL: <reason>
+      {% endraw %}
+  - id: impl_p06_pubkey_ecc
+    type: implement
+    bounce_target: null
+    prompt: |-
+      {% raw %}
+      Role: Software engineer implementing phase `impl_p06_pubkey_ecc` (Public-key, ECC, keygen, and side-channel hardening).
+      
+      Repository Root: `/home/yans/safelibs/pipeline/ports/port-libgcrypt`
+      
+      Phase Contract
+      - This prompt is self-contained. The agent sees only this prompt.
+      - Consume or update the existing artifacts listed below in place. Do not refetch, recollect, rediscover, or regenerate them from scratch.
+      - Treat tracked workspace artifacts as authoritative inputs and update them in place instead of inventing alternate topology.
+      - Keep the workflow topology unchanged. The explicit verifier phase(s) for this implement phase are `check_p06_pubkey_ecc`, each with fixed `bounce_target: impl_p06_pubkey_ecc`.
+      - Finish this phase with exactly one final git commit whose subject begins with `impl_p06_pubkey_ecc:` and force-update the local tag `phase/impl_p06_pubkey_ecc` to that commit before yielding.
+      - The verifier will treat `HEAD^..HEAD` as the complete phase diff for this phase, so do not leave hidden intermediate phase commits.
+      - The final phase commit must be a single-commit successor of `phase/impl_p05_symmetric_ciphers`, so `git rev-parse HEAD^` must equal `git rev-parse phase/impl_p05_symmetric_ciphers`.
+      - Commit work to git before yielding.
+      
+      Phase Name
+      `Public-key, ECC, keygen, and side-channel hardening`
+      
+      Implement Phase ID
+      `impl_p06_pubkey_ecc`
+      
+      Verification Phases
+      - `check_p06_pubkey_ecc`: verify all asymmetric crypto entry points, curve metadata, key generation, keygrip computation, EC contexts, deterministic-signing hooks, and the CVE-driven hardening rules.
+      
+      Preexisting Inputs
+      - `safe/Cargo.toml`
+      - `safe/Cargo.lock`
+      - `safe/build.rs`
+      - `safe/.cargo/config.toml`
+      - `safe/src/`
+      - `safe/cabi/`
+      - `safe/abi/`
+      - `safe/docs/abi-map.md`
+      - `safe/docs/cve-matrix.md`
+      - `safe/tests/original-build/`
+      - `safe/scripts/check-abi.sh`
+      - `safe/scripts/run-original-tests.sh`
+      - `original/libgcrypt20-1.10.3/cipher/`
+      - `original/libgcrypt20-1.10.3/mpi/`
+      - `original/libgcrypt20-1.10.3/tests/`
+      - `original/libgcrypt20-1.10.3/src/gcrypt-testapi.h`
+      - `original/libgcrypt20-1.10.3/compat/`
+      - `relevant_cves.json`
+      
+      New Outputs
+      - Full asymmetric crypto subsystem
+      - Updated `safe/docs/abi-map.md`
+      - Completed `safe/docs/cve-matrix.md`
+      
+      File Changes
+      - `safe/src/pubkey/mod.rs`
+      - `safe/src/pubkey/rsa.rs`
+      - `safe/src/pubkey/dsa.rs`
+      - `safe/src/pubkey/elgamal.rs`
+      - `safe/src/pubkey/ecc.rs`
+      - `safe/src/pubkey/encoding.rs`
+      - `safe/src/pubkey/keygrip.rs`
+      - `safe/src/mpi/ec.rs`
+      - `safe/src/context.rs`
+      - `safe/docs/abi-map.md`
+      - `safe/docs/cve-matrix.md`
+      
+      Implementation Details
+      - Implement the full `gcry_pk_*`, `gcry_pubkey_get_sexp`, `gcry_ecc_*`, `gcry_mpi_point_*`, and `gcry_mpi_ec_*` surfaces.
+      - Reuse the phase-3 MPI layer for generic big-integer and S-expression compatibility while using specialized constant-time curve code where that improves security or correctness.
+      - Implement the deterministic and random-override signing helpers used by tests:
+        - `gcry_pk_hash_sign`
+        - `gcry_pk_hash_verify`
+        - `gcry_pk_random_override_new`
+      - Implement curve metadata and curve-parameter queries for `curves.c` and `t-mpi-point.c`.
+      - Preserve keygrip computation exactly because upstream tests and downstream software use it as a compatibility fingerprint.
+      - Address every relevant asymmetric CVE from `relevant_cves.json`:
+        - `CVE-2013-4242`, `CVE-2015-0837`, `CVE-2017-7526`, `CVE-2021-33560`, `CVE-2024-2236`: constant-time private-key exponentiation, uniform error handling, RSA blinding, and ElGamal blinding.
+        - `CVE-2014-3591`, `CVE-2014-5270`, `CVE-2018-0495`, `CVE-2019-13627`: scalar blinding, fixed-shape scalar arithmetic, and side-channel-resistant signing.
+        - `CVE-2015-7511`, `CVE-2017-0379`, `CVE-2017-9526`: constant-time ladders, protected ephemeral scalars, and secret-aware curve operations.
+        - `CVE-2018-6829`, `CVE-2021-40528`: ElGamal encoding and parameter-validation fixes.
+      - Implement the legacy ABI-only symbol `gcry_pk_register` as a tested compatibility shim owned by phase 6. It must remain linkable, preserve the supported-Linux "not supported / removed" behavior, and stay documented in `safe/docs/abi-map.md` as an ABI-only export whose concrete probe lives in phase 8 rather than the installed public header.
+      - Make RSA PKCS#1 v1.5 decryption timing-uniform and externally indistinguishable on failure.
+      {% endraw %}
+  - id: check_p06_pubkey_ecc
+    type: check
+    bounce_target: impl_p06_pubkey_ecc
+    prompt: |-
+      {% raw %}
+      Reviewer role: Independent verification reviewer for `check_p06_pubkey_ecc`, reviewing `impl_p06_pubkey_ecc` (Public-key, ECC, keygen, and side-channel hardening).
+      
+      Repository Root: `/home/yans/safelibs/pipeline/ports/port-libgcrypt`
+      
+      This prompt is self-contained. The agent sees only this prompt.
+      Do not modify files.
+      
+      Start with commit-range validation before any other review.
+      - Run `git rev-parse HEAD`.
+      - Run `git rev-parse phase/impl_p06_pubkey_ecc` and verify that `HEAD` matches `phase/impl_p06_pubkey_ecc`.
+      - Run `git rev-parse HEAD^` and `git rev-parse phase/impl_p05_symmetric_ciphers`, and verify that the first parent matches `phase/impl_p05_symmetric_ciphers`.
+      - Treat `HEAD^..HEAD` as the complete phase diff for this review. Do not infer or synthesize multi-commit phase ranges.
+      - Verify that `git log -1 --format=%s` begins with `impl_p06_pubkey_ecc:`.
+      
+      Specific Things to Verify
+      - The implementation satisfies the phase purpose for `check_p06_pubkey_ecc`: verify all asymmetric crypto entry points, curve metadata, key generation, keygrip computation, EC contexts, deterministic-signing hooks, and the CVE-driven hardening rules.
+      - The implementation consumed or updated the listed preexisting inputs in place instead of refetching or regenerating them from scratch.
+      - The implementation produced the listed new outputs and updated the listed file areas in place.
+      - The fixed `bounce_target` for failure is `impl_p06_pubkey_ecc`.
+      - The implementation finished as exactly one final phase commit and tag update, with no hidden intermediate phase commits.
+      - `cargo build --manifest-path safe/Cargo.toml --release --offline` succeeds.
+      - `safe/scripts/run-original-tests.sh keygen pubkey keygrip pkcs1v2 fips186-dsa dsa-rfc6979 t-dsa curves t-ecdsa t-ed25519 t-cv25519 t-x448 t-ed448 t-rsa-pss t-rsa-15 t-rsa-testparm t-mpi-point testapi` passes.
+      - `safe/docs/cve-matrix.md` maps every ID in `relevant_cves.json` to code paths and tests or review obligations.
+      - `safe/docs/abi-map.md` marks the implemented public-key, ECC, and ABI-only `gcry_pk_register` coverage ownership correctly.
+      
+      Preexisting Inputs
+      - `safe/Cargo.toml`
+      - `safe/Cargo.lock`
+      - `safe/build.rs`
+      - `safe/.cargo/config.toml`
+      - `safe/src/`
+      - `safe/cabi/`
+      - `safe/abi/`
+      - `safe/docs/abi-map.md`
+      - `safe/docs/cve-matrix.md`
+      - `safe/tests/original-build/`
+      - `safe/scripts/check-abi.sh`
+      - `safe/scripts/run-original-tests.sh`
+      - `original/libgcrypt20-1.10.3/cipher/`
+      - `original/libgcrypt20-1.10.3/mpi/`
+      - `original/libgcrypt20-1.10.3/tests/`
+      - `original/libgcrypt20-1.10.3/src/gcrypt-testapi.h`
+      - `original/libgcrypt20-1.10.3/compat/`
+      - `relevant_cves.json`
+      
+      Expected New Outputs
+      - Full asymmetric crypto subsystem
+      - Updated `safe/docs/abi-map.md`
+      - Completed `safe/docs/cve-matrix.md`
+      
+      Files And Areas To Review
+      - `safe/src/pubkey/mod.rs`
+      - `safe/src/pubkey/rsa.rs`
+      - `safe/src/pubkey/dsa.rs`
+      - `safe/src/pubkey/elgamal.rs`
+      - `safe/src/pubkey/ecc.rs`
+      - `safe/src/pubkey/encoding.rs`
+      - `safe/src/pubkey/keygrip.rs`
+      - `safe/src/mpi/ec.rs`
+      - `safe/src/context.rs`
+      - `safe/docs/abi-map.md`
+      - `safe/docs/cve-matrix.md`
+      
+      Success Criteria And Review Contract
+      - `cargo build --manifest-path safe/Cargo.toml --release --offline` succeeds.
+      - `safe/scripts/run-original-tests.sh keygen pubkey keygrip pkcs1v2 fips186-dsa dsa-rfc6979 t-dsa curves t-ecdsa t-ed25519 t-cv25519 t-x448 t-ed448 t-rsa-pss t-rsa-15 t-rsa-testparm t-mpi-point testapi` passes.
+      - `safe/docs/cve-matrix.md` maps every ID in `relevant_cves.json` to code paths and tests or review obligations.
+      - `safe/docs/abi-map.md` marks the implemented public-key, ECC, and ABI-only `gcry_pk_register` coverage ownership correctly.
+      
+      Commands To Run
+      ```bash
+      git rev-parse HEAD
+      git rev-parse phase/impl_p06_pubkey_ecc
+      bash -lc 'test "$(git rev-parse HEAD)" = "$(git rev-parse phase/impl_p06_pubkey_ecc)"'
+      git rev-parse HEAD^
+      git rev-parse phase/impl_p05_symmetric_ciphers
+      bash -lc 'test "$(git rev-parse HEAD^)" = "$(git rev-parse phase/impl_p05_symmetric_ciphers)"'
+      bash -lc 'subject="$(git log -1 --format=%s)"; test "${subject#impl_p06_pubkey_ecc:}" != "$subject"'
+      git diff --check HEAD^..HEAD
+      cargo build --manifest-path safe/Cargo.toml --release --offline
+      safe/scripts/run-original-tests.sh keygen pubkey keygrip pkcs1v2 fips186-dsa dsa-rfc6979 t-dsa curves t-ecdsa t-ed25519 t-cv25519 t-x448 t-ed448 t-rsa-pss t-rsa-15 t-rsa-testparm t-mpi-point testapi
+      ```
+      
+      End with exactly one verdict line:
+      VERDICT: PASS
+      VERDICT: FAIL: <reason>
+      {% endraw %}
+  - id: impl_p07_port_upstream_tests
+    type: implement
+    bounce_target: null
+    prompt: |-
+      {% raw %}
+      Role: Software engineer implementing phase `impl_p07_port_upstream_tests` (Port the upstream test suite into `safe/tests/upstream`).
+      
+      Repository Root: `/home/yans/safelibs/pipeline/ports/port-libgcrypt`
+      
+      Phase Contract
+      - This prompt is self-contained. The agent sees only this prompt.
+      - Consume or update the existing artifacts listed below in place. Do not refetch, recollect, rediscover, or regenerate them from scratch.
+      - Treat tracked workspace artifacts as authoritative inputs and update them in place instead of inventing alternate topology.
+      - Keep the workflow topology unchanged. The explicit verifier phase(s) for this implement phase are `check_p07_port_upstream_tests`, each with fixed `bounce_target: impl_p07_port_upstream_tests`.
+      - Finish this phase with exactly one final git commit whose subject begins with `impl_p07_port_upstream_tests:` and force-update the local tag `phase/impl_p07_port_upstream_tests` to that commit before yielding.
+      - The verifier will treat `HEAD^..HEAD` as the complete phase diff for this phase, so do not leave hidden intermediate phase commits.
+      - The final phase commit must be a single-commit successor of `phase/impl_p06_pubkey_ecc`, so `git rev-parse HEAD^` must equal `git rev-parse phase/impl_p06_pubkey_ecc`.
+      - Commit work to git before yielding.
+      
+      Phase Name
+      `Port the upstream test suite into `safe/tests/upstream``
+      
+      Implement Phase ID
+      `impl_p07_port_upstream_tests`
+      
+      Verification Phases
+      - `check_p07_port_upstream_tests`: verify that the upstream tests now live under `safe/` and can be built and run there without depending on ad hoc direct compilation from `original/tests`.
+      
+      Preexisting Inputs
+      - `safe/Cargo.toml`
+      - `safe/Cargo.lock`
+      - `safe/build.rs`
+      - `safe/.cargo/config.toml`
+      - `safe/src/`
+      - `safe/cabi/`
+      - `safe/abi/`
+      - `safe/docs/abi-map.md`
+      - `safe/docs/cve-matrix.md`
+      - `safe/tests/original-build/`
+      - `safe/scripts/check-abi.sh`
+      - `safe/scripts/run-original-tests.sh`
+      - `original/libgcrypt20-1.10.3/config.h.in`
+      - `original/libgcrypt20-1.10.3/tests/`
+      - `original/libgcrypt20-1.10.3/compat/`
+      - `original/libgcrypt20-1.10.3/compat/Makefile.am`
+      - `original/libgcrypt20-1.10.3/src/gcrypt-testapi.h`
+      - `original/libgcrypt20-1.10.3/src/g10lib.h`
+      - `original/libgcrypt20-1.10.3/tests/Makefile.am`
+      - `original/libgcrypt20-1.10.3/tests/testdrv.c`
+      
+      New Outputs
+      - Imported upstream tests under `safe/tests/upstream/`
+      - Committed imported-test build artifacts, including `config.h` and rendered wrappers
+      - `safe/scripts/import-upstream-tests.sh`
+      - `safe/scripts/run-upstream-tests.sh`
+      - `safe/docs/test-matrix.md`
+      
+      File Changes
+      - `safe/tests/upstream/`
+      - `safe/tests/compat/`
+      - `safe/tests/upstream/config.h`
+      - `safe/tests/upstream/basic-disable-all-hwf`
+      - `safe/tests/upstream/hashtest-256g`
+      - `safe/tests/compat/include/`
+      - `safe/scripts/import-upstream-tests.sh`
+      - `safe/scripts/run-upstream-tests.sh`
+      - `safe/docs/test-matrix.md`
+      
+      Implementation Details
+      - Import the upstream tests from the local `original/` snapshot into `safe/tests/upstream/` without fetching from the network.
+      - Treat `original/libgcrypt20-1.10.3/tests/Makefile.am` as the authoritative inventory of test and script entries, and `testdrv.c` as the authoritative source for driver order, long-running flags, and script-to-binary mappings; preserve both and do not force them to agree where upstream intentionally differs.
+      - Keep `safe/tests/upstream/` as a verbatim or minimally adapted mirror so failures remain directly comparable to upstream sources.
+      - Bring over the required `compat/` support files under `safe/tests/compat/`, including the `.inp` files, helper headers, and wrapper inputs referenced by the test list.
+      - Consume the committed phase-1 test-build artifacts instead of regenerating them:
+        - Copy the committed phase-1 Linux test config into `safe/tests/upstream/config.h` and make it the only `config.h` used by imported builds.
+        - Copy the committed rendered wrappers into `safe/tests/upstream/basic-disable-all-hwf` and `safe/tests/upstream/hashtest-256g`, preserving `EXEEXT=""` and the committed `RUN_LARGE_DATA_TESTS=yes` setting.
+        - Keep the original `.in` templates for drift checking, but do not execute them directly in normal runs.
+      - Import the minimal internal-header subset required to build the copied `compat/` sources under `safe/tests/compat/include/` so imported builds rely entirely on committed files under `safe/` plus installed external dependencies. After this phase, `safe/scripts/run-upstream-tests.sh` must not compile sources or headers from `original/libgcrypt20-1.10.3/`.
+      - Build and keep the helper binaries that belong to the upstream test-build contract even when they are not all top-level `TESTS` entries. At minimum, build `testdrv`, `fipsdrv`, `rsacvt`, `genhashdata`, `gchash`, and `pkbench`, and record in `safe/docs/test-matrix.md` which helpers are build-only versus executed.
+      - Add `safe/scripts/import-upstream-tests.sh` to populate the imported tree, verify it is in sync, verify that `safe/tests/upstream/config.h`, the rendered wrapper scripts, and the `compat/` support headers match their committed source-of-truth inputs, fail on drift, and never rewrite files in `--verify` mode.
+      - Add `safe/scripts/run-upstream-tests.sh` to compile and run the imported tests against the safe library using the same test names as upstream, always setting `GCRYPT_IN_REGRESSION_TEST=1`, and supporting targeted subsets plus the full ordered suite.
+      - Add a `--verify-plumbing` mode to `safe/scripts/run-upstream-tests.sh` that proves the committed imported `config.h`, rendered wrappers, helper-binary build targets, and `compat/` include tree exist and are the exact artifacts used by the imported build.
+      - Create `safe/docs/test-matrix.md` mapping upstream test names to the phase that first enabled them and to whether each test is a source-compatibility, runtime-compatibility, or security regression check.
+      {% endraw %}
+  - id: check_p07_port_upstream_tests
+    type: check
+    bounce_target: impl_p07_port_upstream_tests
+    prompt: |-
+      {% raw %}
+      Reviewer role: Independent verification reviewer for `check_p07_port_upstream_tests`, reviewing `impl_p07_port_upstream_tests` (Port the upstream test suite into `safe/tests/upstream`).
+      
+      Repository Root: `/home/yans/safelibs/pipeline/ports/port-libgcrypt`
+      
+      This prompt is self-contained. The agent sees only this prompt.
+      Do not modify files.
+      
+      Start with commit-range validation before any other review.
+      - Run `git rev-parse HEAD`.
+      - Run `git rev-parse phase/impl_p07_port_upstream_tests` and verify that `HEAD` matches `phase/impl_p07_port_upstream_tests`.
+      - Run `git rev-parse HEAD^` and `git rev-parse phase/impl_p06_pubkey_ecc`, and verify that the first parent matches `phase/impl_p06_pubkey_ecc`.
+      - Treat `HEAD^..HEAD` as the complete phase diff for this review. Do not infer or synthesize multi-commit phase ranges.
+      - Verify that `git log -1 --format=%s` begins with `impl_p07_port_upstream_tests:`.
+      
+      Specific Things to Verify
+      - The implementation satisfies the phase purpose for `check_p07_port_upstream_tests`: verify that the upstream tests now live under `safe/` and can be built and run there without depending on ad hoc direct compilation from `original/tests`.
+      - The implementation consumed or updated the listed preexisting inputs in place instead of refetching or regenerating them from scratch.
+      - The implementation produced the listed new outputs and updated the listed file areas in place.
+      - The fixed `bounce_target` for failure is `impl_p07_port_upstream_tests`.
+      - The implementation finished as exactly one final phase commit and tag update, with no hidden intermediate phase commits.
+      - `cargo build --manifest-path safe/Cargo.toml --release --offline` succeeds.
+      - `safe/scripts/import-upstream-tests.sh --verify` confirms the imported tree, committed `config.h`, rendered wrappers, and compat headers match their source-of-truth inputs without rewriting them.
+      - `safe/scripts/run-upstream-tests.sh --verify-plumbing` proves the imported suite uses the committed build artifacts and helper-binary targets.
+      - `safe/scripts/run-upstream-tests.sh ...` passes for the full listed subset of upstream tests under `safe/tests/upstream/`.
+      - `safe/docs/test-matrix.md` records phase ownership and coverage type for the imported suite and helper binaries.
+      
+      Preexisting Inputs
+      - `safe/Cargo.toml`
+      - `safe/Cargo.lock`
+      - `safe/build.rs`
+      - `safe/.cargo/config.toml`
+      - `safe/src/`
+      - `safe/cabi/`
+      - `safe/abi/`
+      - `safe/docs/abi-map.md`
+      - `safe/docs/cve-matrix.md`
+      - `safe/tests/original-build/`
+      - `safe/scripts/check-abi.sh`
+      - `safe/scripts/run-original-tests.sh`
+      - `original/libgcrypt20-1.10.3/config.h.in`
+      - `original/libgcrypt20-1.10.3/tests/`
+      - `original/libgcrypt20-1.10.3/compat/`
+      - `original/libgcrypt20-1.10.3/compat/Makefile.am`
+      - `original/libgcrypt20-1.10.3/src/gcrypt-testapi.h`
+      - `original/libgcrypt20-1.10.3/src/g10lib.h`
+      - `original/libgcrypt20-1.10.3/tests/Makefile.am`
+      - `original/libgcrypt20-1.10.3/tests/testdrv.c`
+      
+      Expected New Outputs
+      - Imported upstream tests under `safe/tests/upstream/`
+      - Committed imported-test build artifacts, including `config.h` and rendered wrappers
+      - `safe/scripts/import-upstream-tests.sh`
+      - `safe/scripts/run-upstream-tests.sh`
+      - `safe/docs/test-matrix.md`
+      
+      Files And Areas To Review
+      - `safe/tests/upstream/`
+      - `safe/tests/compat/`
+      - `safe/tests/upstream/config.h`
+      - `safe/tests/upstream/basic-disable-all-hwf`
+      - `safe/tests/upstream/hashtest-256g`
+      - `safe/tests/compat/include/`
+      - `safe/scripts/import-upstream-tests.sh`
+      - `safe/scripts/run-upstream-tests.sh`
+      - `safe/docs/test-matrix.md`
+      
+      Success Criteria And Review Contract
+      - `cargo build --manifest-path safe/Cargo.toml --release --offline` succeeds.
+      - `safe/scripts/import-upstream-tests.sh --verify` confirms the imported tree, committed `config.h`, rendered wrappers, and compat headers match their source-of-truth inputs without rewriting them.
+      - `safe/scripts/run-upstream-tests.sh --verify-plumbing` proves the imported suite uses the committed build artifacts and helper-binary targets.
+      - `safe/scripts/run-upstream-tests.sh ...` passes for the full listed subset of upstream tests under `safe/tests/upstream/`.
+      - `safe/docs/test-matrix.md` records phase ownership and coverage type for the imported suite and helper binaries.
+      
+      Commands To Run
+      ```bash
+      git rev-parse HEAD
+      git rev-parse phase/impl_p07_port_upstream_tests
+      bash -lc 'test "$(git rev-parse HEAD)" = "$(git rev-parse phase/impl_p07_port_upstream_tests)"'
+      git rev-parse HEAD^
+      git rev-parse phase/impl_p06_pubkey_ecc
+      bash -lc 'test "$(git rev-parse HEAD^)" = "$(git rev-parse phase/impl_p06_pubkey_ecc)"'
+      bash -lc 'subject="$(git log -1 --format=%s)"; test "${subject#impl_p07_port_upstream_tests:}" != "$subject"'
+      git diff --check HEAD^..HEAD
+      cargo build --manifest-path safe/Cargo.toml --release --offline
+      safe/scripts/import-upstream-tests.sh --verify
+      safe/scripts/run-upstream-tests.sh --verify-plumbing
+      safe/scripts/run-upstream-tests.sh version t-secmem mpitests t-sexp t-convert t-mpi-bit prime random hashtest hmac t-kdf aeswrap basic basic-disable-all-hwf t-lock keygen pubkey keygrip pkcs1v2 fips186-dsa dsa-rfc6979 t-dsa curves t-ecdsa t-ed25519 t-cv25519 t-x448 t-ed448 t-rsa-pss t-rsa-15 t-rsa-testparm t-mpi-point testapi
+      ```
+      
+      End with exactly one verdict line:
+      VERDICT: PASS
+      VERDICT: FAIL: <reason>
+      {% endraw %}
+  - id: impl_p08_link_compat
+    type: implement
+    bounce_target: null
+    prompt: |-
+      {% raw %}
+      Role: Software engineer implementing phase `impl_p08_link_compat` (Link compatibility and ABI audit harness).
+      
+      Repository Root: `/home/yans/safelibs/pipeline/ports/port-libgcrypt`
+      
+      Phase Contract
+      - This prompt is self-contained. The agent sees only this prompt.
+      - Consume or update the existing artifacts listed below in place. Do not refetch, recollect, rediscover, or regenerate them from scratch.
+      - Treat tracked workspace artifacts as authoritative inputs and update them in place instead of inventing alternate topology.
+      - Keep the workflow topology unchanged. The explicit verifier phase(s) for this implement phase are `check_p08_link_compat`, each with fixed `bounce_target: impl_p08_link_compat`.
+      - Finish this phase with exactly one final git commit whose subject begins with `impl_p08_link_compat:` and force-update the local tag `phase/impl_p08_link_compat` to that commit before yielding.
+      - The verifier will treat `HEAD^..HEAD` as the complete phase diff for this phase, so do not leave hidden intermediate phase commits.
+      - The final phase commit must be a single-commit successor of `phase/impl_p07_port_upstream_tests`, so `git rev-parse HEAD^` must equal `git rev-parse phase/impl_p07_port_upstream_tests`.
+      - Commit work to git before yielding.
+      
+      Phase Name
+      `Link compatibility and ABI audit harness`
+      
+      Implement Phase ID
+      `impl_p08_link_compat`
+      
+      Verification Phases
+      - `check_p08_link_compat`: verify the actual link-compatibility promise using object files compiled against the original headers, while ensuring symbol names, symbol versions, and SONAME remain identical.
+      
+      Preexisting Inputs
+      - `safe/Cargo.toml`
+      - `safe/Cargo.lock`
+      - `safe/build.rs`
+      - `safe/.cargo/config.toml`
+      - `safe/src/`
+      - `safe/cabi/`
+      - `safe/abi/`
+      - `safe/docs/abi-map.md`
+      - `safe/docs/cve-matrix.md`
+      - `safe/docs/test-matrix.md`
+      - `safe/tests/original-build/`
+      - `safe/tests/upstream/`
+      - `safe/tests/compat/`
+      - `safe/scripts/check-abi.sh`
+      - `safe/scripts/run-original-tests.sh`
+      - `safe/scripts/import-upstream-tests.sh`
+      - `safe/scripts/run-upstream-tests.sh`
+      - `original/libgcrypt20-1.10.3/src/gcrypt.h.in`
+      - `original/libgcrypt20-1.10.3/src/libgcrypt.vers`
+      - `original/libgcrypt20-1.10.3/src/visibility.h`
+      - `original/libgcrypt20-1.10.3/src/gcrypt-testapi.h`
+      - `original/libgcrypt20-1.10.3/debian/libgcrypt20.symbols`
+      - `original/libgcrypt20-1.10.3/tests/Makefile.am`
+      - `original/libgcrypt20-1.10.3/tests/testdrv.c`
+      - `original/libgcrypt20-1.10.3/tests/`
+      - `original/libgcrypt20-1.10.3/compat/`
+      
+      New Outputs
+      - Original-object relink harness
+      - Strong ABI comparison tooling
+      - Compatibility smoke harness for uncovered public APIs and installed development metadata
+      - ABI-only export smoke harness for header-hidden symbols
+      
+      File Changes
+      - `safe/scripts/relink-original-objects.sh`
+      - `safe/scripts/run-compat-smoke.sh`
+      - `safe/scripts/check-abi.sh`
+      - `safe/tests/compat/public-api-smoke.c`
+      - `safe/tests/compat/abi-only-exports.c`
+      - `safe/docs/test-matrix.md`
+      
+      Implementation Details
+      - Extend `safe/scripts/check-abi.sh` to compare safe versus original on exported symbol names, symbol versions, SONAME, `libgcrypt.pc` fields, Debian-patched `libgcrypt-config` output, installed `libgcrypt.m4`, and header smoke compilation.
+      - Add `safe/scripts/relink-original-objects.sh` to build original upstream tests to object files using original headers and build settings, relink those objects against the safe shared library and `libgpg-error`, and execute the relinked binaries under `LD_LIBRARY_PATH` pointing at the safe build.
+      - Ensure the relink harness covers every compiled regression entry from `tests/Makefile.am` that yields a binary in `tests_bin` or `tests_bin_last`, plus `testapi`. Keep the shell-backed entries covered by `safe/scripts/run-upstream-tests.sh`.
+      - Add `safe/scripts/run-compat-smoke.sh` plus targeted `safe/tests/compat/` probes to compile against the generated and installed safe development surface and exercise compatibility not already covered by imported upstream tests, object relink checks, or downstream dependents.
+      - Include targeted smoke coverage for:
+        - The public thread-compatibility surface from `gcrypt.h`, including expansion of `GCRY_THREAD_OPTION_PTHREAD_IMPL` and a `gcry_control(GCRYCTL_SET_THREAD_CBS, &gcry_threads_pthread)` compatibility call.
+        - Header macros with ABI-visible layout expectations such as `gcry_md_putc`, `gcry_fast_random_poll`, and `gcry_fips_mode_active`.
+        - All exported public variadic entries compiled and called from C: `gcry_control`, `gcry_sexp_build`, `gcry_sexp_vlist`, `gcry_sexp_extract_param`, and `gcry_log_debug`.
+        - ABI-only or header-hidden exports handled separately from normal header smoke:
+          - `gcry_md_get` via a dedicated C probe that includes `gcrypt.h` for public types and adds the local declaration carried in `src/visibility.h`.
+          - `gcry_pk_register` via symbol-version presence checks and a `dlsym`-based runtime probe without reintroducing it into the installed public header.
+        - Installed-tool behavior for `pkg-config`, `libgcrypt-config`, and `libgcrypt.m4`.
+      - Keep this phase focused on public-library and development-surface compatibility. The package-installed helper CLIs and package-only manifest checks remain phase-9 responsibilities.
+      - Update `safe/docs/test-matrix.md` to record link-compat coverage and the public APIs or non-symbol header and control surfaces covered only by the targeted smoke harness, with dedicated rows for the thread-callback path, `gcry_md_get`, and `gcry_pk_register`.
+      {% endraw %}
+  - id: check_p08_link_compat
+    type: check
+    bounce_target: impl_p08_link_compat
+    prompt: |-
+      {% raw %}
+      Reviewer role: Independent verification reviewer for `check_p08_link_compat`, reviewing `impl_p08_link_compat` (Link compatibility and ABI audit harness).
+      
+      Repository Root: `/home/yans/safelibs/pipeline/ports/port-libgcrypt`
+      
+      This prompt is self-contained. The agent sees only this prompt.
+      Do not modify files.
+      
+      Start with commit-range validation before any other review.
+      - Run `git rev-parse HEAD`.
+      - Run `git rev-parse phase/impl_p08_link_compat` and verify that `HEAD` matches `phase/impl_p08_link_compat`.
+      - Run `git rev-parse HEAD^` and `git rev-parse phase/impl_p07_port_upstream_tests`, and verify that the first parent matches `phase/impl_p07_port_upstream_tests`.
+      - Treat `HEAD^..HEAD` as the complete phase diff for this review. Do not infer or synthesize multi-commit phase ranges.
+      - Verify that `git log -1 --format=%s` begins with `impl_p08_link_compat:`.
+      
+      Specific Things to Verify
+      - The implementation satisfies the phase purpose for `check_p08_link_compat`: verify the actual link-compatibility promise using object files compiled against the original headers, while ensuring symbol names, symbol versions, and SONAME remain identical.
+      - The implementation consumed or updated the listed preexisting inputs in place instead of refetching or regenerating them from scratch.
+      - The implementation produced the listed new outputs and updated the listed file areas in place.
+      - The fixed `bounce_target` for failure is `impl_p08_link_compat`.
+      - The implementation finished as exactly one final phase commit and tag update, with no hidden intermediate phase commits.
+      - `cargo build --manifest-path safe/Cargo.toml --release --offline` succeeds.
+      - `safe/scripts/check-abi.sh --compare-original --check-symbol-versions --check-soname` verifies export names, version nodes, SONAME, and installed development metadata against original inputs.
+      - `safe/scripts/relink-original-objects.sh --all` succeeds for the full compiled upstream regression set.
+      - `safe/scripts/run-compat-smoke.sh --all` covers the public thread-compatibility surface, header-visible macros, all five variadic entry points, `gcry_md_get`, `gcry_pk_register`, and installed development metadata.
+      - `safe/docs/test-matrix.md` clearly identifies which coverage comes from imported tests, relink runs, or targeted compatibility smoke.
+      
+      Preexisting Inputs
+      - `safe/Cargo.toml`
+      - `safe/Cargo.lock`
+      - `safe/build.rs`
+      - `safe/.cargo/config.toml`
+      - `safe/src/`
+      - `safe/cabi/`
+      - `safe/abi/`
+      - `safe/docs/abi-map.md`
+      - `safe/docs/cve-matrix.md`
+      - `safe/docs/test-matrix.md`
+      - `safe/tests/original-build/`
+      - `safe/tests/upstream/`
+      - `safe/tests/compat/`
+      - `safe/scripts/check-abi.sh`
+      - `safe/scripts/run-original-tests.sh`
+      - `safe/scripts/import-upstream-tests.sh`
+      - `safe/scripts/run-upstream-tests.sh`
+      - `original/libgcrypt20-1.10.3/src/gcrypt.h.in`
+      - `original/libgcrypt20-1.10.3/src/libgcrypt.vers`
+      - `original/libgcrypt20-1.10.3/src/visibility.h`
+      - `original/libgcrypt20-1.10.3/src/gcrypt-testapi.h`
+      - `original/libgcrypt20-1.10.3/debian/libgcrypt20.symbols`
+      - `original/libgcrypt20-1.10.3/tests/Makefile.am`
+      - `original/libgcrypt20-1.10.3/tests/testdrv.c`
+      - `original/libgcrypt20-1.10.3/tests/`
+      - `original/libgcrypt20-1.10.3/compat/`
+      
+      Expected New Outputs
+      - Original-object relink harness
+      - Strong ABI comparison tooling
+      - Compatibility smoke harness for uncovered public APIs and installed development metadata
+      - ABI-only export smoke harness for header-hidden symbols
+      
+      Files And Areas To Review
+      - `safe/scripts/relink-original-objects.sh`
+      - `safe/scripts/run-compat-smoke.sh`
+      - `safe/scripts/check-abi.sh`
+      - `safe/tests/compat/public-api-smoke.c`
+      - `safe/tests/compat/abi-only-exports.c`
+      - `safe/docs/test-matrix.md`
+      
+      Success Criteria And Review Contract
+      - `cargo build --manifest-path safe/Cargo.toml --release --offline` succeeds.
+      - `safe/scripts/check-abi.sh --compare-original --check-symbol-versions --check-soname` verifies export names, version nodes, SONAME, and installed development metadata against original inputs.
+      - `safe/scripts/relink-original-objects.sh --all` succeeds for the full compiled upstream regression set.
+      - `safe/scripts/run-compat-smoke.sh --all` covers the public thread-compatibility surface, header-visible macros, all five variadic entry points, `gcry_md_get`, `gcry_pk_register`, and installed development metadata.
+      - `safe/docs/test-matrix.md` clearly identifies which coverage comes from imported tests, relink runs, or targeted compatibility smoke.
+      
+      Commands To Run
+      ```bash
+      git rev-parse HEAD
+      git rev-parse phase/impl_p08_link_compat
+      bash -lc 'test "$(git rev-parse HEAD)" = "$(git rev-parse phase/impl_p08_link_compat)"'
+      git rev-parse HEAD^
+      git rev-parse phase/impl_p07_port_upstream_tests
+      bash -lc 'test "$(git rev-parse HEAD^)" = "$(git rev-parse phase/impl_p07_port_upstream_tests)"'
+      bash -lc 'subject="$(git log -1 --format=%s)"; test "${subject#impl_p08_link_compat:}" != "$subject"'
+      git diff --check HEAD^..HEAD
+      cargo build --manifest-path safe/Cargo.toml --release --offline
+      safe/scripts/check-abi.sh --compare-original --check-symbol-versions --check-soname
+      safe/scripts/relink-original-objects.sh --all
+      safe/scripts/run-compat-smoke.sh --all
+      ```
+      
+      End with exactly one verdict line:
+      VERDICT: PASS
+      VERDICT: FAIL: <reason>
+      {% endraw %}
+  - id: impl_p09_packaging_dependents
+    type: implement
+    bounce_target: null
+    prompt: |-
+      {% raw %}
+      Role: Software engineer implementing phase `impl_p09_packaging_dependents` (Debian packaging and downstream dependent harness).
+      
+      Repository Root: `/home/yans/safelibs/pipeline/ports/port-libgcrypt`
+      
+      Phase Contract
+      - This prompt is self-contained. The agent sees only this prompt.
+      - Consume or update the existing artifacts listed below in place. Do not refetch, recollect, rediscover, or regenerate them from scratch.
+      - Treat tracked workspace artifacts as authoritative inputs and update them in place instead of inventing alternate topology.
+      - Keep the workflow topology unchanged. The explicit verifier phase(s) for this implement phase are `check_p09_packaging_dependents`, each with fixed `bounce_target: impl_p09_packaging_dependents`.
+      - Finish this phase with exactly one final git commit whose subject begins with `impl_p09_packaging_dependents:` and force-update the local tag `phase/impl_p09_packaging_dependents` to that commit before yielding.
+      - The verifier will treat `HEAD^..HEAD` as the complete phase diff for this phase, so do not leave hidden intermediate phase commits.
+      - The final phase commit must be a single-commit successor of `phase/impl_p08_link_compat`, so `git rev-parse HEAD^` must equal `git rev-parse phase/impl_p08_link_compat`.
+      - Commit work to git before yielding.
+      
+      Phase Name
+      `Debian packaging and downstream dependent harness`
+      
+      Implement Phase ID
+      `impl_p09_packaging_dependents`
+      
+      Verification Phases
+      - `check_p09_packaging_dependents`: verify that the Rust port ships as Ubuntu 24.04 packages, preserves the required default-build dev and runtime package surface plus Debian control metadata and helper-CLI behavior, and that the existing downstream harness now installs and exercises the safe packages.
+      
+      Preexisting Inputs
+      - `safe/Cargo.toml`
+      - `safe/Cargo.lock`
+      - `safe/build.rs`
+      - `safe/.cargo/config.toml`
+      - `safe/src/`
+      - `safe/cabi/`
+      - `safe/abi/`
+      - `safe/docs/abi-map.md`
+      - `safe/docs/cve-matrix.md`
+      - `safe/docs/test-matrix.md`
+      - `safe/tests/original-build/`
+      - `safe/tests/upstream/`
+      - `safe/tests/compat/`
+      - `safe/scripts/check-abi.sh`
+      - `safe/scripts/run-original-tests.sh`
+      - `safe/scripts/import-upstream-tests.sh`
+      - `safe/scripts/run-upstream-tests.sh`
+      - `safe/scripts/relink-original-objects.sh`
+      - `safe/scripts/run-compat-smoke.sh`
+      - `original/libgcrypt20-1.10.3/debian/`
+      - `original/libgcrypt20-1.10.3/doc/`
+      - `original/libgcrypt20-1.10.3/debian/control`
+      - `original/libgcrypt20-1.10.3/debian/rules`
+      - `original/libgcrypt20-1.10.3/src/libgcrypt.vers`
+      - `original/libgcrypt20-1.10.3/src/Makefile.am`
+      - `original/libgcrypt20-1.10.3/src/dumpsexp.c`
+      - `original/libgcrypt20-1.10.3/src/hmac256.c`
+      - `original/libgcrypt20-1.10.3/src/mpicalc.c`
+      - `original/libgcrypt20-1.10.3/doc/Makefile.am`
+      - `original/libgcrypt20-1.10.3/doc/gcrypt.texi`
+      - `original/libgcrypt20-1.10.3/doc/yat2m.c`
+      - `original/libgcrypt20-1.10.3/debian/libgcrypt20.install`
+      - `original/libgcrypt20-1.10.3/debian/libgcrypt20-dev.install`
+      - `original/libgcrypt20-1.10.3/debian/libgcrypt20.dirs`
+      - `original/libgcrypt20-1.10.3/debian/libgcrypt20.postinst`
+      - `original/libgcrypt20-1.10.3/debian/clean-up-unmanaged-libraries`
+      - `original/libgcrypt20-1.10.3/debian/libgcrypt20.symbols`
+      - `original/libgcrypt20-1.10.3/debian/libgcrypt20.docs`
+      - `original/libgcrypt20-1.10.3/debian/libgcrypt20-dev.manpages`
+      - `original/libgcrypt20-1.10.3/debian/dumpsexp.8`
+      - `original/libgcrypt20-1.10.3/debian/libgcrypt-config.1`
+      - `original/libgcrypt20-1.10.3/src/libgcrypt.m4`
+      - `original/libgcrypt20-1.10.3/debian/patches/12_lessdeps_libgcrypt-config.diff`
+      - `original/libgcrypt20-1.10.3/debian/patches/15_multiarchpath_in_-L.diff`
+      - `dependents.json`
+      - `test-original.sh`
+      
+      New Outputs
+      - Debian packaging under `safe/debian/`
+      - Package build script
+      - Debian control-metadata verifier
+      - Installed-helper CLI smoke harness
+      - Modified Docker harness that installs safe packages
+      - Debian package artifacts under `safe/dist/`
+      
+      File Changes
+      - `safe/debian/control`
+      - `safe/debian/rules`
+      - `safe/debian/source/format`
+      - `safe/debian/changelog`
+      - `safe/debian/copyright`
+      - `safe/debian/libgcrypt20.install`
+      - `safe/debian/libgcrypt20-dev.install`
+      - `safe/debian/libgcrypt20.dirs`
+      - `safe/debian/libgcrypt20.postinst`
+      - `safe/debian/clean-up-unmanaged-libraries`
+      - `safe/debian/libgcrypt20.symbols`
+      - `safe/debian/libgcrypt20.docs`
+      - `safe/debian/libgcrypt20-dev.manpages`
+      - `safe/debian/dumpsexp.8`
+      - `safe/debian/hmac256.1`
+      - `safe/debian/libgcrypt-config.1`
+      - `safe/src/bin/dumpsexp.rs`
+      - `safe/src/bin/hmac256.rs`
+      - `safe/src/bin/mpicalc.rs`
+      - `safe/scripts/build-debs.sh`
+      - `safe/scripts/check-deb-metadata.sh`
+      - `safe/scripts/check-installed-tools.sh`
+      - `safe/tests/compat/tool-fixtures/`
+      - `test-original.sh`
+      
+      Implementation Details
+      - Adapt the upstream Debian packaging to build the Rust implementation instead of autotools while preserving the Ubuntu drop-in package names `libgcrypt20` and `libgcrypt20-dev`.
+      - Require offline Cargo input closure for package builds:
+        - `safe/scripts/build-debs.sh` must run Cargo with `--locked --offline`.
+        - The build must create or receive a clean temporary `CARGO_HOME`.
+        - If third-party crates are used, the package build must consume only `safe/vendor/`, `Cargo.lock`, and committed repository files.
+        - Any attempt to contact crates.io or another network source must fail the build.
+      - Preserve the concrete default-build package payload:
+        - `libgcrypt20`: `/usr/lib/*/libgcrypt.so.20*`, `libgcrypt20.postinst`, `/usr/share/libgcrypt20/clean-up-unmanaged-libraries`, the directory from `libgcrypt20.dirs`, and the runtime docs listed in `libgcrypt20.docs`.
+        - `libgcrypt20-dev`: `/usr/include/gcrypt.h`, `/usr/lib/*/libgcrypt.so`, `/usr/lib/*/libgcrypt.a`, `/usr/lib/*/pkgconfig/libgcrypt.pc`, `/usr/share/aclocal/libgcrypt.m4`, `/usr/bin/libgcrypt-config`, `/usr/bin/dumpsexp`, `/usr/bin/hmac256`, `/usr/bin/mpicalc`, and the manpages listed in `libgcrypt20-dev.manpages`.
+      - Preserve the package-control relationships from `original/libgcrypt20-1.10.3/debian/control`, including:
+        - `libgcrypt20-dev`: `Package: libgcrypt20-dev`, `Provides: libgcrypt-dev`, `Conflicts: libgcrypt-dev`, and a semantically equivalent `Depends` that still includes `libc6-dev | libc-dev`, `libgcrypt20 (= ${binary:Version})`, and `libgpg-error-dev`.
+        - `libgcrypt20`: `Package: libgcrypt20`, `Multi-Arch: same`, a non-empty `Pre-Depends`, and runtime `Depends` generated from substvars and shlibs that still pull in libc and `libgpg-error`.
+        - If optional packages are omitted, do not retain dangling mandatory relationships.
+      - `libgcrypt20-doc`, `libgcrypt20-udeb`, and `libgcrypt-mingw-w64-dev` may be omitted unless they are required for drop-in use on Ubuntu 24.04.
+      - Keep the selected payload installed at the same paths, including the header, shared and static libraries, pkg-config file, `libgcrypt.m4`, the helper CLIs, the dev manpages, the runtime docs, and `/usr/share/libgcrypt20/clean-up-unmanaged-libraries`.
+      - Treat `safe/abi/libgcrypt.vers` as the canonical Linux export contract when generating `safe/debian/libgcrypt20.symbols`; the symbols file must enumerate the same 217 real exports and must include `gcry_md_get` and `gcry_pk_register`.
+      - Preserve the runtime maintainer-script behavior by copying or minimally adapting `debian/libgcrypt20.postinst`, `debian/clean-up-unmanaged-libraries`, and `debian/libgcrypt20.dirs` into `safe/debian/`.
+      - Add `safe/scripts/check-deb-metadata.sh` to inspect built packages with `dpkg-deb -f` and `dpkg-deb -c`, compare `safe/debian/libgcrypt20.symbols` against `safe/abi/libgcrypt.vers`, and fail if control fields, symbols metadata, or required manifest entries drift.
+      - Implement the small helper CLIs `dumpsexp`, `hmac256`, `mpicalc`, and `libgcrypt-config`.
+      - Preserve the dev-package manpage payload explicitly. Copy or minimally adapt `dumpsexp.8` and `libgcrypt-config.1`, and generate and commit `safe/debian/hmac256.1` from repo-local inputs so the Rust packaging does not rely on an external autotools doc build.
+      - Add `safe/scripts/check-installed-tools.sh` plus committed fixtures under `safe/tests/compat/tool-fixtures/` to exercise the package-installed helper executables from an extracted `.deb` sysroot, not `target/`. The smoke harness must cover option parsing, exit statuses, and at least one behaviorally meaningful path for each shipped helper:
+        - `dumpsexp`: `--help` and `--version`, parsing a fixed S-expression fixture from stdin, and parsing a fixed hex-dump fixture under `--assume-hex`.
+        - `hmac256`: `--version`, a fixed text-mode HMAC for a checked-in file, and `--binary --stdkey` against a checked-in fixture with exact output-length and digest expectations.
+        - `mpicalc`: `--version`, `--print-config`, and a fixed RPN transcript such as `2 3 + p` with checked stdout, stderr, and exit status.
+        - `libgcrypt-config` and `pkg-config`: reuse the development-surface assertions from phase 8 against the extracted install tree so the package-installed path is also covered.
+      - Treat the random-daemon helper binaries as unexpected outputs for this workflow; do not add `/usr/bin/getrandom` or `/usr/sbin/gcryptrnd`.
+      - Preserve Debian and Ubuntu `libgcrypt-config` behavior exactly, including patched `--libs` output, standard-multiarch `-L` suppression, and the installed `libgcrypt.m4`.
+      - Modify `test-original.sh` so it accepts `--implementation original|safe`, keeps `original` as the default baseline path, and can build and install the safe Debian packages inside the Ubuntu 24.04 container before running the same dependent compile and runtime checks currently used for the original library.
+      - The `--implementation safe` path in `test-original.sh` must run the installed-helper smoke harness after package installation and before dependent builds so the package-install path proves the helper CLIs work in the same environment as the dependents.
+      - Because the current harness mounts `/work` read-only, the `--implementation safe` path must copy `safe/` plus any required top-level metadata into a writable `/tmp` build directory inside the container and run package builds there rather than writing under `/work`.
+      - Extend the container dependency install list for the safe path to include the Rust and Debian-packaging toolchain needed to build the safe packages.
+      - The package build inside the harness must consume committed repository-local inputs only: `Cargo.lock`, the checked-in source tree, and any vendored crate sources if external crates are used. The dependent test run must not rely on ad hoc crates.io fetches.
+      - The `--implementation safe` path in `test-original.sh` must prove that contract by copying only the committed repository inputs into the writable `/tmp` build tree, setting `CARGO_NET_OFFLINE=true`, using a fresh empty `CARGO_HOME` inside the container before invoking `safe/scripts/build-debs.sh`, and failing immediately if the safe package build tries to resolve crates from the network.
+      - The updated harness must still use `dependents.json` as the fixed dependent inventory and must continue to validate that the tested programs really load the safe `libgcrypt.so.20`.
+      - Preserve the existing downstream checks by name:
+        - APT hashing
+        - GnuPG sign, encrypt, and decrypt
+        - GNOME Keyring secret service
+        - libssh handshake
+        - xmlsec1-gcrypt verification
+        - MUNGE credential encode and decode
+        - Aircrack-ng sample crack
+        - Wireshark WPA decryption
+      {% endraw %}
+  - id: check_p09_packaging_dependents
+    type: check
+    bounce_target: impl_p09_packaging_dependents
+    prompt: |-
+      {% raw %}
+      Reviewer role: Independent verification reviewer for `check_p09_packaging_dependents`, reviewing `impl_p09_packaging_dependents` (Debian packaging and downstream dependent harness).
+      
+      Repository Root: `/home/yans/safelibs/pipeline/ports/port-libgcrypt`
+      
+      This prompt is self-contained. The agent sees only this prompt.
+      Do not modify files.
+      
+      Start with commit-range validation before any other review.
+      - Run `git rev-parse HEAD`.
+      - Run `git rev-parse phase/impl_p09_packaging_dependents` and verify that `HEAD` matches `phase/impl_p09_packaging_dependents`.
+      - Run `git rev-parse HEAD^` and `git rev-parse phase/impl_p08_link_compat`, and verify that the first parent matches `phase/impl_p08_link_compat`.
+      - Treat `HEAD^..HEAD` as the complete phase diff for this review. Do not infer or synthesize multi-commit phase ranges.
+      - Verify that `git log -1 --format=%s` begins with `impl_p09_packaging_dependents:`.
+      
+      Specific Things to Verify
+      - The implementation satisfies the phase purpose for `check_p09_packaging_dependents`: verify that the Rust port ships as Ubuntu 24.04 packages, preserves the required default-build dev and runtime package surface plus Debian control metadata and helper-CLI behavior, and that the existing downstream harness now installs and exercises the safe packages.
+      - The implementation consumed or updated the listed preexisting inputs in place instead of refetching or regenerating them from scratch.
+      - The implementation produced the listed new outputs and updated the listed file areas in place.
+      - The fixed `bounce_target` for failure is `impl_p09_packaging_dependents`.
+      - The implementation finished as exactly one final phase commit and tag update, with no hidden intermediate phase commits.
+      - The package build succeeds with a fresh empty `CARGO_HOME` and `CARGO_NET_OFFLINE=true`.
+      - `safe/scripts/check-deb-metadata.sh --dist safe/dist` confirms control metadata, symbols metadata, manifest entries, and the expected default-build package set.
+      - The `dpkg-deb -c` and `dpkg-deb -e` checks prove the packages install the required libraries, development files, helper CLIs, docs, manpages, cleanup helper, and executable `postinst`.
+      - `safe/scripts/check-installed-tools.sh --dist safe/dist` passes for the extracted installed helper CLIs and development metadata.
+      - `./test-original.sh --implementation safe` passes while installing the safe-path Rust and Debian-packaging toolchain, copying only committed repository inputs into writable `/tmp` paths, running the installed-helper smoke harness before dependent builds, using a fresh empty `CARGO_HOME` plus `CARGO_NET_OFFLINE=true`, and preserving the existing dependent-software checks.
+      - Review of the built packages confirms they install `gcrypt.h`, `libgcrypt.pc`, `libgcrypt-config`, `libgcrypt.m4`, `libgcrypt.so.20*`, `libgcrypt.a`, `dumpsexp`, `hmac256`, `mpicalc`, the dev-package manpages, the runtime-package docs, the `libgcrypt20` maintainer-script and cleanup assets, and the reconciled `safe/debian/libgcrypt20.symbols`, while preserving the required `Provides` / `Conflicts` / `Depends` / `Pre-Depends` / `Multi-Arch` relationships and omitting unexpected default-build random-daemon outputs.
+      
+      Preexisting Inputs
+      - `safe/Cargo.toml`
+      - `safe/Cargo.lock`
+      - `safe/build.rs`
+      - `safe/.cargo/config.toml`
+      - `safe/src/`
+      - `safe/cabi/`
+      - `safe/abi/`
+      - `safe/docs/abi-map.md`
+      - `safe/docs/cve-matrix.md`
+      - `safe/docs/test-matrix.md`
+      - `safe/tests/original-build/`
+      - `safe/tests/upstream/`
+      - `safe/tests/compat/`
+      - `safe/scripts/check-abi.sh`
+      - `safe/scripts/run-original-tests.sh`
+      - `safe/scripts/import-upstream-tests.sh`
+      - `safe/scripts/run-upstream-tests.sh`
+      - `safe/scripts/relink-original-objects.sh`
+      - `safe/scripts/run-compat-smoke.sh`
+      - `original/libgcrypt20-1.10.3/debian/`
+      - `original/libgcrypt20-1.10.3/doc/`
+      - `original/libgcrypt20-1.10.3/debian/control`
+      - `original/libgcrypt20-1.10.3/debian/rules`
+      - `original/libgcrypt20-1.10.3/src/libgcrypt.vers`
+      - `original/libgcrypt20-1.10.3/src/Makefile.am`
+      - `original/libgcrypt20-1.10.3/src/dumpsexp.c`
+      - `original/libgcrypt20-1.10.3/src/hmac256.c`
+      - `original/libgcrypt20-1.10.3/src/mpicalc.c`
+      - `original/libgcrypt20-1.10.3/doc/Makefile.am`
+      - `original/libgcrypt20-1.10.3/doc/gcrypt.texi`
+      - `original/libgcrypt20-1.10.3/doc/yat2m.c`
+      - `original/libgcrypt20-1.10.3/debian/libgcrypt20.install`
+      - `original/libgcrypt20-1.10.3/debian/libgcrypt20-dev.install`
+      - `original/libgcrypt20-1.10.3/debian/libgcrypt20.dirs`
+      - `original/libgcrypt20-1.10.3/debian/libgcrypt20.postinst`
+      - `original/libgcrypt20-1.10.3/debian/clean-up-unmanaged-libraries`
+      - `original/libgcrypt20-1.10.3/debian/libgcrypt20.symbols`
+      - `original/libgcrypt20-1.10.3/debian/libgcrypt20.docs`
+      - `original/libgcrypt20-1.10.3/debian/libgcrypt20-dev.manpages`
+      - `original/libgcrypt20-1.10.3/debian/dumpsexp.8`
+      - `original/libgcrypt20-1.10.3/debian/libgcrypt-config.1`
+      - `original/libgcrypt20-1.10.3/src/libgcrypt.m4`
+      - `original/libgcrypt20-1.10.3/debian/patches/12_lessdeps_libgcrypt-config.diff`
+      - `original/libgcrypt20-1.10.3/debian/patches/15_multiarchpath_in_-L.diff`
+      - `dependents.json`
+      - `test-original.sh`
+      
+      Expected New Outputs
+      - Debian packaging under `safe/debian/`
+      - Package build script
+      - Debian control-metadata verifier
+      - Installed-helper CLI smoke harness
+      - Modified Docker harness that installs safe packages
+      - Debian package artifacts under `safe/dist/`
+      
+      Files And Areas To Review
+      - `safe/debian/control`
+      - `safe/debian/rules`
+      - `safe/debian/source/format`
+      - `safe/debian/changelog`
+      - `safe/debian/copyright`
+      - `safe/debian/libgcrypt20.install`
+      - `safe/debian/libgcrypt20-dev.install`
+      - `safe/debian/libgcrypt20.dirs`
+      - `safe/debian/libgcrypt20.postinst`
+      - `safe/debian/clean-up-unmanaged-libraries`
+      - `safe/debian/libgcrypt20.symbols`
+      - `safe/debian/libgcrypt20.docs`
+      - `safe/debian/libgcrypt20-dev.manpages`
+      - `safe/debian/dumpsexp.8`
+      - `safe/debian/hmac256.1`
+      - `safe/debian/libgcrypt-config.1`
+      - `safe/src/bin/dumpsexp.rs`
+      - `safe/src/bin/hmac256.rs`
+      - `safe/src/bin/mpicalc.rs`
+      - `safe/scripts/build-debs.sh`
+      - `safe/scripts/check-deb-metadata.sh`
+      - `safe/scripts/check-installed-tools.sh`
+      - `safe/tests/compat/tool-fixtures/`
+      - `test-original.sh`
+      
+      Success Criteria And Review Contract
+      - The package build succeeds with a fresh empty `CARGO_HOME` and `CARGO_NET_OFFLINE=true`.
+      - `safe/scripts/check-deb-metadata.sh --dist safe/dist` confirms control metadata, symbols metadata, manifest entries, and the expected default-build package set.
+      - The `dpkg-deb -c` and `dpkg-deb -e` checks prove the packages install the required libraries, development files, helper CLIs, docs, manpages, cleanup helper, and executable `postinst`.
+      - `safe/scripts/check-installed-tools.sh --dist safe/dist` passes for the extracted installed helper CLIs and development metadata.
+      - `./test-original.sh --implementation safe` passes while installing the safe-path Rust and Debian-packaging toolchain, copying only committed repository inputs into writable `/tmp` paths, running the installed-helper smoke harness before dependent builds, using a fresh empty `CARGO_HOME` plus `CARGO_NET_OFFLINE=true`, and preserving the existing dependent-software checks.
+      - Review of the built packages confirms they install `gcrypt.h`, `libgcrypt.pc`, `libgcrypt-config`, `libgcrypt.m4`, `libgcrypt.so.20*`, `libgcrypt.a`, `dumpsexp`, `hmac256`, `mpicalc`, the dev-package manpages, the runtime-package docs, the `libgcrypt20` maintainer-script and cleanup assets, and the reconciled `safe/debian/libgcrypt20.symbols`, while preserving the required `Provides` / `Conflicts` / `Depends` / `Pre-Depends` / `Multi-Arch` relationships and omitting unexpected default-build random-daemon outputs.
+      
+      Commands To Run
+      ```bash
+      git rev-parse HEAD
+      git rev-parse phase/impl_p09_packaging_dependents
+      bash -lc 'test "$(git rev-parse HEAD)" = "$(git rev-parse phase/impl_p09_packaging_dependents)"'
+      git rev-parse HEAD^
+      git rev-parse phase/impl_p08_link_compat
+      bash -lc 'test "$(git rev-parse HEAD^)" = "$(git rev-parse phase/impl_p08_link_compat)"'
+      bash -lc 'subject="$(git log -1 --format=%s)"; test "${subject#impl_p09_packaging_dependents:}" != "$subject"'
+      git diff --check HEAD^..HEAD
+      bash -lc 'cargo_home=$(mktemp -d); trap "rm -rf \"$cargo_home\"" EXIT; CARGO_HOME="$cargo_home" CARGO_NET_OFFLINE=true safe/scripts/build-debs.sh'
+      safe/scripts/check-deb-metadata.sh --dist safe/dist
+      bash -lc 'listing=$(dpkg-deb -c safe/dist/libgcrypt20-dev_*.deb); for pattern in "/usr/bin/dumpsexp$" "/usr/bin/hmac256$" "/usr/bin/mpicalc$" "/usr/bin/libgcrypt-config$" "/usr/include/gcrypt.h$" "/usr/lib/.*/libgcrypt\\.so$" "/usr/lib/.*/libgcrypt\\.a$" "/usr/lib/.*/pkgconfig/libgcrypt\\.pc$" "/usr/share/aclocal/libgcrypt\\.m4$" "/usr/share/man/man8/dumpsexp\\.8(\\.gz)?$" "/usr/share/man/man1/libgcrypt-config\\.1(\\.gz)?$" "/usr/share/man/man1/hmac256\\.1(\\.gz)?$"; do grep -Eq "$pattern" <<<"$listing" || exit 1; done'
+      bash -lc 'listing=$(dpkg-deb -c safe/dist/libgcrypt20_*.deb); for pattern in "/usr/lib/.*/libgcrypt\\.so\\.20$" "/usr/lib/.*/libgcrypt\\.so\\.20\\.[^/]+$" "/usr/share/libgcrypt20/clean-up-unmanaged-libraries$" "/usr/share/doc/libgcrypt20/AUTHORS(\\.gz)?$" "/usr/share/doc/libgcrypt20/NEWS(\\.gz)?$" "/usr/share/doc/libgcrypt20/README(\\.gz)?$" "/usr/share/doc/libgcrypt20/THANKS(\\.gz)?$"; do grep -Eq "$pattern" <<<"$listing" || exit 1; done'
+      bash -lc 'tmpdir=$(mktemp -d); dpkg-deb -e safe/dist/libgcrypt20_*.deb "$tmpdir"; test -x "$tmpdir/postinst"; rm -rf "$tmpdir"'
+      safe/scripts/check-installed-tools.sh --dist safe/dist
+      ./test-original.sh --implementation safe
+      ```
+      
+      End with exactly one verdict line:
+      VERDICT: PASS
+      VERDICT: FAIL: <reason>
+      {% endraw %}
+  - id: impl_p10_final_sweep
+    type: implement
+    bounce_target: null
+    prompt: |-
+      {% raw %}
+      Role: Software engineer implementing phase `impl_p10_final_sweep` (Final sweep, long-running tests, performance, and catch-all fixes).
+      
+      Repository Root: `/home/yans/safelibs/pipeline/ports/port-libgcrypt`
+      
+      Phase Contract
+      - This prompt is self-contained. The agent sees only this prompt.
+      - Consume or update the existing artifacts listed below in place. Do not refetch, recollect, rediscover, or regenerate them from scratch.
+      - Treat tracked workspace artifacts as authoritative inputs and update them in place instead of inventing alternate topology.
+      - Keep the workflow topology unchanged. The explicit verifier phase(s) for this implement phase are `check_p10_final_sweep`, each with fixed `bounce_target: impl_p10_final_sweep`.
+      - Commit the phase's work to git before yielding.
+      
+      Phase Name
+      `Final sweep, long-running tests, performance, and catch-all fixes`
+      
+      Implement Phase ID
+      `impl_p10_final_sweep`
+      
+      Verification Phases
+      - `check_p10_final_sweep`: run the full compatibility matrix end to end, including long-running upstream tests, package install coverage, link-compat verification, downstream dependents, formatting, linting, and any final fixes required to reach drop-in status.
+      
+      Preexisting Inputs
+      - `safe/Cargo.toml`
+      - `safe/Cargo.lock`
+      - `safe/build.rs`
+      - `safe/.cargo/config.toml`
+      - `safe/src/`
+      - `safe/cabi/`
+      - `safe/abi/`
+      - `safe/tests/original-build/`
+      - `safe/tests/upstream/`
+      - `safe/tests/compat/`
+      - `safe/scripts/check-abi.sh`
+      - `safe/scripts/run-original-tests.sh`
+      - `safe/scripts/import-upstream-tests.sh`
+      - `safe/scripts/run-upstream-tests.sh`
+      - `safe/scripts/relink-original-objects.sh`
+      - `safe/scripts/run-compat-smoke.sh`
+      - `safe/scripts/build-debs.sh`
+      - `safe/scripts/check-deb-metadata.sh`
+      - `safe/scripts/check-installed-tools.sh`
+      - `safe/docs/abi-map.md`
+      - `safe/docs/cve-matrix.md`
+      - `safe/docs/test-matrix.md`
+      - `safe/debian/`
+      - `safe/dist/`
+      - `dependents.json`
+      - `test-original.sh`
+      - `relevant_cves.json`
+      
+      New Outputs
+      - Final corrected safe implementation
+      - Completed verification and mitigation docs
+      
+      File Changes
+      - `safe/src/`
+      - `safe/cabi/`
+      - `safe/tests/upstream/`
+      - `safe/scripts/`
+      - `safe/docs/abi-map.md`
+      - `safe/docs/cve-matrix.md`
+      - `safe/docs/test-matrix.md`
+      - `safe/debian/`
+      - `test-original.sh`
+      
+      Implementation Details
+      - Fix any remaining behavioral mismatches found by:
+        - long-running upstream tests (`benchmark`, `bench-slope`, `hashtest-256g`)
+        - object relink runs
+        - Debian control-metadata checks
+        - package install checks
+        - installed helper-CLI smoke runs
+        - downstream dependent runs
+      - Add performance-oriented hardware-gated fast paths only after correctness and side-channel requirements are satisfied, without regressing the safe software fallback.
+      - Review unsafe-code minimization:
+        - Keep unsafe Rust confined to FFI, raw allocation and layout interop, and OS syscall edges.
+        - Keep non-Rust code confined to ABI wrappers that cannot reasonably be expressed in safe Rust.
+      - Make `safe/docs/cve-matrix.md` final and exhaustive so each relevant CVE has both a code location and a test or review proof.
+      - Make `safe/docs/abi-map.md` and `safe/docs/test-matrix.md` final and accurate so maintenance can reason about symbol ownership and verification coverage.
+      - Resolve any remaining targeted smoke-test gaps so no exported symbol, including `gcry_md_get` and `gcry_pk_register`, or installed compatibility artifact is left without upstream-test, relink, dependent, or explicit compatibility-smoke coverage.
+      - Preserve the full plan-wide final verification contract rather than a reduced subset:
+        - `safe/scripts/import-upstream-tests.sh --verify` and `safe/scripts/run-upstream-tests.sh --verify-plumbing` must remain part of the final verifier and must only compare committed files rather than rewriting imported artifacts.
+        - The full imported-suite run must include the long-running `benchmark`, `bench-slope`, and `hashtest-256g` coverage under `safe/scripts/run-upstream-tests.sh --all`.
+        - The final package verification must still prove `safe/debian/libgcrypt20.symbols` matches `safe/abi/libgcrypt.vers`, allowing only the Debian `GCRYPT_1.6` sentinel line as an extra non-symbol entry.
+        - The installed-tool smoke must still cover `dumpsexp`, `hmac256`, `mpicalc`, `libgcrypt-config`, and `pkg-config` from the extracted or installed package image rather than cargo-built binaries.
+      {% endraw %}
+  - id: check_p10_final_sweep
+    type: check
+    bounce_target: impl_p10_final_sweep
+    prompt: |-
+      {% raw %}
+      Reviewer role: Independent verification reviewer for `check_p10_final_sweep`, reviewing `impl_p10_final_sweep` (Final sweep, long-running tests, performance, and catch-all fixes).
+      
+      Repository Root: `/home/yans/safelibs/pipeline/ports/port-libgcrypt`
+      
+      This prompt is self-contained. The agent sees only this prompt.
+      Do not modify files.
+      
+      Specific Things to Verify
+      - The implementation satisfies the phase purpose for `check_p10_final_sweep`: run the full compatibility matrix end to end, including long-running upstream tests, package install coverage, link-compat verification, downstream dependents, formatting, linting, and any final fixes required to reach drop-in status.
+      - The implementation consumed or updated the listed preexisting inputs in place instead of refetching or regenerating them from scratch.
+      - The implementation produced the listed new outputs and updated the listed file areas in place.
+      - The fixed `bounce_target` for failure is `impl_p10_final_sweep`.
+      - The full offline Cargo build, test, formatting, and clippy checks succeed.
+      - The ABI comparison, original-object relink harness, and targeted compatibility smoke harness all pass across the full matrix, including the thread-callback compatibility path, all five public variadic exports, and the ABI-only `gcry_md_get` and `gcry_pk_register` probes.
+      - `safe/scripts/import-upstream-tests.sh --verify`, `safe/scripts/run-upstream-tests.sh --verify-plumbing`, and `safe/scripts/run-upstream-tests.sh --all` all pass, and the imported-suite run includes the long-running `benchmark`, `bench-slope`, and `hashtest-256g` coverage while proving it used the committed imported `config.h`, rendered wrapper scripts, and `compat/` support tree rather than files from `original/`.
+      - The Debian package build, metadata checks, installed-helper checks, and downstream dependent harness all pass with `CARGO_NET_OFFLINE=true` and a fresh empty `CARGO_HOME`.
+      - The package metadata verifier confirms `safe/debian/libgcrypt20.symbols` reconciles to the 217 real exports from `safe/abi/libgcrypt.vers`, allowing only Debian's `GCRYPT_1.6` sentinel line as an extra non-symbol entry.
+      - The installed-tool smoke verifier passes against the built `.deb` image and covers `dumpsexp`, `hmac256`, `mpicalc`, `libgcrypt-config`, and `pkg-config` from the extracted or installed package image rather than cargo-built binaries.
+      - `safe/docs/abi-map.md`, `safe/docs/cve-matrix.md`, and `safe/docs/test-matrix.md` are final, exhaustive, and consistent with the code and verification results.
+      - No exported symbol or installed compatibility artifact is left without explicit verification ownership.
+      - Preserve the full plan-wide final verification contract rather than a reduced subset, especially the final `import-upstream-tests`, `run-upstream-tests`, package-symbol reconciliation, and installed-tool smoke checks.
+      
+      Preexisting Inputs
+      - `safe/Cargo.toml`
+      - `safe/Cargo.lock`
+      - `safe/build.rs`
+      - `safe/.cargo/config.toml`
+      - `safe/src/`
+      - `safe/cabi/`
+      - `safe/abi/`
+      - `safe/tests/original-build/`
+      - `safe/tests/upstream/`
+      - `safe/tests/compat/`
+      - `safe/scripts/check-abi.sh`
+      - `safe/scripts/run-original-tests.sh`
+      - `safe/scripts/import-upstream-tests.sh`
+      - `safe/scripts/run-upstream-tests.sh`
+      - `safe/scripts/relink-original-objects.sh`
+      - `safe/scripts/run-compat-smoke.sh`
+      - `safe/scripts/build-debs.sh`
+      - `safe/scripts/check-deb-metadata.sh`
+      - `safe/scripts/check-installed-tools.sh`
+      - `safe/docs/abi-map.md`
+      - `safe/docs/cve-matrix.md`
+      - `safe/docs/test-matrix.md`
+      - `safe/debian/`
+      - `safe/dist/`
+      - `dependents.json`
+      - `test-original.sh`
+      - `relevant_cves.json`
+      
+      Expected New Outputs
+      - Final corrected safe implementation
+      - Completed verification and mitigation docs
+      
+      Files And Areas To Review
+      - `safe/src/`
+      - `safe/cabi/`
+      - `safe/tests/upstream/`
+      - `safe/scripts/`
+      - `safe/docs/abi-map.md`
+      - `safe/docs/cve-matrix.md`
+      - `safe/docs/test-matrix.md`
+      - `safe/debian/`
+      - `test-original.sh`
+      
+      Success Criteria And Review Contract
+      - The full offline Cargo build, test, formatting, and clippy checks succeed.
+      - The ABI comparison, original-object relink harness, and targeted compatibility smoke harness all pass across the full matrix, including the thread-callback compatibility path, all five public variadic exports, and the ABI-only `gcry_md_get` and `gcry_pk_register` probes.
+      - `safe/scripts/import-upstream-tests.sh --verify`, `safe/scripts/run-upstream-tests.sh --verify-plumbing`, and `safe/scripts/run-upstream-tests.sh --all` all pass, and the imported-suite run includes the long-running `benchmark`, `bench-slope`, and `hashtest-256g` coverage while proving it used the committed imported `config.h`, rendered wrapper scripts, and `compat/` support tree rather than files from `original/`.
+      - The Debian package build, metadata checks, installed-helper checks, and downstream dependent harness all pass with `CARGO_NET_OFFLINE=true` and a fresh empty `CARGO_HOME`.
+      - The package metadata verifier confirms `safe/debian/libgcrypt20.symbols` reconciles to the 217 real exports from `safe/abi/libgcrypt.vers`, allowing only Debian's `GCRYPT_1.6` sentinel line as an extra non-symbol entry.
+      - The installed-tool smoke verifier passes against the built `.deb` image and covers `dumpsexp`, `hmac256`, `mpicalc`, `libgcrypt-config`, and `pkg-config` from the extracted or installed package image rather than cargo-built binaries.
+      - `safe/docs/abi-map.md`, `safe/docs/cve-matrix.md`, and `safe/docs/test-matrix.md` are final, exhaustive, and consistent with the code and verification results.
+      - No exported symbol or installed compatibility artifact is left without explicit verification ownership.
+      
+      Commands To Run
+      ```bash
+      cargo build --manifest-path safe/Cargo.toml --release --offline
+      cargo test --manifest-path safe/Cargo.toml --release --offline
+      cargo fmt --manifest-path safe/Cargo.toml --check
+      cargo clippy --manifest-path safe/Cargo.toml --offline --all-targets -- -D warnings
+      safe/scripts/check-abi.sh --compare-original --check-symbol-versions --check-soname
+      safe/scripts/import-upstream-tests.sh --verify
+      safe/scripts/run-upstream-tests.sh --verify-plumbing
+      safe/scripts/run-upstream-tests.sh --all
+      safe/scripts/relink-original-objects.sh --all
+      safe/scripts/run-compat-smoke.sh --all
+      bash -lc 'cargo_home=$(mktemp -d); trap "rm -rf \"$cargo_home\"" EXIT; CARGO_HOME="$cargo_home" CARGO_NET_OFFLINE=true safe/scripts/build-debs.sh'
+      safe/scripts/check-deb-metadata.sh --dist safe/dist
+      bash -lc 'listing=$(dpkg-deb -c safe/dist/libgcrypt20-dev_*.deb); for pattern in "/usr/bin/dumpsexp$" "/usr/bin/hmac256$" "/usr/bin/mpicalc$" "/usr/bin/libgcrypt-config$" "/usr/include/gcrypt.h$" "/usr/lib/.*/libgcrypt\\.so$" "/usr/lib/.*/libgcrypt\\.a$" "/usr/lib/.*/pkgconfig/libgcrypt\\.pc$" "/usr/share/aclocal/libgcrypt\\.m4$" "/usr/share/man/man8/dumpsexp\\.8(\\.gz)?$" "/usr/share/man/man1/libgcrypt-config\\.1(\\.gz)?$" "/usr/share/man/man1/hmac256\\.1(\\.gz)?$"; do grep -Eq "$pattern" <<<"$listing" || exit 1; done'
+      bash -lc 'listing=$(dpkg-deb -c safe/dist/libgcrypt20_*.deb); for pattern in "/usr/lib/.*/libgcrypt\\.so\\.20$" "/usr/lib/.*/libgcrypt\\.so\\.20\\.[^/]+$" "/usr/share/libgcrypt20/clean-up-unmanaged-libraries$" "/usr/share/doc/libgcrypt20/AUTHORS(\\.gz)?$" "/usr/share/doc/libgcrypt20/NEWS(\\.gz)?$" "/usr/share/doc/libgcrypt20/README(\\.gz)?$" "/usr/share/doc/libgcrypt20/THANKS(\\.gz)?$"; do grep -Eq "$pattern" <<<"$listing" || exit 1; done'
+      bash -lc 'tmpdir=$(mktemp -d); dpkg-deb -e safe/dist/libgcrypt20_*.deb "$tmpdir"; test -x "$tmpdir/postinst"; rm -rf "$tmpdir"'
+      safe/scripts/check-installed-tools.sh --dist safe/dist
+      ./test-original.sh --implementation safe
+      ```
+      
+      End with exactly one verdict line:
+      VERDICT: PASS
+      VERDICT: FAIL: <reason>
+      {% endraw %}
