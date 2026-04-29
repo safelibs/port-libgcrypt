@@ -11,6 +11,13 @@ dist_dir="$repo_root/dist"
 # shellcheck source=/dev/null
 [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
 
+if [[ -d "$HOME/.cargo/bin" ]]; then
+  case ":$PATH:" in
+    *":$HOME/.cargo/bin:"*) ;;
+    *) export PATH="$HOME/.cargo/bin:$PATH" ;;
+  esac
+fi
+
 rm -rf -- "$dist_dir"
 mkdir -p -- "$dist_dir"
 
