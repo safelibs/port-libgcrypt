@@ -49,6 +49,109 @@ shopt -u nullglob
 runtime_deb="${runtime_debs[0]}"
 dev_deb="${dev_debs[0]}"
 
+"${SCRIPT_DIR}/check-rust-toolchain.sh" >/dev/null
+
+python3 - "${SAFE_DIR}" "${DIST_DIR}" <<'PY'
+import hashlib
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+EXPECTED_RELEASE = "1.85.1"
+safe_dir = Path(sys.argv[1])
+dist_dir = Path(sys.argv[2])
+repo_dir = safe_dir.parent
+manifest_path = dist_dir / "safe-debs.manifest.json"
+
+
+def fail(message: str) -> None:
+    raise SystemExit(f"check-deb-metadata: {message}")
+
+
+def run(args: list[str]) -> str:
+    try:
+        return subprocess.check_output(args, text=True)
+    except subprocess.CalledProcessError as err:
+        fail(f"command failed: {' '.join(args)}: {err}")
+
+
+def release(output: str) -> str:
+    for line in output.splitlines():
+        if line.startswith("release: "):
+            return line.split(": ", 1)[1]
+    return ""
+
+
+def deb_field(deb: Path, field: str) -> str:
+    return run(["dpkg-deb", "-f", str(deb), field]).strip()
+
+
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+if not manifest_path.is_file():
+    fail(f"missing manifest: {manifest_path}")
+
+try:
+    manifest = json.loads(manifest_path.read_text())
+except json.JSONDecodeError as err:
+    fail(f"manifest is not valid JSON: {err}")
+
+if manifest.get("manifest_version") != 1:
+    fail("manifest_version must be 1")
+
+expected_commit = run(["git", "-C", str(repo_dir), "rev-parse", "HEAD"]).strip()
+if manifest.get("phase_commit") != expected_commit:
+    fail("manifest phase_commit does not match HEAD")
+
+rustc_vv = run(["rustc", "-Vv"])
+cargo_vv = run(["cargo", "-Vv"])
+if release(rustc_vv) != EXPECTED_RELEASE:
+    fail(f"active rustc is not pinned {EXPECTED_RELEASE}")
+if release(cargo_vv) != EXPECTED_RELEASE:
+    fail(f"active cargo is not pinned {EXPECTED_RELEASE}")
+
+toolchain = manifest.get("toolchain")
+if not isinstance(toolchain, dict):
+    fail("manifest toolchain must be an object")
+if toolchain.get("rustc_vv") != rustc_vv:
+    fail("manifest rustc -Vv output does not match active pinned toolchain")
+if toolchain.get("cargo_vv") != cargo_vv:
+    fail("manifest cargo -Vv output does not match active pinned toolchain")
+
+source_package = run(
+    ["dpkg-parsechangelog", f"-l{safe_dir / 'debian' / 'changelog'}", "-SSource"]
+).strip()
+if manifest.get("source_package_name") != source_package:
+    fail("manifest source_package_name does not match debian/changelog")
+
+debs = sorted(dist_dir.glob("*.deb"), key=lambda path: path.name)
+expected_packages = [
+    {
+        "package_name": deb_field(deb, "Package"),
+        "source_package_name": source_package,
+        "architecture": deb_field(deb, "Architecture"),
+        "version": deb_field(deb, "Version"),
+        "filename": deb.name,
+        "sha256": sha256(deb),
+    }
+    for deb in debs
+]
+
+actual_packages = manifest.get("packages")
+if not isinstance(actual_packages, list):
+    fail("manifest packages must be a list")
+actual_packages = sorted(actual_packages, key=lambda item: item.get("filename", ""))
+if actual_packages != expected_packages:
+    fail("manifest packages do not match built .deb metadata and SHA256 values")
+PY
+
 expected_symbols="$(mktemp)"
 trap 'rm -f "${expected_symbols}"' EXIT
 python3 - "${SAFE_DIR}" >"${expected_symbols}" <<'PY'

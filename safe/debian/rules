@@ -24,6 +24,9 @@ override_dh_auto_clean:
 	./scripts/check-rust-toolchain.sh
 	cargo clean --manifest-path Cargo.toml
 
+override_dh_clean:
+	dh_clean -XCargo.toml.orig
+
 override_dh_auto_build:
 	test -d vendor
 	test -f Cargo.lock
