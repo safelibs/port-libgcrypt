@@ -69,6 +69,8 @@ safe_cabi_dispatch_log_message(int level, const char *message)
 
   switch (level)
     {
+    case GCRY_LOG_CONT:
+      break;
     case GCRY_LOG_FATAL:
       prefix = "Fatal: ";
       break;
@@ -82,8 +84,6 @@ safe_cabi_dispatch_log_message(int level, const char *message)
   if (*prefix)
     fputs(prefix, stderr);
   fputs(message, stderr);
-  if (!*message || message[strlen(message) - 1] != '\n')
-    fputc('\n', stderr);
 }
 
 FORWARD1(const char *, gcry_check_version, const char *, req_version)
@@ -130,6 +130,10 @@ FORWARD4(gcry_error_t,
          unsigned char *, buffer,
          int, buflen)
 FORWARD0(gcry_error_t, gcry_pk_register)
+FORWARDV3(gcry_log_debughex,
+          const char *, text,
+          const void *, buffer,
+          size_t, length)
 
 gcry_error_t
 gcry_control(enum gcry_ctl_cmds cmd, ...)
@@ -145,11 +149,14 @@ gcry_control(enum gcry_ctl_cmds cmd, ...)
     {
     case GCRYCTL_SET_PREFERRED_RNG_TYPE:
     case GCRYCTL_SET_VERBOSITY:
-    case GCRYCTL_SET_DEBUG_FLAGS:
-    case GCRYCTL_AUTO_EXPAND_SECMEM:
     case GCRYCTL_FIPS_SERVICE_INDICATOR_KDF:
     case 61: /* PRIV_CTL_EXTERNAL_LOCK_TEST */
       arg0 = (uintptr_t)va_arg(ap, int);
+      break;
+    case GCRYCTL_SET_DEBUG_FLAGS:
+    case GCRYCTL_CLEAR_DEBUG_FLAGS:
+    case GCRYCTL_AUTO_EXPAND_SECMEM:
+      arg0 = (uintptr_t)va_arg(ap, unsigned int);
       break;
     case GCRYCTL_INIT_SECMEM:
       arg0 = (uintptr_t)va_arg(ap, size_t);

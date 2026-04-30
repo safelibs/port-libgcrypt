@@ -5,6 +5,7 @@ use std::sync::{Mutex, OnceLock};
 
 use crate::{gcry_gettext_handler_t, gcry_handler_error_t, gcry_handler_progress_t};
 
+pub(crate) const GCRY_LOG_CONT: c_int = 0;
 pub(crate) const GCRY_LOG_INFO: c_int = 10;
 pub(crate) const GCRY_LOG_FATAL: c_int = 40;
 pub(crate) const GCRY_LOG_DEBUG: c_int = 100;
@@ -83,6 +84,64 @@ pub(crate) fn emit_message(level: c_int, message: &str) {
     let message = sanitize_message(message);
     unsafe {
         safe_cabi_dispatch_log_message(level, message.as_ptr());
+    }
+}
+
+fn hex_byte(byte: u8) -> [char; 2] {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    [
+        HEX[(byte >> 4) as usize] as char,
+        HEX[(byte & 0x0f) as usize] as char,
+    ]
+}
+
+fn emit_hex_byte(byte: u8) {
+    let [hi, lo] = hex_byte(byte);
+    let mut message = String::with_capacity(2);
+    message.push(hi);
+    message.push(lo);
+    emit_message(GCRY_LOG_CONT, &message);
+}
+
+#[unsafe(export_name = "safe_gcry_log_debughex")]
+pub extern "C" fn gcry_log_debughex(text: *const c_char, buffer: *const c_void, length: usize) {
+    let label = if text.is_null() {
+        None
+    } else {
+        Some(unsafe { CStr::from_ptr(text) }.to_string_lossy())
+    };
+    let bytes = if !buffer.is_null() && length != 0 {
+        unsafe { std::slice::from_raw_parts(buffer.cast::<u8>(), length) }
+    } else {
+        &[]
+    };
+
+    if label.is_none() && bytes.is_empty() {
+        return;
+    }
+
+    let wrap = label.as_ref().is_some_and(|item| !item.is_empty());
+    let label_len = label.as_ref().map_or(0, |item| item.len());
+
+    if wrap {
+        let label = label.as_ref().expect("wrap implies label");
+        emit_message(GCRY_LOG_DEBUG, &format!("{label}: "));
+    }
+
+    let mut count = 0usize;
+    for (index, byte) in bytes.iter().enumerate() {
+        emit_hex_byte(*byte);
+        if wrap {
+            count += 1;
+            if count == 32 && index + 1 < bytes.len() {
+                count = 0;
+                emit_message(GCRY_LOG_CONT, " \\\n");
+                emit_message(GCRY_LOG_DEBUG, &" ".repeat(label_len + 2));
+            }
+        }
+    }
+    if label.is_some() {
+        emit_message(GCRY_LOG_CONT, "\n");
     }
 }
 

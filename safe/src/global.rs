@@ -209,7 +209,7 @@ fn freeze_rng_type(state: &mut RuntimeState) {
     }
 }
 
-fn global_init_locked(state: &mut RuntimeState) {
+pub(crate) fn global_init_locked(state: &mut RuntimeState) {
     if state.any_init_done {
         return;
     }
@@ -436,7 +436,7 @@ pub extern "C" fn safe_gcry_control_dispatch(
             0
         }
         GCRYCTL_FIPS_MODE_P => {
-            if state.fips_mode {
+            if !state.any_init_done || state.fips_mode {
                 return truthy_success();
             }
             0

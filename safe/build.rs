@@ -436,6 +436,7 @@ fn generate_c_stub_source(symbols: &[String]) -> String {
         "gcry_sexp_extract_param",
         "_gcry_mpi_get_const",
         "gcry_log_debug",
+        "gcry_log_debughex",
     ]);
 
     let mut output = String::from(

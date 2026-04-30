@@ -5,7 +5,7 @@ use std::ptr::{copy_nonoverlapping, null_mut, write_bytes};
 
 use crate::context;
 use crate::error;
-use crate::global::{AllocationHandlers, OutOfCoreHandler, lock_runtime_state};
+use crate::global::{AllocationHandlers, OutOfCoreHandler, global_init_locked, lock_runtime_state};
 use crate::log;
 use crate::secmem;
 use crate::{
@@ -126,7 +126,12 @@ fn invoke_outofcore(handler: OutOfCoreHandler, size: usize, flags: c_uint) -> bo
 }
 
 fn current_outofcore_handler() -> OutOfCoreHandler {
-    lock_runtime_state().outofcore
+    let state = lock_runtime_state();
+    if state.fips_mode {
+        OutOfCoreHandler::default()
+    } else {
+        state.outofcore
+    }
 }
 
 fn xallocate(size: usize, secure: bool, zeroed: bool, flags: c_uint) -> *mut c_void {
@@ -172,6 +177,7 @@ pub extern "C" fn gcry_set_allocation_handler(
     func_free: gcry_handler_free_t,
 ) {
     let mut state = lock_runtime_state();
+    global_init_locked(&mut state);
     if state.fips_mode {
         return;
     }
@@ -188,6 +194,7 @@ pub extern "C" fn gcry_set_allocation_handler(
 #[unsafe(export_name = "safe_gcry_set_outofcore_handler")]
 pub extern "C" fn gcry_set_outofcore_handler(handler: gcry_handler_no_mem_t, opaque: *mut c_void) {
     let mut state = lock_runtime_state();
+    global_init_locked(&mut state);
     if state.fips_mode {
         return;
     }

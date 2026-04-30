@@ -253,15 +253,80 @@ check_runtime_shell_surface() {
 #include <gcrypt.h>
 #include <gpg-error.h>
 #include <errno.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+struct log_capture
+{
+  size_t count;
+  int levels[8];
+  char messages[8][256];
+};
+
+static unsigned int custom_alloc_calls;
+static unsigned int custom_free_calls;
+static unsigned int custom_outofcore_calls;
+
+static void *
+custom_alloc(size_t n)
+{
+  custom_alloc_calls++;
+  return malloc(n);
+}
+
+static void *
+custom_realloc(void *p, size_t n)
+{
+  return realloc(p, n);
+}
+
+static void
+custom_free(void *p)
+{
+  custom_free_calls++;
+  free(p);
+}
+
+static int
+custom_secure_check(const void *p)
+{
+  (void)p;
+  return 0;
+}
+
+static int
+custom_outofcore(void *opaque, size_t req_n, unsigned int flags)
+{
+  (void)opaque;
+  (void)req_n;
+  (void)flags;
+  custom_outofcore_calls++;
+  return 0;
+}
 
 static int
 die(const char *message, unsigned int value)
 {
   fprintf(stderr, "runtime-shell: %s (%u)\n", message, value);
   return 1;
+}
+
+static void
+capture_log(void *opaque, int level, const char *fmt, va_list ap)
+{
+  struct log_capture *capture = opaque;
+
+  if (capture->count >= sizeof(capture->levels) / sizeof(capture->levels[0]))
+    return;
+
+  capture->levels[capture->count] = level;
+  vsnprintf(capture->messages[capture->count],
+            sizeof(capture->messages[capture->count]),
+            fmt,
+            ap);
+  capture->count++;
 }
 
 static int
@@ -290,6 +355,21 @@ check_config_item(const char *name)
 int
 main(void)
 {
+  static const unsigned char hex_sample[] = { 0x01, 0x23, 0xff };
+  static const int expected_hex_levels[] = {
+    GCRY_LOG_DEBUG,
+    GCRY_LOG_CONT,
+    GCRY_LOG_CONT,
+    GCRY_LOG_CONT,
+    GCRY_LOG_CONT,
+  };
+  static const char *expected_hex_messages[] = {
+    "hex: ",
+    "01",
+    "23",
+    "ff",
+    "\n",
+  };
   static const char *keys[] = {
     "version",
     "cc",
@@ -304,15 +384,50 @@ main(void)
     "rng-type",
     "compliance",
   };
+  struct log_capture log_capture = {0, {0}};
   gcry_error_t err;
   gcry_error_t rc;
+  void *allocated;
   char *missing;
   size_t i;
 
+  rc = gcry_control(GCRYCTL_FIPS_MODE_P);
+  if (rc != gpg_error(GPG_ERR_GENERAL))
+    return die("FIPS_MODE_P returned wrong pre-init truthy value", rc);
+  if (gcry_control(GCRYCTL_ANY_INITIALIZATION_P))
+    return die("FIPS_MODE_P unexpectedly forced initialization", 0);
+
   if (gcry_control(GCRYCTL_FORCE_FIPS_MODE))
     return die("FORCE_FIPS_MODE before init failed", 0);
+
+  gcry_set_outofcore_handler(custom_outofcore, NULL);
+  if (!gcry_control(GCRYCTL_ANY_INITIALIZATION_P))
+    return die("outofcore handler setup did not force initialization", 0);
+  if (!gcry_control(GCRYCTL_FIPS_MODE_P))
+    return die("forced FIPS mode was not active during outofcore setup", 0);
+
+  gcry_set_allocation_handler(custom_alloc,
+                              custom_alloc,
+                              custom_secure_check,
+                              custom_realloc,
+                              custom_free);
+  if (!gcry_control(GCRYCTL_ANY_INITIALIZATION_P))
+    return die("allocation handler setup did not force initialization", 0);
+  if (!gcry_control(GCRYCTL_FIPS_MODE_P))
+    return die("forced FIPS mode was not active during allocation setup", 0);
+  allocated = gcry_malloc(16);
+  if (!allocated)
+    return die("default allocation failed during FIPS handler probe", errno);
+  gcry_free(allocated);
+  if (custom_alloc_calls || custom_free_calls)
+    return die("custom allocation handler was used in forced FIPS mode",
+               custom_alloc_calls + custom_free_calls);
+  if (custom_outofcore_calls)
+    return die("custom outofcore handler was used in forced FIPS mode",
+               custom_outofcore_calls);
+
   if (gcry_control(GCRYCTL_NO_FIPS_MODE))
-    return die("NO_FIPS_MODE before init failed", 0);
+    return die("NO_FIPS_MODE after handler init failed", 0);
 
   if (!gcry_check_version(NULL))
     return die("gcry_check_version failed", 0);
@@ -336,6 +451,21 @@ main(void)
   rc = gcry_control(GCRYCTL_FAKED_RANDOM_P);
   if (rc != gpg_error(GPG_ERR_GENERAL))
     return die("FAKED_RANDOM_P returned wrong truthy value", rc);
+
+  gcry_set_log_handler(capture_log, &log_capture);
+  gcry_log_debughex("hex", hex_sample, sizeof hex_sample);
+  if (log_capture.count != sizeof(expected_hex_levels) / sizeof(expected_hex_levels[0]))
+    return die("gcry_log_debughex callback count mismatch",
+               (unsigned int)log_capture.count);
+  for (i = 0; i < log_capture.count; i++)
+    {
+      if (log_capture.levels[i] != expected_hex_levels[i])
+        return die("gcry_log_debughex callback level mismatch",
+                   (unsigned int)i);
+      if (strcmp(log_capture.messages[i], expected_hex_messages[i]))
+        return die("gcry_log_debughex callback message mismatch",
+                   (unsigned int)i);
+    }
 
   for (i = 0; i < sizeof(keys) / sizeof(keys[0]); i++)
     if (check_config_item(keys[i]))
