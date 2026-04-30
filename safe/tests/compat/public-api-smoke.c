@@ -469,19 +469,246 @@ main(void)
 {
   struct log_capture log_capture = {0, {0}};
   gcry_md_hd_t md = NULL;
+  gcry_md_hd_t keyed_md = NULL;
+  gcry_mac_hd_t mac = NULL;
   gcry_sexp_t first = NULL;
   gcry_sexp_t second = NULL;
   gcry_sexp_t combined = NULL;
   gcry_sexp_t key = NULL;
+  gcry_kdf_hd_t kdf = NULL;
   gcry_mpi_t mpi_n = NULL;
   gcry_mpi_t mpi_e = NULL;
+  gcry_buffer_t hash_iov[1];
   int rng_type = -1;
   unsigned int digest_len;
   size_t erroff = 0;
+  size_t info_len = 0;
+  size_t mac_len = 0;
   unsigned char digest[64];
+  unsigned char mac_digest[32];
+  unsigned char argon2_digest[16];
+  unsigned char balloon_digest[32];
+  unsigned char kdf_digest[20];
+  unsigned char pbkdf2_digest[32];
   const unsigned char *expected;
+  static const unsigned char expected_hmac_sha256[] = {
+    0x9c, 0x19, 0x6e, 0x32, 0xdc, 0x01, 0x75, 0xf8,
+    0x6f, 0x4b, 0x1c, 0xb8, 0x92, 0x89, 0xd6, 0x61,
+    0x9d, 0xe6, 0xbe, 0xe6, 0x99, 0xe4, 0xc3, 0x78,
+    0xe6, 0x83, 0x09, 0xed, 0x97, 0xa1, 0xa6, 0xab
+  };
+  static const unsigned char cmac_aes_key[] = {
+    0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6,
+    0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c
+  };
+  static const unsigned char cmac_aes_data[] = {
+    0x6b, 0xc1, 0xbe, 0xe2, 0x2e, 0x40, 0x9f, 0x96,
+    0xe9, 0x3d, 0x7e, 0x11, 0x73, 0x93, 0x17, 0x2a
+  };
+  static const unsigned char expected_cmac_aes[] = {
+    0x07, 0x0a, 0x16, 0xb4, 0x6b, 0x4d, 0x41, 0x44,
+    0xf7, 0x9b, 0xdd, 0x9d, 0xd0, 0x4a, 0x28, 0x7c
+  };
+  static const unsigned char poly1305_key[] = {
+    0x85, 0xd6, 0xbe, 0x78, 0x57, 0x55, 0x6d, 0x33,
+    0x7f, 0x44, 0x52, 0xfe, 0x42, 0xd5, 0x06, 0xa8,
+    0x01, 0x03, 0x80, 0x8a, 0xfb, 0x0d, 0xb2, 0xfd,
+    0x4a, 0xbf, 0xf6, 0xaf, 0x41, 0x49, 0xf5, 0x1b
+  };
+  static const unsigned char expected_poly1305[] = {
+    0xa8, 0x06, 0x1d, 0xc1, 0x30, 0x51, 0x36, 0xc6,
+    0xc2, 0x2b, 0x8b, 0xaf, 0x0c, 0x01, 0x27, 0xa9
+  };
+  static const unsigned char gost28147_imit_data[] = {
+    0xb5, 0xa1, 0xf0, 0xe3, 0xce, 0x2f, 0x02, 0x1d,
+    0x67, 0x61, 0x94, 0x34, 0x5c, 0x41, 0xe3, 0x6e
+  };
+  static const unsigned char gost28147_imit_key[] = {
+    0x9d, 0x05, 0xb7, 0x9e, 0x90, 0xca, 0xd0, 0x0a,
+    0x2c, 0xda, 0xd2, 0x2e, 0xf4, 0xe8, 0x6f, 0x5c,
+    0xf5, 0xdc, 0x37, 0x68, 0x19, 0x85, 0xb3, 0xbf,
+    0xaa, 0x18, 0xc1, 0xc3, 0x05, 0x0a, 0x91, 0xa2
+  };
+  static const unsigned char expected_gost28147_imit[] = {
+    0xf8, 0x1f, 0x08, 0xa3
+  };
+  static const int cmac_probe_algos[] = {
+    GCRY_MAC_CMAC_3DES,
+    GCRY_MAC_CMAC_CAMELLIA,
+    GCRY_MAC_CMAC_CAST5,
+    GCRY_MAC_CMAC_BLOWFISH,
+    GCRY_MAC_CMAC_TWOFISH,
+    GCRY_MAC_CMAC_SERPENT,
+    GCRY_MAC_CMAC_SEED,
+    GCRY_MAC_CMAC_RFC2268,
+    GCRY_MAC_CMAC_IDEA,
+    GCRY_MAC_CMAC_GOST28147,
+    GCRY_MAC_CMAC_SM4
+  };
+  static const int poly1305_cipher_probe_algos[] = {
+    GCRY_MAC_POLY1305_AES,
+    GCRY_MAC_POLY1305_CAMELLIA,
+    GCRY_MAC_POLY1305_TWOFISH,
+    GCRY_MAC_POLY1305_SERPENT,
+    GCRY_MAC_POLY1305_SEED
+  };
+  static const int gmac_probe_algos[] = {
+    GCRY_MAC_GMAC_AES,
+    GCRY_MAC_GMAC_CAMELLIA,
+    GCRY_MAC_GMAC_TWOFISH,
+    GCRY_MAC_GMAC_SERPENT,
+    GCRY_MAC_GMAC_SEED
+  };
+  static const unsigned char mac_probe_key[] = {
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+    0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+    0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+    0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f
+  };
+  static const unsigned char mac_probe_iv[] = {
+    0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27,
+    0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f
+  };
+  static const size_t expected_cmac_probe_lens[] = {
+    8, 16, 8, 8, 16, 16, 16, 8, 8, 8, 16
+  };
+  static const unsigned char expected_cmac_probe_tags[][16] = {
+    {0x1f, 0x94, 0x8f, 0x0a, 0xb5, 0x5a, 0xa5, 0x36},
+    {0x31, 0xc3, 0x0f, 0xca, 0xab, 0x07, 0x49, 0xe1,
+     0x07, 0xb6, 0xc5, 0x44, 0x62, 0x23, 0xf3, 0x2e},
+    {0x19, 0xe1, 0xe1, 0x5b, 0xbc, 0x79, 0xa9, 0x1c},
+    {0x9f, 0x9b, 0xe2, 0x71, 0x4a, 0x33, 0x19, 0x00},
+    {0x1b, 0x6d, 0x09, 0xc9, 0x6b, 0x83, 0xbd, 0x7f,
+     0x02, 0x6f, 0x00, 0xab, 0xff, 0x4e, 0xd0, 0x00},
+    {0x40, 0x8a, 0x92, 0xfd, 0x26, 0x0a, 0x7a, 0x85,
+     0x25, 0xc9, 0xf3, 0xc7, 0x07, 0x4c, 0x3a, 0x85},
+    {0x8e, 0x5a, 0xa3, 0x4e, 0xbe, 0x87, 0xe9, 0x76,
+     0x90, 0x3e, 0xef, 0x02, 0x22, 0x84, 0xcc, 0x2b},
+    {0x56, 0x7c, 0x25, 0x73, 0x6a, 0xd3, 0xa2, 0x7f},
+    {0x56, 0x38, 0x7a, 0xc7, 0x30, 0x21, 0x5c, 0x7d},
+    {0x5c, 0x56, 0x4f, 0x15, 0x25, 0x16, 0x59, 0xba},
+    {0x12, 0x19, 0x1f, 0x51, 0xdc, 0x5c, 0x89, 0xaf,
+     0x84, 0x44, 0x6d, 0xf2, 0x43, 0x55, 0xd3, 0xf7}
+  };
+  static const unsigned char expected_poly1305_cipher_probe_tags[][16] = {
+    {0x1f, 0xbb, 0x29, 0xec, 0x2a, 0x2c, 0xac, 0xf2,
+     0xbb, 0xa9, 0x99, 0xae, 0x88, 0x7f, 0x31, 0x78},
+    {0xec, 0x56, 0x90, 0x1b, 0x52, 0x51, 0x6a, 0x69,
+     0xc3, 0xbf, 0xe3, 0xcc, 0x26, 0xb2, 0x78, 0x86},
+    {0xe6, 0x81, 0x30, 0x75, 0x95, 0xda, 0x69, 0x9e,
+     0xca, 0x40, 0x44, 0x16, 0x1d, 0x3a, 0x35, 0xda},
+    {0xa1, 0x63, 0x5a, 0x18, 0x71, 0x52, 0xb2, 0x53,
+     0x61, 0x39, 0x34, 0x39, 0x40, 0xdb, 0x63, 0xdc},
+    {0x6a, 0x6f, 0x4e, 0x57, 0x22, 0xa0, 0x6e, 0x50,
+     0xf3, 0xec, 0x48, 0xeb, 0xd1, 0x42, 0xe5, 0x37}
+  };
+  static const unsigned char expected_gmac_probe_tags[][16] = {
+    {0x25, 0x16, 0x53, 0x38, 0xa4, 0x0c, 0xac, 0x65,
+     0x34, 0x96, 0xc5, 0x9f, 0xf6, 0x4b, 0x15, 0x2b},
+    {0x1f, 0x41, 0xee, 0x22, 0x9f, 0x2e, 0xd2, 0x9e,
+     0x19, 0xd8, 0x38, 0xfb, 0xd4, 0x9e, 0x73, 0x9f},
+    {0x7a, 0x1c, 0x48, 0x3d, 0x26, 0x6d, 0x29, 0x9a,
+     0x78, 0xa2, 0x31, 0xa6, 0x7d, 0x10, 0x5b, 0x03},
+    {0x2f, 0x8b, 0x97, 0xba, 0xef, 0xf3, 0x43, 0x9e,
+     0x77, 0x18, 0xdd, 0xe2, 0x91, 0x1b, 0x35, 0xca},
+    {0x1c, 0x32, 0xe3, 0xce, 0xb4, 0x42, 0x23, 0xb9,
+     0xb5, 0x9a, 0xe5, 0x3d, 0x01, 0x7f, 0x57, 0xac}
+  };
+  unsigned long argon2_params3[] = {16, 2, 8};
+  unsigned long balloon_params[] = {4, 2};
+  static const unsigned char expected_pbkdf2_sha1[] = {
+    0x0c, 0x60, 0xc8, 0x0f, 0x96, 0x1f, 0x0e, 0x71,
+    0xf3, 0xa9, 0xb5, 0x24, 0xaf, 0x60, 0x12, 0x06,
+    0x2f, 0xe0, 0x37, 0xa6
+  };
+  static const int pbkdf2_hmac_probe_algos[] = {
+    GCRY_MD_SHA3_224,
+    GCRY_MD_SHA3_256,
+    GCRY_MD_SHA3_384,
+    GCRY_MD_SHA3_512,
+    GCRY_MD_SM3,
+    GCRY_MD_STRIBOG256,
+    GCRY_MD_STRIBOG512
+  };
+  static const unsigned char expected_pbkdf2_hmac_probe[][32] = {
+    {0xd3, 0x6c, 0xad, 0x0f, 0xee, 0xa8, 0xcf, 0x94,
+     0x28, 0x60, 0x13, 0x04, 0x63, 0x09, 0x3a, 0x62,
+     0x3b, 0xea, 0xd2, 0x1f, 0x82, 0x36, 0x6f, 0x18,
+     0x4f, 0x31, 0x8b, 0x4f, 0xd6, 0xb3, 0xc6, 0x54},
+    {0x94, 0x61, 0x3f, 0x3e, 0xe2, 0xea, 0x73, 0x0e,
+     0x0b, 0x06, 0x75, 0x4f, 0x3f, 0xc8, 0x16, 0xd4,
+     0xf8, 0x7c, 0x9b, 0xe9, 0xcb, 0xd8, 0x55, 0x6b,
+     0x5d, 0x59, 0xb5, 0x23, 0x30, 0xe3, 0x33, 0xa8},
+    {0x7d, 0x7a, 0xba, 0x34, 0x1e, 0x6a, 0xc8, 0x4e,
+     0x99, 0x38, 0xf0, 0xf5, 0xa2, 0xf6, 0x3c, 0x07,
+     0xda, 0xa3, 0xe0, 0x58, 0x4c, 0xc6, 0xdb, 0x99,
+     0x65, 0x0a, 0x75, 0xeb, 0x29, 0x48, 0xf2, 0xb9},
+    {0xf7, 0xa2, 0x68, 0x46, 0x30, 0xec, 0x0f, 0x81,
+     0xf2, 0x3a, 0xbb, 0xf6, 0x06, 0x27, 0x8d, 0xee,
+     0xaa, 0xd1, 0xa3, 0x50, 0x53, 0xdb, 0x3c, 0x06,
+     0x69, 0x03, 0xd9, 0x11, 0x4e, 0xd3, 0xfd, 0x6e},
+    {0x46, 0x12, 0xf9, 0x22, 0xa1, 0xfd, 0xce, 0xfa,
+     0xf4, 0x31, 0x2f, 0xc6, 0xf8, 0xf3, 0x32, 0x2b,
+     0x48, 0x9c, 0xbf, 0x24, 0xf2, 0xea, 0x36, 0x1b,
+     0x44, 0xc2, 0xbd, 0x8f, 0xa2, 0xc6, 0xdc, 0xb0},
+    {0xd7, 0x89, 0x45, 0x8d, 0x14, 0x3b, 0x9a, 0xbe,
+     0xbc, 0x4e, 0xf6, 0x3c, 0xa8, 0xe5, 0x76, 0xc7,
+     0x2b, 0x13, 0xc7, 0xd4, 0x28, 0x9d, 0xb2, 0x3f,
+     0xc1, 0xe9, 0x46, 0xf8, 0x4c, 0xd6, 0x05, 0xbc},
+    {0x64, 0x77, 0x0a, 0xf7, 0xf7, 0x48, 0xc3, 0xb1,
+     0xc9, 0xac, 0x83, 0x1d, 0xbc, 0xfd, 0x85, 0xc2,
+     0x61, 0x11, 0xb3, 0x0a, 0x8a, 0x65, 0x7d, 0xdc,
+     0x30, 0x56, 0xb8, 0x0c, 0xa7, 0x3e, 0x04, 0x0d}
+  };
+  static const unsigned char expected_md4_abc[] = {
+    0xa4, 0x48, 0x01, 0x7a, 0xaf, 0x21, 0xd8, 0x52,
+    0x5f, 0xc1, 0x0a, 0xe8, 0x7a, 0xa6, 0x72, 0x9d
+  };
+  static const unsigned char expected_crc32[] = {
+    0xcb, 0xf4, 0x39, 0x26
+  };
+  static const unsigned char expected_crc32_rfc1510[] = {
+    0x2d, 0xfd, 0x2d, 0x88
+  };
+  static const unsigned char expected_crc24_rfc2440[] = {
+    0x21, 0xcf, 0x02
+  };
+  static const unsigned char expected_tiger_abc[] = {
+    0xf2, 0x58, 0xc1, 0xe8, 0x84, 0x14, 0xab, 0x2a,
+    0x52, 0x7a, 0xb5, 0x41, 0xff, 0xc5, 0xb8, 0xbf,
+    0x93, 0x5f, 0x7b, 0x95, 0x1c, 0x13, 0x29, 0x51
+  };
+  static const unsigned char expected_tiger1_abc[] = {
+    0x2a, 0xab, 0x14, 0x84, 0xe8, 0xc1, 0x58, 0xf2,
+    0xbf, 0xb8, 0xc5, 0xff, 0x41, 0xb5, 0x7a, 0x52,
+    0x51, 0x29, 0x13, 0x1c, 0x95, 0x7b, 0x5f, 0x93
+  };
+  static const unsigned char expected_whirlpool_bugemu[] = {
+    0x35, 0x28, 0xd6, 0x4c, 0x56, 0x2c, 0x55, 0x2e,
+    0x3b, 0x91, 0x93, 0x95, 0x7b, 0xdd, 0xcc, 0x6e,
+    0x6f, 0xb7, 0xbf, 0x76, 0x22, 0x9c, 0xc6, 0x23,
+    0xda, 0x3e, 0x09, 0x9b, 0x36, 0xe8, 0x6d, 0x76,
+    0x2f, 0x94, 0x3b, 0x0c, 0x63, 0xa0, 0xba, 0xa3,
+    0x4d, 0x66, 0x71, 0xe6, 0x5d, 0x26, 0x67, 0x28,
+    0x36, 0x1f, 0x0e, 0x1a, 0x40, 0xf0, 0xce, 0x83,
+    0x50, 0x90, 0x1f, 0xfa, 0x3f, 0xed, 0x6f, 0xfd
+  };
+  static const unsigned char expected_blake2b_256_keyed[] = {
+    0x03, 0x30, 0x53, 0x1d, 0x09, 0x73, 0x55, 0xa3,
+    0xf7, 0x2e, 0x80, 0xd5, 0x5c, 0x12, 0x45, 0xcc,
+    0xf7, 0x9f, 0x17, 0x04, 0x43, 0x1c, 0x6e, 0x38,
+    0x87, 0x93, 0x83, 0x20, 0x44, 0x2c, 0x23, 0xc0
+  };
+  static const unsigned char expected_blake2s_128_keyed[] = {
+    0x94, 0xfd, 0xf6, 0xf3, 0x5b, 0x99, 0x99, 0x92,
+    0x0d, 0xcd, 0xca, 0xee, 0x36, 0x1a, 0xd4, 0x35
+  };
   gcry_error_t err;
   int fips_mode;
+  int mac_algo;
+  size_t expected_mac_len;
+  size_t i;
+  size_t key_len;
 
   if (gcry_control(GCRYCTL_ANY_INITIALIZATION_P))
     return die("unexpected initialization before thread probe", 0);
@@ -552,6 +779,494 @@ main(void)
   else
     return die("gcry_md_putc digest mismatch", 0);
 
+  if (gcry_md_map_name("RMD160") != GCRY_MD_RMD160
+      || gcry_md_map_name("RIPEMD160") != GCRY_MD_RMD160)
+    return die("legacy RIPEMD160 map_name mismatch", 0);
+  if (gcry_md_map_name("MD4") != GCRY_MD_MD4)
+    return die("legacy MD4 map_name mismatch", 0);
+  if (gcry_md_map_name("TIGER192") != GCRY_MD_TIGER
+      || gcry_md_map_name("TIGER") != GCRY_MD_TIGER1
+      || gcry_md_map_name("TIGER2") != GCRY_MD_TIGER2)
+    return die("legacy TIGER map_name mismatch", 0);
+  if (gcry_md_map_name("CRC32") != GCRY_MD_CRC32
+      || gcry_md_map_name("CRC32RFC1510") != GCRY_MD_CRC32_RFC1510
+      || gcry_md_map_name("CRC24RFC2440") != GCRY_MD_CRC24_RFC2440)
+    return die("legacy CRC map_name mismatch", 0);
+  if (gcry_md_map_name("WHIRLPOOL") != GCRY_MD_WHIRLPOOL)
+    return die("legacy WHIRLPOOL map_name mismatch", 0);
+  if (gcry_md_get_algo_dlen(GCRY_MD_RMD160) != 20
+      || gcry_md_get_algo_dlen(GCRY_MD_MD4) != 16
+      || gcry_md_get_algo_dlen(GCRY_MD_CRC32) != 4
+      || gcry_md_get_algo_dlen(GCRY_MD_CRC32_RFC1510) != 4
+      || gcry_md_get_algo_dlen(GCRY_MD_CRC24_RFC2440) != 3
+      || gcry_md_get_algo_dlen(GCRY_MD_WHIRLPOOL) != 64
+      || gcry_md_get_algo_dlen(GCRY_MD_TIGER) != 24
+      || gcry_md_get_algo_dlen(GCRY_MD_TIGER1) != 24
+      || gcry_md_get_algo_dlen(GCRY_MD_TIGER2) != 24)
+    return die("legacy digest length mismatch", 0);
+  if (strcmp(gcry_md_algo_name(GCRY_MD_SHA512_256), "SHA512_256")
+      || strcmp(gcry_md_algo_name(GCRY_MD_SHA512_224), "SHA512_224"))
+    return die("SHA512 truncated digest name mismatch", 0);
+
+  err = gcry_md_open(&keyed_md, GCRY_MD_SHAKE128, GCRY_MD_FLAG_HMAC);
+  if (gcry_err_code(err) != GPG_ERR_DIGEST_ALGO)
+    return die("gcry_md_open accepted HMAC SHAKE128", gcry_err_code(err));
+  if (keyed_md)
+    {
+      gcry_md_close(keyed_md);
+      keyed_md = NULL;
+    }
+  err = gcry_md_open(&keyed_md, 0, GCRY_MD_FLAG_HMAC);
+  if (err)
+    return die("gcry_md_open empty HMAC failed", err);
+  err = gcry_md_enable(keyed_md, GCRY_MD_SHAKE256);
+  if (gcry_err_code(err) != GPG_ERR_DIGEST_ALGO)
+    return die("gcry_md_enable accepted HMAC SHAKE256", gcry_err_code(err));
+  gcry_md_close(keyed_md);
+  keyed_md = NULL;
+
+  memset(hash_iov, 0, sizeof hash_iov);
+  hash_iov[0].size = 3;
+  hash_iov[0].off = 0;
+  hash_iov[0].len = 3;
+  hash_iov[0].data = (void *)"abc";
+  err = gcry_md_hash_buffers(GCRY_MD_SHA256, GCRY_MD_FLAG_SECURE,
+                             digest, hash_iov, 1);
+  if (gcry_err_code(err) != GPG_ERR_INV_ARG)
+    return die("gcry_md_hash_buffers accepted invalid flag",
+               gcry_err_code(err));
+  err = gcry_md_hash_buffers(GCRY_MD_SHA256, 0, digest, NULL, 0);
+  if (gcry_err_code(err) != GPG_ERR_INV_ARG)
+    return die("gcry_md_hash_buffers accepted NULL iov",
+               gcry_err_code(err));
+  err = gcry_md_hash_buffers(GCRY_MD_SHAKE128, 0, digest, hash_iov, 1);
+  if (gcry_err_code(err) != GPG_ERR_DIGEST_ALGO)
+    return die("gcry_md_hash_buffers accepted SHAKE128",
+               gcry_err_code(err));
+
+  err = gcry_md_open(&keyed_md, GCRY_MD_WHIRLPOOL, GCRY_MD_FLAG_BUGEMU1);
+  if (err)
+    return die("gcry_md_open WHIRLPOOL bugemu failed", err);
+  gcry_md_write(keyed_md, "1234567890", 10);
+  gcry_md_write(keyed_md,
+                "1234567890123456789012345678901234567890123456789012",
+                52);
+  expected = gcry_md_read(keyed_md, GCRY_MD_WHIRLPOOL);
+  if (!expected
+      || memcmp(expected, expected_whirlpool_bugemu,
+                sizeof expected_whirlpool_bugemu))
+    return die("WHIRLPOOL bugemu digest mismatch", 0);
+  gcry_md_close(keyed_md);
+  keyed_md = NULL;
+
+  gcry_md_hash_buffer(GCRY_MD_MD4, digest, "abc", 3);
+  if (memcmp(digest, expected_md4_abc, sizeof expected_md4_abc))
+    return die("legacy MD4 digest mismatch", 0);
+  gcry_md_hash_buffer(GCRY_MD_CRC32, digest, "123456789", 9);
+  if (memcmp(digest, expected_crc32, sizeof expected_crc32))
+    return die("legacy CRC32 digest mismatch", 0);
+  gcry_md_hash_buffer(GCRY_MD_CRC32_RFC1510, digest, "123456789", 9);
+  if (memcmp(digest, expected_crc32_rfc1510,
+             sizeof expected_crc32_rfc1510))
+    return die("legacy CRC32RFC1510 digest mismatch", 0);
+  gcry_md_hash_buffer(GCRY_MD_CRC24_RFC2440, digest, "123456789", 9);
+  if (memcmp(digest, expected_crc24_rfc2440, sizeof expected_crc24_rfc2440))
+    return die("legacy CRC24RFC2440 digest mismatch", 0);
+  gcry_md_hash_buffer(GCRY_MD_TIGER, digest, "abc", 3);
+  if (memcmp(digest, expected_tiger_abc, sizeof expected_tiger_abc))
+    return die("legacy TIGER192 digest mismatch", 0);
+  gcry_md_hash_buffer(GCRY_MD_TIGER1, digest, "abc", 3);
+  if (memcmp(digest, expected_tiger1_abc, sizeof expected_tiger1_abc))
+    return die("legacy TIGER1 digest mismatch", 0);
+  err = gcry_md_open(&keyed_md, GCRY_MD_BLAKE2B_256, 0);
+  if (err)
+    return die("gcry_md_open BLAKE2B keyed failed", err);
+  err = gcry_md_setkey(keyed_md, "key", 3);
+  if (err)
+    return die("gcry_md_setkey BLAKE2B keyed failed", err);
+  gcry_md_write(keyed_md, "abc", 3);
+  expected = gcry_md_read(keyed_md, GCRY_MD_BLAKE2B_256);
+  if (!expected
+      || memcmp(expected, expected_blake2b_256_keyed,
+                sizeof expected_blake2b_256_keyed))
+    return die("gcry_md_read BLAKE2B keyed mismatch", 0);
+  gcry_md_close(keyed_md);
+  keyed_md = NULL;
+  err = gcry_md_open(&keyed_md, GCRY_MD_BLAKE2S_128, 0);
+  if (err)
+    return die("gcry_md_open BLAKE2S keyed failed", err);
+  err = gcry_md_setkey(keyed_md, "key", 3);
+  if (err)
+    return die("gcry_md_setkey BLAKE2S keyed failed", err);
+  gcry_md_write(keyed_md, "abc", 3);
+  expected = gcry_md_read(keyed_md, GCRY_MD_BLAKE2S_128);
+  if (!expected
+      || memcmp(expected, expected_blake2s_128_keyed,
+                sizeof expected_blake2s_128_keyed))
+    return die("gcry_md_read BLAKE2S keyed mismatch", 0);
+  gcry_md_close(keyed_md);
+  keyed_md = NULL;
+
+  err = gcry_mac_open(&mac, GCRY_MAC_HMAC_SHA256, 0, NULL);
+  if (err)
+    return die("gcry_mac_open failed", err);
+  err = gcry_mac_setkey(mac, "key", 3);
+  if (err)
+    return die("gcry_mac_setkey failed", err);
+  err = gcry_mac_write(mac, "abc", 3);
+  if (err)
+    return die("gcry_mac_write failed", err);
+  mac_len = sizeof mac_digest;
+  err = gcry_mac_read(mac, mac_digest, &mac_len);
+  if (err)
+    return die("gcry_mac_read failed", err);
+  if (mac_len != sizeof expected_hmac_sha256
+      || memcmp(mac_digest, expected_hmac_sha256, sizeof expected_hmac_sha256))
+    return die("gcry_mac_read digest mismatch", mac_len);
+  err = gcry_mac_verify(mac, mac_digest, 0);
+  if (gpg_err_code(err) != GPG_ERR_INV_ARG)
+    return die("gcry_mac_verify accepted zero-length tag", gpg_err_code(err));
+  err = gcry_mac_setiv(mac, mac_probe_iv, sizeof mac_probe_iv);
+  if (gpg_err_code(err) != GPG_ERR_INV_ARG)
+    return die("gcry_mac_setiv accepted HMAC IV", gpg_err_code(err));
+  gcry_mac_close(mac);
+  mac = NULL;
+
+  if (gcry_mac_map_name("HMAC-SHA512-256") != GCRY_MAC_HMAC_SHA512_256)
+    return die("gcry_mac_map_name HMAC-SHA512-256 mismatch", 0);
+  if (gcry_mac_get_algo_maclen(GCRY_MAC_HMAC_SHA512_224) != 28)
+    return die("gcry_mac_get_algo_maclen HMAC-SHA512-224 mismatch",
+               gcry_mac_get_algo_maclen(GCRY_MAC_HMAC_SHA512_224));
+  if (gcry_mac_map_name("HMAC-MD4") != GCRY_MAC_HMAC_MD4
+      || gcry_mac_map_name("HMAC-RMD160") != GCRY_MAC_HMAC_RMD160
+      || gcry_mac_map_name("HMAC-TIGER1") != GCRY_MAC_HMAC_TIGER1
+      || gcry_mac_map_name("HMAC-WHIRLPOOL") != GCRY_MAC_HMAC_WHIRLPOOL)
+    return die("legacy HMAC map_name mismatch", 0);
+  if (gcry_mac_get_algo_maclen(GCRY_MAC_HMAC_MD4) != 16
+      || gcry_mac_get_algo_maclen(GCRY_MAC_HMAC_RMD160) != 20
+      || gcry_mac_get_algo_maclen(GCRY_MAC_HMAC_TIGER1) != 24
+      || gcry_mac_get_algo_maclen(GCRY_MAC_HMAC_WHIRLPOOL) != 64)
+    return die("legacy HMAC maclen mismatch", 0);
+  info_len = 0;
+  err = gcry_mac_algo_info(GCRY_MAC_HMAC_SHA256, GCRYCTL_GET_KEYLEN,
+                           NULL, &info_len);
+  if (err || info_len != 64)
+    return die("gcry_mac_algo_info HMAC keylen mismatch", info_len);
+  info_len = 0;
+  err = gcry_mac_algo_info(GCRY_MAC_CMAC_AES, GCRYCTL_GET_KEYLEN,
+                           NULL, &info_len);
+  if (err || info_len != 16)
+    return die("gcry_mac_algo_info CMAC keylen mismatch", info_len);
+  info_len = 0;
+  err = gcry_mac_algo_info(GCRY_MAC_GOST28147_IMIT, GCRYCTL_GET_KEYLEN,
+                           NULL, &info_len);
+  if (err || info_len != 32)
+    return die("gcry_mac_algo_info GOST28147-IMIT keylen mismatch",
+               info_len);
+  info_len = 0;
+  err = gcry_mac_algo_info(GCRY_MAC_HMAC_SHA256, GCRYCTL_GET_KEYLEN,
+                           digest, &info_len);
+  if (!err)
+    return die("gcry_mac_algo_info accepted output buffer", 0);
+
+  if (gcry_mac_algo_info(GCRY_MAC_GOST28147_IMIT, GCRYCTL_TEST_ALGO,
+                         NULL, NULL))
+    return die("gcry_mac_algo_info GOST28147-IMIT rejected", 0);
+  if (gcry_mac_map_name("GOST28147_IMIT") != GCRY_MAC_GOST28147_IMIT)
+    return die("gcry_mac_map_name GOST28147-IMIT mismatch", 0);
+  if (gcry_mac_get_algo_maclen(GCRY_MAC_GOST28147_IMIT) != 4
+      || gcry_mac_get_algo_keylen(GCRY_MAC_GOST28147_IMIT) != 32)
+    return die("gcry_mac_get_algo_* GOST28147-IMIT mismatch", 0);
+  err = gcry_mac_open(&mac, GCRY_MAC_GOST28147_IMIT, 0, NULL);
+  if (err)
+    return die("gcry_mac_open GOST28147-IMIT failed", err);
+  err = gcry_mac_setkey(mac, gost28147_imit_key,
+                        sizeof gost28147_imit_key);
+  if (err)
+    return die("gcry_mac_setkey GOST28147-IMIT failed", err);
+  err = gcry_mac_ctl(mac, GCRYCTL_SET_SBOX, "1.2.643.2.2.31.1", 0);
+  if (err)
+    return die("gcry_mac_ctl GOST28147-IMIT set-sbox failed", err);
+  err = gcry_mac_ctl(mac, GCRYCTL_SET_SBOX, "bad", 0);
+  if (gpg_err_code(err) != GPG_ERR_VALUE_NOT_FOUND)
+    return die("gcry_mac_ctl GOST28147-IMIT invalid sbox mismatch",
+               gpg_err_code(err));
+  err = gcry_mac_setiv(mac, mac_probe_iv, sizeof mac_probe_iv);
+  if (gpg_err_code(err) != GPG_ERR_INV_LENGTH)
+    return die("gcry_mac_setiv GOST28147-IMIT length mismatch",
+               gpg_err_code(err));
+  err = gcry_mac_write(mac, gost28147_imit_data,
+                       sizeof gost28147_imit_data);
+  if (err)
+    return die("gcry_mac_write GOST28147-IMIT failed", err);
+  mac_len = sizeof expected_gost28147_imit;
+  err = gcry_mac_read(mac, mac_digest, &mac_len);
+  if (err)
+    return die("gcry_mac_read GOST28147-IMIT failed", err);
+  if (mac_len != sizeof expected_gost28147_imit
+      || memcmp(mac_digest, expected_gost28147_imit,
+                sizeof expected_gost28147_imit))
+    return die("gcry_mac_read GOST28147-IMIT mismatch", mac_len);
+  err = gcry_mac_verify(mac, expected_gost28147_imit,
+                        sizeof expected_gost28147_imit);
+  if (err)
+    return die("gcry_mac_verify GOST28147-IMIT failed", err);
+  gcry_mac_close(mac);
+  mac = NULL;
+
+  err = gcry_mac_open(&mac, GCRY_MAC_CMAC_AES, 0, NULL);
+  if (err)
+    return die("gcry_mac_open CMAC-AES failed", err);
+  err = gcry_mac_setkey(mac, cmac_aes_key, sizeof cmac_aes_key);
+  if (err)
+    return die("gcry_mac_setkey CMAC-AES failed", err);
+  err = gcry_mac_setiv(mac, mac_probe_iv, sizeof mac_probe_iv);
+  if (gpg_err_code(err) != GPG_ERR_INV_ARG)
+    return die("gcry_mac_setiv accepted CMAC IV", gpg_err_code(err));
+  err = gcry_mac_write(mac, cmac_aes_data, sizeof cmac_aes_data);
+  if (err)
+    return die("gcry_mac_write CMAC-AES failed", err);
+  mac_len = sizeof mac_digest;
+  err = gcry_mac_read(mac, mac_digest, &mac_len);
+  if (err)
+    return die("gcry_mac_read CMAC-AES failed", err);
+  if (mac_len != sizeof expected_cmac_aes
+      || memcmp(mac_digest, expected_cmac_aes, sizeof expected_cmac_aes))
+    return die("gcry_mac_read CMAC-AES mismatch", mac_len);
+  gcry_mac_close(mac);
+  mac = NULL;
+
+  err = gcry_mac_open(&mac, GCRY_MAC_POLY1305, 0, NULL);
+  if (err)
+    return die("gcry_mac_open Poly1305 failed", err);
+  err = gcry_mac_setkey(mac, poly1305_key, sizeof poly1305_key);
+  if (err)
+    return die("gcry_mac_setkey Poly1305 failed", err);
+  err = gcry_mac_setiv(mac, mac_probe_iv, sizeof mac_probe_iv);
+  if (gpg_err_code(err) != GPG_ERR_INV_ARG)
+    return die("gcry_mac_setiv accepted plain Poly1305 IV",
+               gpg_err_code(err));
+  err = gcry_mac_write(mac, "Cryptographic Forum Research Group", 34);
+  if (err)
+    return die("gcry_mac_write Poly1305 failed", err);
+  mac_len = sizeof mac_digest;
+  err = gcry_mac_read(mac, mac_digest, &mac_len);
+  if (err)
+    return die("gcry_mac_read Poly1305 failed", err);
+  if (mac_len != sizeof expected_poly1305
+      || memcmp(mac_digest, expected_poly1305, sizeof expected_poly1305))
+    return die("gcry_mac_read Poly1305 mismatch", mac_len);
+  gcry_mac_close(mac);
+  mac = NULL;
+
+  for (i = 0; i < sizeof cmac_probe_algos / sizeof cmac_probe_algos[0]; i++)
+    {
+      mac_algo = cmac_probe_algos[i];
+      key_len = gcry_mac_get_algo_keylen(mac_algo);
+      expected_mac_len = gcry_mac_get_algo_maclen(mac_algo);
+      if (key_len == 0 || key_len > sizeof mac_probe_key)
+        return die("gcry_mac_get_algo_keylen CMAC probe invalid", mac_algo);
+      if (expected_mac_len == 0 || expected_mac_len > sizeof mac_digest)
+        return die("gcry_mac_get_algo_maclen CMAC probe invalid", mac_algo);
+      err = gcry_mac_algo_info(mac_algo, GCRYCTL_TEST_ALGO, NULL, NULL);
+      if (err)
+        return die("gcry_mac_algo_info CMAC probe rejected", mac_algo);
+      info_len = 0;
+      err = gcry_mac_algo_info(mac_algo, GCRYCTL_GET_KEYLEN, NULL,
+                               &info_len);
+      if (err || info_len != key_len)
+        return die("gcry_mac_algo_info CMAC probe keylen mismatch",
+                   mac_algo);
+      err = gcry_mac_open(&mac, mac_algo, 0, NULL);
+      if (err)
+        return die("gcry_mac_open CMAC probe failed", mac_algo);
+      err = gcry_mac_setkey(mac, mac_probe_key, key_len);
+      if (err)
+        return die("gcry_mac_setkey CMAC probe failed", mac_algo);
+      err = gcry_mac_write(mac, "abc", 3);
+      if (err)
+        return die("gcry_mac_write CMAC probe failed", mac_algo);
+      mac_len = sizeof mac_digest;
+      err = gcry_mac_read(mac, mac_digest, &mac_len);
+      if (err)
+        return die("gcry_mac_read CMAC probe failed", mac_algo);
+      if (expected_mac_len != expected_cmac_probe_lens[i])
+        return die("gcry_mac_get_algo_maclen CMAC probe vector mismatch",
+                   mac_algo);
+      if (mac_len != expected_mac_len
+          || memcmp(mac_digest, expected_cmac_probe_tags[i], mac_len))
+        return die("gcry_mac_read CMAC probe tag mismatch", mac_algo);
+      gcry_mac_close(mac);
+      mac = NULL;
+    }
+
+  for (i = 0; i < sizeof gmac_probe_algos / sizeof gmac_probe_algos[0]; i++)
+    {
+      mac_algo = gmac_probe_algos[i];
+      key_len = gcry_mac_get_algo_keylen(mac_algo);
+      expected_mac_len = gcry_mac_get_algo_maclen(mac_algo);
+      if (key_len == 0 || key_len > sizeof mac_probe_key)
+        return die("gcry_mac_get_algo_keylen GMAC probe invalid", mac_algo);
+      if (expected_mac_len != 16)
+        return die("gcry_mac_get_algo_maclen GMAC probe invalid",
+                   mac_algo);
+      err = gcry_mac_algo_info(mac_algo, GCRYCTL_TEST_ALGO, NULL, NULL);
+      if (err)
+        return die("gcry_mac_algo_info GMAC probe rejected", mac_algo);
+      info_len = 0;
+      err = gcry_mac_algo_info(mac_algo, GCRYCTL_GET_KEYLEN, NULL,
+                               &info_len);
+      if (err || info_len != key_len)
+        return die("gcry_mac_algo_info GMAC probe keylen mismatch",
+                   mac_algo);
+      err = gcry_mac_open(&mac, mac_algo, 0, NULL);
+      if (err)
+        return die("gcry_mac_open GMAC probe failed", mac_algo);
+      err = gcry_mac_setkey(mac, mac_probe_key, key_len);
+      if (err)
+        return die("gcry_mac_setkey GMAC probe failed", mac_algo);
+      err = gcry_mac_setiv(mac, mac_probe_iv, sizeof mac_probe_iv);
+      if (err)
+        return die("gcry_mac_setiv GMAC probe failed", mac_algo);
+      err = gcry_mac_write(mac, "abc", 3);
+      if (err)
+        return die("gcry_mac_write GMAC probe failed", mac_algo);
+      mac_len = sizeof mac_digest;
+      err = gcry_mac_read(mac, mac_digest, &mac_len);
+      if (err)
+        return die("gcry_mac_read GMAC probe failed", mac_algo);
+      if (mac_len != 16
+          || memcmp(mac_digest, expected_gmac_probe_tags[i], 16))
+        return die("gcry_mac_read GMAC probe tag mismatch", mac_algo);
+      gcry_mac_close(mac);
+      mac = NULL;
+    }
+
+  for (i = 0;
+       i < sizeof poly1305_cipher_probe_algos
+           / sizeof poly1305_cipher_probe_algos[0];
+       i++)
+    {
+      mac_algo = poly1305_cipher_probe_algos[i];
+      key_len = gcry_mac_get_algo_keylen(mac_algo);
+      if (key_len != 32)
+        return die("gcry_mac_get_algo_keylen Poly1305 probe invalid",
+                   mac_algo);
+      err = gcry_mac_algo_info(mac_algo, GCRYCTL_TEST_ALGO, NULL, NULL);
+      if (err)
+        return die("gcry_mac_algo_info Poly1305 probe rejected", mac_algo);
+      err = gcry_mac_open(&mac, mac_algo, 0, NULL);
+      if (err)
+        return die("gcry_mac_open Poly1305 probe failed", mac_algo);
+      err = gcry_mac_setkey(mac, mac_probe_key, key_len);
+      if (err)
+        return die("gcry_mac_setkey Poly1305 probe failed", mac_algo);
+      err = gcry_mac_setiv(mac, mac_probe_iv, sizeof mac_probe_iv);
+      if (err)
+        return die("gcry_mac_setiv Poly1305 probe failed", mac_algo);
+      err = gcry_mac_write(mac, "abc", 3);
+      if (err)
+        return die("gcry_mac_write Poly1305 probe failed", mac_algo);
+      mac_len = sizeof mac_digest;
+      err = gcry_mac_read(mac, mac_digest, &mac_len);
+      if (err)
+        return die("gcry_mac_read Poly1305 probe failed", mac_algo);
+      if (mac_len != 16
+          || memcmp(mac_digest, expected_poly1305_cipher_probe_tags[i], 16))
+        return die("gcry_mac_read Poly1305 probe tag mismatch", mac_algo);
+      gcry_mac_close(mac);
+      mac = NULL;
+    }
+
+  err = gcry_mac_open(&mac, GCRY_MAC_POLY1305_AES, 0, NULL);
+  if (err)
+    return die("gcry_mac_open Poly1305 setiv order probe failed", err);
+  err = gcry_mac_setiv(mac, mac_probe_iv, sizeof mac_probe_iv);
+  if (err)
+    return die("gcry_mac_setiv before key failed", err);
+  err = gcry_mac_setkey(mac, mac_probe_key, 32);
+  if (err)
+    return die("gcry_mac_setkey Poly1305 setiv order probe failed", err);
+  err = gcry_mac_write(mac, "abc", 3);
+  if (gpg_err_code(err) != GPG_ERR_INV_STATE)
+    return die("gcry_mac_setiv before key preserved nonce",
+               gpg_err_code(err));
+  gcry_mac_close(mac);
+  mac = NULL;
+
+  err = gcry_kdf_derive("password", 8, GCRY_KDF_PBKDF2, GCRY_MD_SHA1,
+                        "salt", 4, 1, sizeof kdf_digest, kdf_digest);
+  if (err)
+    return die("gcry_kdf_derive PBKDF2 failed", err);
+  if (memcmp(kdf_digest, expected_pbkdf2_sha1, sizeof expected_pbkdf2_sha1))
+    return die("gcry_kdf_derive PBKDF2 mismatch", 0);
+  for (i = 0;
+       i < sizeof pbkdf2_hmac_probe_algos / sizeof pbkdf2_hmac_probe_algos[0];
+       i++)
+    {
+      err = gcry_kdf_derive("password", 8, GCRY_KDF_PBKDF2,
+                            pbkdf2_hmac_probe_algos[i], "salt", 4, 1,
+                            sizeof pbkdf2_digest, pbkdf2_digest);
+      if (err)
+        return die("gcry_kdf_derive PBKDF2 HMAC probe failed",
+                   pbkdf2_hmac_probe_algos[i]);
+      if (memcmp(pbkdf2_digest, expected_pbkdf2_hmac_probe[i],
+                 sizeof pbkdf2_digest))
+        return die("gcry_kdf_derive PBKDF2 HMAC probe mismatch",
+                   pbkdf2_hmac_probe_algos[i]);
+    }
+  err = gcry_kdf_derive("password", 8, GCRY_KDF_SALTED_S2K, GCRY_MD_SHA1,
+                        "salt", 4, 0, sizeof kdf_digest, kdf_digest);
+  if (gpg_err_code(err) != GPG_ERR_INV_VALUE)
+    return die("gcry_kdf_derive accepted short S2K salt", gpg_err_code(err));
+  err = gcry_kdf_derive("password", 8, GCRY_KDF_ITERSALTED_S2K,
+                        GCRY_MD_SHA1, "123456789", 9, 1024,
+                        sizeof kdf_digest, kdf_digest);
+  if (gpg_err_code(err) != GPG_ERR_INV_VALUE)
+    return die("gcry_kdf_derive accepted long S2K salt", gpg_err_code(err));
+
+  err = gcry_kdf_open(&kdf, GCRY_KDF_ARGON2, GCRY_KDF_ARGON2ID,
+                      argon2_params3, 3, "password", 8,
+                      "1234567890123456", 16, NULL, 0, NULL, 0);
+  if (err)
+    return die("gcry_kdf_open Argon2 3-param failed", err);
+  err = gcry_kdf_compute(kdf, NULL);
+  if (err)
+    return die("gcry_kdf_compute Argon2 failed", err);
+  err = gcry_kdf_final(kdf, sizeof argon2_digest, argon2_digest);
+  if (err)
+    return die("gcry_kdf_final Argon2 failed", err);
+  gcry_kdf_close(kdf);
+  kdf = NULL;
+
+  err = gcry_kdf_open(&kdf, GCRY_KDF_ARGON2, GCRY_KDF_ARGON2ID,
+                      argon2_params3, 3, "password", 8,
+                      "1234567890123456", 16, NULL, 0, NULL, 0);
+  if (err)
+    return die("gcry_kdf_open Argon2 taglen probe failed", err);
+  err = gcry_kdf_compute(kdf, NULL);
+  if (err)
+    return die("gcry_kdf_compute Argon2 taglen probe failed", err);
+  err = gcry_kdf_final(kdf, sizeof balloon_digest, balloon_digest);
+  if (!err)
+    return die("gcry_kdf_final Argon2 ignored tag length", 0);
+  gcry_kdf_close(kdf);
+  kdf = NULL;
+
+  err = gcry_kdf_open(&kdf, GCRY_KDF_BALLOON, GCRY_MD_SHA256,
+                      balloon_params, 2, "password", 8, "salt", 4,
+                      NULL, 0, NULL, 0);
+  if (err)
+    return die("gcry_kdf_open Balloon failed", err);
+  err = gcry_kdf_compute(kdf, NULL);
+  if (err)
+    return die("gcry_kdf_compute Balloon failed", err);
+  err = gcry_kdf_final(kdf, sizeof balloon_digest, balloon_digest);
+  if (err)
+    return die("gcry_kdf_final Balloon failed", err);
+  gcry_kdf_close(kdf);
+  kdf = NULL;
+
   err = gcry_sexp_build(&first, &erroff, "(alpha %u)", 1U);
   if (err)
     return die("gcry_sexp_build(first) failed", err);
@@ -584,6 +1299,12 @@ main(void)
   gcry_sexp_release(combined);
   gcry_sexp_release(second);
   gcry_sexp_release(first);
+  if (mac)
+    gcry_mac_close(mac);
+  if (kdf)
+    gcry_kdf_close(kdf);
+  if (keyed_md)
+    gcry_md_close(keyed_md);
   gcry_md_close(md);
 
   return 0;
