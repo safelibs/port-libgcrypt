@@ -10,7 +10,6 @@ use crate::hwfeatures;
 use crate::log;
 use crate::random;
 use crate::secmem::{self, SecureMemoryState};
-use crate::upstream;
 use crate::{
     PACKAGE_VERSION_BYTES, gcry_handler_alloc_t, gcry_handler_free_t, gcry_handler_no_mem_t,
     gcry_handler_realloc_t, gcry_handler_secure_check_t,
@@ -486,12 +485,6 @@ pub extern "C" fn safe_gcry_control_dispatch(
                 Ok(value) => value,
                 Err(code) => return control_result(code),
             };
-            if let Some(ref names) = sanitized {
-                let upstream_rc = upstream::disable_hw_features_preinit(names.as_c_str());
-                if upstream_rc != 0 {
-                    return upstream_rc;
-                }
-            }
             hwfeatures::remember_disabled_features(
                 &mut state.disabled_hw_features,
                 sanitized.as_deref(),

@@ -1,16 +1,72 @@
 mod aead;
 mod block;
+mod local;
 mod modes;
 mod registry;
 mod stream;
 
 use std::ffi::{c_char, c_int, c_uint, c_void};
 
+use crate::alloc;
+use crate::context;
+use crate::error;
+
 pub type gcry_cipher_hd_t = *mut gcry_cipher_handle;
 
 #[repr(C)]
 pub struct gcry_cipher_handle {
-    _private: [u8; 0],
+    secure: bool,
+    ctx: local::CipherContext,
+}
+
+impl gcry_cipher_handle {
+    pub(crate) fn new(ctx: local::CipherContext) -> Self {
+        Self {
+            secure: ctx.is_secure(),
+            ctx,
+        }
+    }
+}
+
+pub(crate) fn ctx(handle: gcry_cipher_hd_t) -> Result<&'static mut local::CipherContext, u32> {
+    if handle.is_null() {
+        return Err(error::gcry_error_from_code(error::GPG_ERR_INV_ARG));
+    }
+    Ok(unsafe { &mut (*handle).ctx })
+}
+
+pub(crate) fn make_handle(ctx: local::CipherContext) -> Result<gcry_cipher_hd_t, u32> {
+    let handle = gcry_cipher_handle::new(ctx);
+    if handle.secure {
+        let raw = alloc::gcry_calloc_secure(1, std::mem::size_of::<gcry_cipher_handle>())
+            .cast::<gcry_cipher_handle>();
+        if raw.is_null() {
+            return Err(error::gcry_error_from_errno(crate::ENOMEM_VALUE));
+        }
+        unsafe {
+            raw.write(handle);
+        }
+        context::set_object_secure(raw.cast(), true);
+        Ok(raw)
+    } else {
+        Ok(Box::into_raw(Box::new(handle)))
+    }
+}
+
+pub(crate) fn drop_handle(handle: gcry_cipher_hd_t) {
+    if handle.is_null() {
+        return;
+    }
+
+    unsafe {
+        if (*handle).secure {
+            context::remove_object(handle.cast());
+            std::ptr::drop_in_place(handle);
+            alloc::gcry_free(handle.cast());
+        } else {
+            drop(Box::from_raw(handle));
+        }
+    }
 }
 
 #[unsafe(no_mangle)]

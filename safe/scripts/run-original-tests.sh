@@ -141,8 +141,10 @@ compile_test() {
 }
 
 run_test() {
-  local test_name
+  local test_name status
   test_name="$1"
+
+  set +e
   (
     cd "${HARNESS_ROOT}/build"
     case "${test_name}" in
@@ -158,6 +160,15 @@ run_test() {
         ;;
     esac
   )
+  status=$?
+  set -e
+
+  if [[ "${status}" -eq 77 ]]; then
+    echo "run-original-tests: skipped (${test_name})"
+    return 0
+  fi
+
+  return "${status}"
 }
 
 verify_plumbing() {

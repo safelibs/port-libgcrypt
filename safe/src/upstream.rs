@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::ffi::{CString, c_char, c_int, c_uint, c_void};
 use std::sync::OnceLock;
 
@@ -8,10 +10,6 @@ type CipherOpenFn = unsafe extern "C" fn(*mut *mut c_void, c_int, c_int, c_uint)
 type CipherCloseFn = unsafe extern "C" fn(*mut c_void);
 type CipherCtlFn = unsafe extern "C" fn(*mut c_void, c_int, *mut c_void, usize) -> u32;
 type CipherInfoFn = unsafe extern "C" fn(*mut c_void, c_int, *mut c_void, *mut usize) -> u32;
-type CipherAlgoInfoFn = unsafe extern "C" fn(c_int, c_int, *mut c_void, *mut usize) -> u32;
-type CipherAlgoNameFn = unsafe extern "C" fn(c_int) -> *const c_char;
-type CipherMapNameFn = unsafe extern "C" fn(*const c_char) -> c_int;
-type CipherModeFromOidFn = unsafe extern "C" fn(*const c_char) -> c_int;
 type CipherCryptFn =
     unsafe extern "C" fn(*mut c_void, *mut c_void, usize, *const c_void, usize) -> u32;
 type CipherSetKeyFn = unsafe extern "C" fn(*mut c_void, *const c_void, usize) -> u32;
@@ -20,9 +18,6 @@ type CipherSetCtrFn = unsafe extern "C" fn(*mut c_void, *const c_void, usize) ->
 type CipherAuthenticateFn = unsafe extern "C" fn(*mut c_void, *const c_void, usize) -> u32;
 type CipherGetTagFn = unsafe extern "C" fn(*mut c_void, *mut c_void, usize) -> u32;
 type CipherCheckTagFn = unsafe extern "C" fn(*mut c_void, *const c_void, usize) -> u32;
-type CipherGetAlgoLenFn = unsafe extern "C" fn(c_int) -> usize;
-
-type ControlFn = unsafe extern "C" fn(c_int, ...) -> u32;
 
 unsafe extern "C" {
     fn dlopen(filename: *const c_char, flags: c_int) -> *mut c_void;
@@ -45,10 +40,6 @@ pub(crate) struct UpstreamLibgcrypt {
     pub(crate) cipher_close: CipherCloseFn,
     pub(crate) cipher_ctl: CipherCtlFn,
     pub(crate) cipher_info: CipherInfoFn,
-    pub(crate) cipher_algo_info: CipherAlgoInfoFn,
-    pub(crate) cipher_algo_name: CipherAlgoNameFn,
-    pub(crate) cipher_map_name: CipherMapNameFn,
-    pub(crate) cipher_mode_from_oid: CipherModeFromOidFn,
     pub(crate) cipher_encrypt: CipherCryptFn,
     pub(crate) cipher_decrypt: CipherCryptFn,
     pub(crate) cipher_setkey: CipherSetKeyFn,
@@ -57,8 +48,6 @@ pub(crate) struct UpstreamLibgcrypt {
     pub(crate) cipher_authenticate: CipherAuthenticateFn,
     pub(crate) cipher_gettag: CipherGetTagFn,
     pub(crate) cipher_checktag: CipherCheckTagFn,
-    pub(crate) cipher_get_algo_keylen: CipherGetAlgoLenFn,
-    pub(crate) cipher_get_algo_blklen: CipherGetAlgoLenFn,
 }
 
 unsafe impl Send for UpstreamLibgcrypt {}
@@ -127,7 +116,6 @@ unsafe fn open_upstream_handle() -> *mut c_void {
 
 struct UpstreamRawApi {
     handle: usize,
-    control: ControlFn,
 }
 
 unsafe impl Send for UpstreamRawApi {}
@@ -137,10 +125,8 @@ fn raw_api() -> &'static UpstreamRawApi {
     static RAW: OnceLock<UpstreamRawApi> = OnceLock::new();
     RAW.get_or_init(|| {
         let handle = unsafe { open_upstream_handle() };
-        let control = unsafe { load_symbol(handle, "gcry_control") };
         UpstreamRawApi {
             handle: handle as usize,
-            control,
         }
     })
 }
@@ -160,10 +146,6 @@ fn init() -> UpstreamLibgcrypt {
         cipher_close: unsafe { load_symbol(handle, "gcry_cipher_close") },
         cipher_ctl: unsafe { load_symbol(handle, "gcry_cipher_ctl") },
         cipher_info: unsafe { load_symbol(handle, "gcry_cipher_info") },
-        cipher_algo_info: unsafe { load_symbol(handle, "gcry_cipher_algo_info") },
-        cipher_algo_name: unsafe { load_symbol(handle, "gcry_cipher_algo_name") },
-        cipher_map_name: unsafe { load_symbol(handle, "gcry_cipher_map_name") },
-        cipher_mode_from_oid: unsafe { load_symbol(handle, "gcry_cipher_mode_from_oid") },
         cipher_encrypt: unsafe { load_symbol(handle, "gcry_cipher_encrypt") },
         cipher_decrypt: unsafe { load_symbol(handle, "gcry_cipher_decrypt") },
         cipher_setkey: unsafe { load_symbol(handle, "gcry_cipher_setkey") },
@@ -172,8 +154,6 @@ fn init() -> UpstreamLibgcrypt {
         cipher_authenticate: unsafe { load_symbol(handle, "gcry_cipher_authenticate") },
         cipher_gettag: unsafe { load_symbol(handle, "gcry_cipher_gettag") },
         cipher_checktag: unsafe { load_symbol(handle, "gcry_cipher_checktag") },
-        cipher_get_algo_keylen: unsafe { load_symbol(handle, "gcry_cipher_get_algo_keylen") },
-        cipher_get_algo_blklen: unsafe { load_symbol(handle, "gcry_cipher_get_algo_blklen") },
     }
 }
 
@@ -182,6 +162,77 @@ pub(crate) fn lib() -> &'static UpstreamLibgcrypt {
     LIB.get_or_init(init)
 }
 
-pub(crate) fn disable_hw_features_preinit(names: &std::ffi::CStr) -> u32 {
-    unsafe { (raw_api().control)(63, names.as_ptr(), std::ptr::null::<c_void>()) }
+pub(crate) fn cipher_open(
+    handle: *mut *mut c_void,
+    algo: c_int,
+    mode: c_int,
+    flags: c_uint,
+) -> u32 {
+    unsafe { (lib().cipher_open)(handle, algo, mode, flags) }
+}
+
+pub(crate) fn cipher_close(handle: *mut c_void) {
+    unsafe { (lib().cipher_close)(handle) }
+}
+
+pub(crate) fn cipher_ctl(
+    handle: *mut c_void,
+    cmd: c_int,
+    buffer: *mut c_void,
+    buflen: usize,
+) -> u32 {
+    unsafe { (lib().cipher_ctl)(handle, cmd, buffer, buflen) }
+}
+
+pub(crate) fn cipher_info(
+    handle: *mut c_void,
+    what: c_int,
+    buffer: *mut c_void,
+    nbytes: *mut usize,
+) -> u32 {
+    unsafe { (lib().cipher_info)(handle, what, buffer, nbytes) }
+}
+
+pub(crate) fn cipher_encrypt(
+    handle: *mut c_void,
+    out: *mut c_void,
+    outsize: usize,
+    input: *const c_void,
+    inlen: usize,
+) -> u32 {
+    unsafe { (lib().cipher_encrypt)(handle, out, outsize, input, inlen) }
+}
+
+pub(crate) fn cipher_decrypt(
+    handle: *mut c_void,
+    out: *mut c_void,
+    outsize: usize,
+    input: *const c_void,
+    inlen: usize,
+) -> u32 {
+    unsafe { (lib().cipher_decrypt)(handle, out, outsize, input, inlen) }
+}
+
+pub(crate) fn cipher_setkey(handle: *mut c_void, key: *const c_void, keylen: usize) -> u32 {
+    unsafe { (lib().cipher_setkey)(handle, key, keylen) }
+}
+
+pub(crate) fn cipher_setiv(handle: *mut c_void, iv: *const c_void, ivlen: usize) -> u32 {
+    unsafe { (lib().cipher_setiv)(handle, iv, ivlen) }
+}
+
+pub(crate) fn cipher_setctr(handle: *mut c_void, ctr: *const c_void, ctrlen: usize) -> u32 {
+    unsafe { (lib().cipher_setctr)(handle, ctr, ctrlen) }
+}
+
+pub(crate) fn cipher_authenticate(handle: *mut c_void, abuf: *const c_void, abuflen: usize) -> u32 {
+    unsafe { (lib().cipher_authenticate)(handle, abuf, abuflen) }
+}
+
+pub(crate) fn cipher_gettag(handle: *mut c_void, outtag: *mut c_void, taglen: usize) -> u32 {
+    unsafe { (lib().cipher_gettag)(handle, outtag, taglen) }
+}
+
+pub(crate) fn cipher_checktag(handle: *mut c_void, intag: *const c_void, taglen: usize) -> u32 {
+    unsafe { (lib().cipher_checktag)(handle, intag, taglen) }
 }

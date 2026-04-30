@@ -64,21 +64,6 @@ fn validate_token(token: &str) -> Result<(), u32> {
     }
 }
 
-fn retain_constant_time_floor(
-    token: &str,
-    saw_all: bool,
-    explicit_tokens: &BTreeSet<String>,
-) -> bool {
-    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    {
-        if saw_all && token == "intel-ssse3" && !explicit_tokens.contains("intel-ssse3") {
-            return true;
-        }
-    }
-
-    false
-}
-
 pub(crate) fn sanitize_disable_request(names: &CStr) -> Result<Option<CString>, u32> {
     let mut explicit = BTreeSet::new();
     let mut saw_all = false;
@@ -98,9 +83,7 @@ pub(crate) fn sanitize_disable_request(names: &CStr) -> Result<Option<CString>, 
     let mut effective = BTreeSet::new();
     if saw_all {
         for known in KNOWN_FEATURES {
-            if !retain_constant_time_floor(known, true, &explicit) {
-                effective.insert((*known).to_string());
-            }
+            effective.insert((*known).to_string());
         }
     }
 

@@ -132,7 +132,7 @@ impl<T: ByteOrder> KeyInit for Blowfish<T> {
     }
 
     fn new_from_slice(key: &[u8]) -> Result<Self, InvalidLength> {
-        if key.len() < 4 || key.len() > 56 {
+        if key.is_empty() || key.len() > 72 {
             return Err(InvalidLength);
         }
         let mut blowfish = Blowfish::init_state();

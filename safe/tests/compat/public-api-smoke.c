@@ -2,6 +2,7 @@
 #include <gpg-error.h>
 
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -464,6 +465,618 @@ check_phase3_regressions(void)
   return 0;
 }
 
+static int
+check_phase5_cipher_regressions(void)
+{
+  static const unsigned char key[] = {
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+    0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f
+  };
+  static const unsigned char plain[] = {
+    0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
+    0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff
+  };
+  static const unsigned char expected[] = {
+    0x69, 0xc4, 0xe0, 0xd8, 0x6a, 0x7b, 0x04, 0x30,
+    0xd8, 0xcd, 0xb7, 0x80, 0x70, 0xb4, 0xc5, 0x5a
+  };
+  static const unsigned char stream_iv[] = {
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07
+  };
+  static const unsigned char zero_ctr[] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+  };
+  static const unsigned char nonzero_ctr[] = {
+    0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87,
+    0x88, 0x89, 0x8a, 0x8b, 0x8c, 0x8d, 0x8e, 0x8f
+  };
+  static const unsigned char chacha_iv16[] = {
+    0x00, 0x00, 0x00, 0x00, 0x10, 0x11, 0x12, 0x13,
+    0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b
+  };
+  static const unsigned char chacha_bad_iv[] = {
+    0xa0, 0xa1, 0xa2, 0xa3, 0xa4
+  };
+  static const struct
+  {
+    int algo;
+    int mode;
+    size_t keylen;
+    int ok;
+  } keylen_cases[] = {
+    { GCRY_CIPHER_AES192, GCRY_CIPHER_MODE_ECB, 16, 1 },
+    { GCRY_CIPHER_AES192, GCRY_CIPHER_MODE_ECB, 32, 1 },
+    { GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_ECB, 16, 1 },
+    { GCRY_CIPHER_BLOWFISH, GCRY_CIPHER_MODE_ECB, 1, 1 },
+    { GCRY_CIPHER_BLOWFISH, GCRY_CIPHER_MODE_ECB, 72, 1 },
+    { GCRY_CIPHER_BLOWFISH, GCRY_CIPHER_MODE_ECB, 73, 0 },
+    { GCRY_CIPHER_SALSA20, GCRY_CIPHER_MODE_STREAM, 16, 1 },
+    { GCRY_CIPHER_SALSA20, GCRY_CIPHER_MODE_STREAM, 15, 0 },
+    { GCRY_CIPHER_SALSA20R12, GCRY_CIPHER_MODE_STREAM, 16, 1 },
+    { GCRY_CIPHER_CHACHA20, GCRY_CIPHER_MODE_STREAM, 16, 1 },
+    { GCRY_CIPHER_CHACHA20, GCRY_CIPHER_MODE_STREAM, 32, 1 },
+    { GCRY_CIPHER_CHACHA20, GCRY_CIPHER_MODE_STREAM, 33, 0 },
+    { GCRY_CIPHER_RFC2268_40, GCRY_CIPHER_MODE_ECB, 6, 1 },
+    { GCRY_CIPHER_RFC2268_40, GCRY_CIPHER_MODE_ECB, 4, 0 },
+    { GCRY_CIPHER_RFC2268_128, GCRY_CIPHER_MODE_ECB, 128, 1 },
+    { GCRY_CIPHER_RFC2268_128, GCRY_CIPHER_MODE_ECB, 129, 0 },
+    { GCRY_CIPHER_ARCFOUR, GCRY_CIPHER_MODE_STREAM, 5, 1 },
+    { GCRY_CIPHER_ARCFOUR, GCRY_CIPHER_MODE_STREAM, 300, 1 },
+    { GCRY_CIPHER_ARCFOUR, GCRY_CIPHER_MODE_STREAM, 4, 0 },
+    { GCRY_CIPHER_TWOFISH, GCRY_CIPHER_MODE_ECB, 16, 1 },
+    { GCRY_CIPHER_TWOFISH, GCRY_CIPHER_MODE_ECB, 24, 0 },
+    { GCRY_CIPHER_TWOFISH, GCRY_CIPHER_MODE_ECB, 32, 1 },
+    { GCRY_CIPHER_TWOFISH128, GCRY_CIPHER_MODE_ECB, 32, 1 },
+    { GCRY_CIPHER_SERPENT128, GCRY_CIPHER_MODE_ECB, 0, 1 },
+    { GCRY_CIPHER_SERPENT192, GCRY_CIPHER_MODE_ECB, 31, 1 },
+    { GCRY_CIPHER_SERPENT256, GCRY_CIPHER_MODE_ECB, 33, 0 },
+    { GCRY_CIPHER_CAMELLIA128, GCRY_CIPHER_MODE_ECB, 32, 1 },
+    { GCRY_CIPHER_CAMELLIA256, GCRY_CIPHER_MODE_ECB, 16, 1 },
+  };
+  static const struct
+  {
+    int algo;
+    int mode;
+  } missing_key_cases[] = {
+    { GCRY_CIPHER_AES, GCRY_CIPHER_MODE_ECB },
+    { GCRY_CIPHER_ARCFOUR, GCRY_CIPHER_MODE_STREAM },
+    { GCRY_CIPHER_SALSA20, GCRY_CIPHER_MODE_STREAM },
+    { GCRY_CIPHER_CHACHA20, GCRY_CIPHER_MODE_STREAM },
+  };
+  static const int salsa_split_cases[] = {
+    GCRY_CIPHER_SALSA20,
+    GCRY_CIPHER_SALSA20R12
+  };
+  gcry_cipher_hd_t cipher = NULL;
+  unsigned char out[16];
+  unsigned char one_shot[16];
+  unsigned char split[16];
+  unsigned char gost_mesh_plain[1032];
+  unsigned char gost_plain_cfb[1032];
+  unsigned char gost_mesh_cfb[1032];
+  unsigned char tag[16] = {0};
+  unsigned char keylen_out[4];
+  unsigned char key_material[300];
+  uint64_t ccm_lengths[3] = {16, 0, 16};
+  uint64_t bad_ccm_lengths[3] = {16, 0, 5};
+  gcry_error_t err;
+  int taglen = 16;
+  int bad_taglen = 7;
+  size_t info_len;
+  size_t i;
+
+  if (strcmp(gcry_cipher_algo_name(GCRY_CIPHER_AES), "AES"))
+    return die("AES cipher name mismatch", 0);
+  if (gcry_cipher_map_name("RIJNDAEL") != GCRY_CIPHER_AES)
+    return die("AES alias map mismatch", 0);
+  if (gcry_cipher_mode_from_oid("oid.2.16.840.1.101.3.4.1.2")
+      != GCRY_CIPHER_MODE_CBC)
+    return die("AES OID mode map mismatch", 0);
+  if (gcry_cipher_get_algo_keylen(GCRY_CIPHER_AES256) != 32)
+    return die("AES256 key length mismatch", 0);
+  if (gcry_cipher_get_algo_blklen(GCRY_CIPHER_AES) != 16)
+    return die("AES block length mismatch", 0);
+
+  err = gcry_cipher_open(&cipher, GCRY_CIPHER_AES, GCRY_CIPHER_MODE_ECB, 0);
+  if (err)
+    return die("gcry_cipher_open AES ECB failed", err);
+  err = gcry_cipher_setkey(cipher, key, sizeof key);
+  if (err)
+    {
+      gcry_cipher_close(cipher);
+      return die("gcry_cipher_setkey AES failed", err);
+    }
+  err = gcry_cipher_encrypt(cipher, out, sizeof out, plain, sizeof plain);
+  if (err)
+    {
+      gcry_cipher_close(cipher);
+      return die("gcry_cipher_encrypt AES failed", err);
+    }
+  if (memcmp(out, expected, sizeof expected))
+    {
+      gcry_cipher_close(cipher);
+      return die("AES ECB ciphertext mismatch", 0);
+    }
+  gcry_cipher_close(cipher);
+  cipher = NULL;
+
+  err = gcry_cipher_open(&cipher, GCRY_CIPHER_AES, GCRY_CIPHER_MODE_ECB,
+                         GCRY_CIPHER_SECURE);
+  if (err || !cipher)
+    return die("gcry_cipher_open secure AES ECB failed", err);
+  if (!gcry_is_secure(cipher))
+    return die("secure cipher handle used plain memory", 0);
+  err = gcry_cipher_setkey(cipher, key, sizeof key);
+  if (err)
+    return die("secure gcry_cipher_setkey AES failed", err);
+  gcry_cipher_close(cipher);
+  cipher = NULL;
+
+  err = gcry_cipher_open(&cipher, GCRY_CIPHER_AES, GCRY_CIPHER_MODE_ECB,
+                         0x80000000u);
+  if (gcry_err_code(err) != GPG_ERR_CIPHER_ALGO || cipher)
+    return die("gcry_cipher_open accepted invalid flag bits", err);
+  err = gcry_cipher_open(&cipher, GCRY_CIPHER_AES, GCRY_CIPHER_MODE_CBC,
+                         GCRY_CIPHER_CBC_CTS | GCRY_CIPHER_CBC_MAC);
+  if (gcry_err_code(err) != GPG_ERR_CIPHER_ALGO || cipher)
+    return die("gcry_cipher_open accepted conflicting CBC flags", err);
+  err = gcry_cipher_open(&cipher, 9999, GCRY_CIPHER_MODE_EAX, 0);
+  if (gcry_err_code(err) != GPG_ERR_CIPHER_ALGO || cipher)
+    return die("gcry_cipher_open returned wrong error for unknown cipher", err);
+  err = gcry_cipher_open(&cipher, GCRY_CIPHER_AES, GCRY_CIPHER_MODE_CFB,
+                         GCRY_CIPHER_ENABLE_SYNC);
+  if (err || !cipher)
+    return die("gcry_cipher_open rejected CFB sync flag", err);
+  gcry_cipher_close(cipher);
+  cipher = NULL;
+
+  err = gcry_cipher_open(&cipher, GCRY_CIPHER_AES, GCRY_CIPHER_MODE_ECB, 0);
+  if (err || !cipher)
+    return die("gcry_cipher_open AES ECB authenticate probe failed", err);
+  err = gcry_cipher_authenticate(cipher, plain, sizeof plain);
+  if (gcry_err_code(err) != GPG_ERR_INV_CIPHER_MODE)
+    {
+      gcry_cipher_close(cipher);
+      cipher = NULL;
+      return die("gcry_cipher_authenticate accepted non-AEAD mode", err);
+    }
+  err = gcry_cipher_authenticate(cipher, NULL, 1);
+  if (gcry_err_code(err) != GPG_ERR_INV_CIPHER_MODE)
+    {
+      gcry_cipher_close(cipher);
+      cipher = NULL;
+      return die("gcry_cipher_authenticate checked AAD before mode", err);
+    }
+  gcry_cipher_close(cipher);
+  cipher = NULL;
+
+  err = gcry_cipher_open(&cipher, GCRY_CIPHER_AES, GCRY_CIPHER_MODE_ECB, 0);
+  if (err || !cipher)
+    return die("gcry_cipher_open AES ECB ctl probe failed", err);
+  err = gcry_cipher_ctl(cipher, GCRYCTL_SET_CCM_LENGTHS,
+                        ccm_lengths, sizeof ccm_lengths);
+  if (gcry_err_code(err) != GPG_ERR_INV_CIPHER_MODE)
+    {
+      gcry_cipher_close(cipher);
+      cipher = NULL;
+      return die("SET_CCM_LENGTHS accepted non-CCM mode", err);
+    }
+  err = gcry_cipher_ctl(cipher, GCRYCTL_SET_TAGLEN,
+                        &taglen, sizeof taglen);
+  if (gcry_err_code(err) != GPG_ERR_INV_CIPHER_MODE)
+    {
+      gcry_cipher_close(cipher);
+      cipher = NULL;
+      return die("SET_TAGLEN accepted non-OCB mode", err);
+    }
+  err = gcry_cipher_ctl(cipher, GCRYCTL_SET_DECRYPTION_TAG,
+                        tag, sizeof tag);
+  if (gcry_err_code(err) != GPG_ERR_INV_CIPHER_MODE)
+    {
+      gcry_cipher_close(cipher);
+      cipher = NULL;
+      return die("SET_DECRYPTION_TAG accepted non-SIV mode", err);
+    }
+  info_len = sizeof keylen_out;
+  err = gcry_cipher_info(cipher, GCRYCTL_GET_KEYLEN,
+                         keylen_out, &info_len);
+  if (gcry_err_code(err) != GPG_ERR_INV_CIPHER_MODE)
+    {
+      gcry_cipher_close(cipher);
+      cipher = NULL;
+      return die("GET_KEYLEN accepted non-AESWRAP mode", err);
+    }
+  gcry_cipher_close(cipher);
+  cipher = NULL;
+
+  err = gcry_cipher_open(&cipher, GCRY_CIPHER_AES, GCRY_CIPHER_MODE_CCM, 0);
+  if (err || !cipher)
+    return die("gcry_cipher_open AES CCM ctl probe failed", err);
+  err = gcry_cipher_ctl(cipher, GCRYCTL_SET_CCM_LENGTHS,
+                        ccm_lengths, sizeof ccm_lengths - 1);
+  if (gcry_err_code(err) != GPG_ERR_INV_ARG)
+    {
+      gcry_cipher_close(cipher);
+      cipher = NULL;
+      return die("SET_CCM_LENGTHS accepted wrong buffer length", err);
+    }
+  err = gcry_cipher_ctl(cipher, GCRYCTL_SET_CCM_LENGTHS,
+                        bad_ccm_lengths, sizeof bad_ccm_lengths);
+  if (gcry_err_code(err) != GPG_ERR_INV_LENGTH)
+    {
+      gcry_cipher_close(cipher);
+      cipher = NULL;
+      return die("SET_CCM_LENGTHS accepted invalid tag length", err);
+    }
+  gcry_cipher_close(cipher);
+  cipher = NULL;
+
+  err = gcry_cipher_open(&cipher, GCRY_CIPHER_AES, GCRY_CIPHER_MODE_OCB, 0);
+  if (err || !cipher)
+    return die("gcry_cipher_open AES OCB ctl probe failed", err);
+  err = gcry_cipher_ctl(cipher, GCRYCTL_SET_TAGLEN,
+                        &bad_taglen, sizeof bad_taglen);
+  if (gcry_err_code(err) != GPG_ERR_INV_LENGTH)
+    {
+      gcry_cipher_close(cipher);
+      cipher = NULL;
+      return die("SET_TAGLEN accepted invalid OCB tag length", err);
+    }
+  err = gcry_cipher_ctl(cipher, GCRYCTL_SET_TAGLEN,
+                        &taglen, sizeof taglen - 1);
+  if (gcry_err_code(err) != GPG_ERR_INV_ARG)
+    {
+      gcry_cipher_close(cipher);
+      cipher = NULL;
+      return die("SET_TAGLEN accepted wrong buffer length", err);
+    }
+  gcry_cipher_close(cipher);
+  cipher = NULL;
+
+  err = gcry_cipher_open(&cipher, GCRY_CIPHER_AES, GCRY_CIPHER_MODE_SIV, 0);
+  if (err || !cipher)
+    return die("gcry_cipher_open AES SIV ctl probe failed", err);
+  err = gcry_cipher_ctl(cipher, GCRYCTL_SET_DECRYPTION_TAG,
+                        tag, sizeof tag - 1);
+  if (gcry_err_code(err) != GPG_ERR_INV_ARG)
+    {
+      gcry_cipher_close(cipher);
+      cipher = NULL;
+      return die("SET_DECRYPTION_TAG accepted wrong tag length", err);
+    }
+  gcry_cipher_close(cipher);
+  cipher = NULL;
+
+  err = gcry_cipher_open(&cipher, GCRY_CIPHER_CHACHA20,
+                         GCRY_CIPHER_MODE_EAX, 0);
+  if (gcry_err_code(err) != GPG_ERR_INV_CIPHER_MODE || cipher)
+    return die("gcry_cipher_open accepted stream EAX mode", err);
+  err = gcry_cipher_open(&cipher, GCRY_CIPHER_ARCFOUR,
+                         GCRY_CIPHER_MODE_CFB, 0);
+  if (gcry_err_code(err) != GPG_ERR_INV_CIPHER_MODE || cipher)
+    return die("gcry_cipher_open accepted stream block mode", err);
+  err = gcry_cipher_open(&cipher, GCRY_CIPHER_CHACHA20,
+                         GCRY_CIPHER_MODE_POLY1305, 0);
+  if (err || !cipher)
+    return die("gcry_cipher_open rejected ChaCha20-Poly1305", err);
+  gcry_cipher_close(cipher);
+  cipher = NULL;
+
+  err = gcry_cipher_open(&cipher, GCRY_CIPHER_CHACHA20,
+                         GCRY_CIPHER_MODE_STREAM, 0);
+  if (err || !cipher)
+    return die("gcry_cipher_open ChaCha20 IV probe failed", err);
+  err = gcry_cipher_setkey(cipher, key, sizeof key);
+  if (err)
+    {
+      gcry_cipher_close(cipher);
+      cipher = NULL;
+      return die("gcry_cipher_setkey ChaCha20 IV probe failed", err);
+    }
+  err = gcry_cipher_setiv(cipher, chacha_iv16, sizeof chacha_iv16);
+  if (err)
+    {
+      gcry_cipher_close(cipher);
+      cipher = NULL;
+      return die("gcry_cipher_setiv rejected 16-byte ChaCha20 IV", err);
+    }
+  gcry_cipher_close(cipher);
+  cipher = NULL;
+
+  err = gcry_cipher_open(&cipher, GCRY_CIPHER_CHACHA20,
+                         GCRY_CIPHER_MODE_STREAM, 0);
+  if (err || !cipher)
+    return die("gcry_cipher_open ChaCha20 zero IV probe failed", err);
+  err = gcry_cipher_setkey(cipher, key, sizeof key);
+  if (err)
+    {
+      gcry_cipher_close(cipher);
+      cipher = NULL;
+      return die("gcry_cipher_setkey ChaCha20 zero IV probe failed", err);
+    }
+  err = gcry_cipher_setiv(cipher, NULL, 0);
+  if (!err)
+    err = gcry_cipher_encrypt(cipher, one_shot, sizeof one_shot,
+                              plain, sizeof plain);
+  gcry_cipher_close(cipher);
+  cipher = NULL;
+  if (err)
+    return die("gcry_cipher_encrypt ChaCha20 zero IV probe failed", err);
+
+  err = gcry_cipher_open(&cipher, GCRY_CIPHER_CHACHA20,
+                         GCRY_CIPHER_MODE_STREAM, 0);
+  if (err || !cipher)
+    return die("gcry_cipher_open ChaCha20 bad IV probe failed", err);
+  err = gcry_cipher_setkey(cipher, key, sizeof key);
+  if (err)
+    {
+      gcry_cipher_close(cipher);
+      cipher = NULL;
+      return die("gcry_cipher_setkey ChaCha20 bad IV probe failed", err);
+    }
+  err = gcry_cipher_setiv(cipher, chacha_bad_iv, sizeof chacha_bad_iv);
+  if (!err)
+    err = gcry_cipher_encrypt(cipher, split, sizeof split,
+                              plain, sizeof plain);
+  gcry_cipher_close(cipher);
+  cipher = NULL;
+  if (err)
+    return die("gcry_cipher_setiv rejected bad ChaCha20 IV length", err);
+  if (memcmp(one_shot, split, sizeof one_shot))
+    return die("bad ChaCha20 IV did not reset to zero IV", 0);
+
+  err = gcry_cipher_open(&cipher, GCRY_CIPHER_AES, GCRY_CIPHER_MODE_CTR, 0);
+  if (err || !cipher)
+    return die("gcry_cipher_open AES CTR setctr NULL probe failed", err);
+  err = gcry_cipher_setkey(cipher, key, sizeof key);
+  if (err)
+    {
+      gcry_cipher_close(cipher);
+      cipher = NULL;
+      return die("gcry_cipher_setkey AES CTR setctr NULL probe failed", err);
+    }
+  err = gcry_cipher_setctr(cipher, nonzero_ctr, sizeof nonzero_ctr - 1);
+  if (gcry_err_code(err) != GPG_ERR_INV_ARG)
+    {
+      gcry_cipher_close(cipher);
+      cipher = NULL;
+      return die("gcry_cipher_setctr returned wrong error for bad length", err);
+    }
+  err = gcry_cipher_setctr(cipher, nonzero_ctr, sizeof nonzero_ctr);
+  if (!err)
+    err = gcry_cipher_setctr(cipher, NULL, 0);
+  if (!err)
+    err = gcry_cipher_encrypt(cipher, one_shot, sizeof one_shot,
+                              plain, sizeof plain);
+  gcry_cipher_close(cipher);
+  cipher = NULL;
+  if (err)
+    return die("gcry_cipher_setctr NULL zero probe failed", err);
+
+  err = gcry_cipher_open(&cipher, GCRY_CIPHER_AES, GCRY_CIPHER_MODE_CTR, 0);
+  if (err || !cipher)
+    return die("gcry_cipher_open AES CTR zero reference failed", err);
+  err = gcry_cipher_setkey(cipher, key, sizeof key);
+  if (!err)
+    err = gcry_cipher_setctr(cipher, zero_ctr, sizeof zero_ctr);
+  if (!err)
+    err = gcry_cipher_encrypt(cipher, split, sizeof split,
+                              plain, sizeof plain);
+  gcry_cipher_close(cipher);
+  cipher = NULL;
+  if (err)
+    return die("gcry_cipher_setctr zero reference failed", err);
+  if (memcmp(one_shot, split, sizeof one_shot))
+    return die("gcry_cipher_setctr NULL did not zero counter", 0);
+
+  for (i = 0; i < sizeof missing_key_cases / sizeof missing_key_cases[0]; i++)
+    {
+      err = gcry_cipher_open(&cipher, missing_key_cases[i].algo,
+                             missing_key_cases[i].mode, 0);
+      if (err)
+        return die("gcry_cipher_open missing-key probe failed",
+                   missing_key_cases[i].algo);
+      err = gcry_cipher_encrypt(cipher, out, sizeof out, plain, sizeof plain);
+      if (gcry_err_code(err) != GPG_ERR_MISSING_KEY)
+        {
+          gcry_cipher_close(cipher);
+          cipher = NULL;
+          return die("gcry_cipher_encrypt accepted missing key", err);
+        }
+      err = gcry_cipher_decrypt(cipher, out, sizeof out, plain, sizeof plain);
+      if (gcry_err_code(err) != GPG_ERR_MISSING_KEY)
+        {
+          gcry_cipher_close(cipher);
+          cipher = NULL;
+          return die("gcry_cipher_decrypt accepted missing key", err);
+        }
+      gcry_cipher_close(cipher);
+      cipher = NULL;
+    }
+
+  for (i = 0; i < sizeof salsa_split_cases / sizeof salsa_split_cases[0]; i++)
+    {
+      const size_t split_at = 5;
+
+      err = gcry_cipher_open(&cipher, salsa_split_cases[i],
+                             GCRY_CIPHER_MODE_STREAM, 0);
+      if (err)
+        return die("gcry_cipher_open Salsa split one-shot failed",
+                   salsa_split_cases[i]);
+      err = gcry_cipher_setkey(cipher, key, sizeof key);
+      if (err)
+        {
+          gcry_cipher_close(cipher);
+          cipher = NULL;
+          return die("gcry_cipher_setkey Salsa split one-shot failed", err);
+        }
+      err = gcry_cipher_setiv(cipher, stream_iv, sizeof stream_iv);
+      if (err)
+        {
+          gcry_cipher_close(cipher);
+          cipher = NULL;
+          return die("gcry_cipher_setiv Salsa split one-shot failed", err);
+        }
+      err = gcry_cipher_encrypt(cipher, one_shot, sizeof one_shot,
+                                plain, sizeof plain);
+      gcry_cipher_close(cipher);
+      cipher = NULL;
+      if (err)
+        return die("gcry_cipher_encrypt Salsa split one-shot failed", err);
+
+      err = gcry_cipher_open(&cipher, salsa_split_cases[i],
+                             GCRY_CIPHER_MODE_STREAM, 0);
+      if (err)
+        return die("gcry_cipher_open Salsa split multi-call failed",
+                   salsa_split_cases[i]);
+      err = gcry_cipher_setkey(cipher, key, sizeof key);
+      if (err)
+        {
+          gcry_cipher_close(cipher);
+          cipher = NULL;
+          return die("gcry_cipher_setkey Salsa split multi-call failed", err);
+        }
+      err = gcry_cipher_setiv(cipher, stream_iv, sizeof stream_iv);
+      if (err)
+        {
+          gcry_cipher_close(cipher);
+          cipher = NULL;
+          return die("gcry_cipher_setiv Salsa split multi-call failed", err);
+        }
+      err = gcry_cipher_encrypt(cipher, split, split_at, plain, split_at);
+      if (!err)
+        err = gcry_cipher_encrypt(cipher, split + split_at,
+                                  sizeof split - split_at,
+                                  plain + split_at, sizeof plain - split_at);
+      gcry_cipher_close(cipher);
+      cipher = NULL;
+      if (err)
+        return die("gcry_cipher_encrypt Salsa split multi-call failed", err);
+      if (memcmp(one_shot, split, sizeof one_shot))
+        return die("Salsa split stream state mismatch", salsa_split_cases[i]);
+    }
+
+  for (i = 0; i < sizeof key_material; i++)
+    key_material[i] = (unsigned char)(0x41 + (i * 17) % 191);
+  for (i = 0; i < sizeof gost_mesh_plain; i++)
+    gost_mesh_plain[i] = (unsigned char)(0x30 + (i * 29) % 197);
+
+  err = gcry_cipher_open(&cipher, GCRY_CIPHER_AES, GCRY_CIPHER_MODE_ECB, 0);
+  if (err)
+    return die("gcry_cipher_open AES set-sbox unsupported probe failed", err);
+  err = gcry_cipher_ctl(cipher, GCRYCTL_SET_SBOX,
+                        (void *)"1.2.643.2.2.31.1", 0);
+  gcry_cipher_close(cipher);
+  cipher = NULL;
+  if (gcry_err_code(err) != GPG_ERR_NOT_SUPPORTED)
+    return die("gcry_cipher_ctl SET_SBOX accepted non-GOST cipher", err);
+
+  err = gcry_cipher_open(&cipher, GCRY_CIPHER_GOST28147,
+                         GCRY_CIPHER_MODE_ECB, 0);
+  if (err)
+    return die("gcry_cipher_open GOST set-sbox probe failed", err);
+  err = gcry_cipher_ctl(cipher, GCRYCTL_SET_SBOX, (void *)"bad", 0);
+  if (gcry_err_code(err) != GPG_ERR_VALUE_NOT_FOUND)
+    {
+      gcry_cipher_close(cipher);
+      cipher = NULL;
+      return die("gcry_cipher_ctl SET_SBOX accepted unknown GOST OID", err);
+    }
+  err = gcry_cipher_ctl(cipher, GCRYCTL_SET_SBOX,
+                        (void *)"1.2.643.2.2.31.1", 0);
+  if (!err)
+    err = gcry_cipher_setkey(cipher, key_material, 32);
+  if (!err)
+    err = gcry_cipher_encrypt(cipher, one_shot, sizeof one_shot,
+                              plain, sizeof plain);
+  gcry_cipher_close(cipher);
+  cipher = NULL;
+  if (err)
+    return die("gcry_cipher_ctl SET_SBOX CryptoPro-A failed", err);
+
+  err = gcry_cipher_open(&cipher, GCRY_CIPHER_GOST28147,
+                         GCRY_CIPHER_MODE_ECB, 0);
+  if (err)
+    return die("gcry_cipher_open GOST set-sbox compare failed", err);
+  err = gcry_cipher_ctl(cipher, GCRYCTL_SET_SBOX,
+                        (void *)"1.2.643.2.2.31.2", 0);
+  if (!err)
+    err = gcry_cipher_setkey(cipher, key_material, 32);
+  if (!err)
+    err = gcry_cipher_encrypt(cipher, split, sizeof split,
+                              plain, sizeof plain);
+  gcry_cipher_close(cipher);
+  cipher = NULL;
+  if (err)
+    return die("gcry_cipher_ctl SET_SBOX CryptoPro-B failed", err);
+  if (!memcmp(one_shot, split, sizeof one_shot))
+    return die("GOST SET_SBOX OIDs did not select distinct tables", 0);
+
+  err = gcry_cipher_open(&cipher, GCRY_CIPHER_GOST28147,
+                         GCRY_CIPHER_MODE_CFB, 0);
+  if (err)
+    return die("gcry_cipher_open plain GOST CFB mesh reference failed", err);
+  err = gcry_cipher_ctl(cipher, GCRYCTL_SET_SBOX,
+                        (void *)"1.2.643.2.2.31.1", 0);
+  if (!err)
+    err = gcry_cipher_setkey(cipher, key_material, 32);
+  if (!err)
+    err = gcry_cipher_setiv(cipher, stream_iv, sizeof stream_iv);
+  if (!err)
+    err = gcry_cipher_encrypt(cipher, gost_plain_cfb, sizeof gost_plain_cfb,
+                              gost_mesh_plain, sizeof gost_mesh_plain);
+  gcry_cipher_close(cipher);
+  cipher = NULL;
+  if (err)
+    return die("plain GOST CFB mesh reference failed", err);
+
+  err = gcry_cipher_open(&cipher, GCRY_CIPHER_GOST28147_MESH,
+                         GCRY_CIPHER_MODE_CFB, 0);
+  if (err)
+    return die("gcry_cipher_open GOST_MESH CFB failed", err);
+  err = gcry_cipher_ctl(cipher, GCRYCTL_SET_SBOX,
+                        (void *)"1.2.643.2.2.31.1", 0);
+  if (!err)
+    err = gcry_cipher_setkey(cipher, key_material, 32);
+  if (!err)
+    err = gcry_cipher_setiv(cipher, stream_iv, sizeof stream_iv);
+  if (!err)
+    err = gcry_cipher_encrypt(cipher, gost_mesh_cfb, sizeof gost_mesh_cfb,
+                              gost_mesh_plain, sizeof gost_mesh_plain);
+  gcry_cipher_close(cipher);
+  cipher = NULL;
+  if (err)
+    return die("GOST_MESH CFB encryption failed", err);
+  if (memcmp(gost_plain_cfb, gost_mesh_cfb, 1024))
+    return die("GOST_MESH diverged before key-meshing boundary", 0);
+  if (!memcmp(gost_plain_cfb + 1024, gost_mesh_cfb + 1024, 8))
+    return die("GOST_MESH did not apply key meshing after 1024 bytes", 0);
+
+  for (i = 0; i < sizeof keylen_cases / sizeof keylen_cases[0]; i++)
+    {
+      err = gcry_cipher_open(&cipher, keylen_cases[i].algo,
+                             keylen_cases[i].mode, 0);
+      if (err)
+        return die("gcry_cipher_open key length probe failed",
+                   keylen_cases[i].algo);
+      err = gcry_cipher_setkey(cipher, key_material, keylen_cases[i].keylen);
+      gcry_cipher_close(cipher);
+      cipher = NULL;
+      if (keylen_cases[i].ok)
+        {
+          if (err && gcry_err_code(err) != GPG_ERR_WEAK_KEY)
+            return die("gcry_cipher_setkey rejected valid key length",
+                       keylen_cases[i].algo);
+        }
+      else if (gcry_err_code(err) != GPG_ERR_INV_KEYLEN)
+        return die("gcry_cipher_setkey accepted invalid key length",
+                   keylen_cases[i].algo);
+    }
+
+  return 0;
+}
+
 int
 main(void)
 {
@@ -471,11 +1084,13 @@ main(void)
   gcry_md_hd_t md = NULL;
   gcry_md_hd_t keyed_md = NULL;
   gcry_mac_hd_t mac = NULL;
+  gcry_cipher_hd_t cipher = NULL;
   gcry_sexp_t first = NULL;
   gcry_sexp_t second = NULL;
   gcry_sexp_t combined = NULL;
   gcry_sexp_t key = NULL;
   gcry_kdf_hd_t kdf = NULL;
+  char *hwflist = NULL;
   gcry_mpi_t mpi_n = NULL;
   gcry_mpi_t mpi_e = NULL;
   gcry_buffer_t hash_iov[1];
@@ -746,10 +1361,47 @@ main(void)
   if (gcry_control(GCRYCTL_SET_VERBOSITY, 0))
     return die("SET_VERBOSITY failed", 0);
 
+  if (gcry_control(GCRYCTL_DISABLE_HWF, "all", NULL))
+    return die("DISABLE_HWF all failed", 0);
+  hwflist = gcry_get_config(0, "hwflist");
+  if (!hwflist)
+    return die("gcry_get_config hwflist after DISABLE_HWF failed", 0);
+  if (strcmp(hwflist, "hwflist:"))
+    {
+      gcry_free(hwflist);
+      return die("DISABLE_HWF all left hardware features enabled", 0);
+    }
+  gcry_free(hwflist);
+  hwflist = NULL;
+
   gcry_fast_random_poll();
   fips_mode = gcry_fips_mode_active();
   if (fips_mode != 0 && fips_mode != 1)
     return die("gcry_fips_mode_active returned non-boolean", fips_mode);
+
+  if (gcry_control(GCRYCTL_FORCE_FIPS_MODE, 0))
+    return die("FORCE_FIPS_MODE failed", 0);
+  if (!gcry_fips_mode_active())
+    return die("FORCE_FIPS_MODE did not enable FIPS mode", 0);
+  err = gcry_cipher_open(&cipher, GCRY_CIPHER_BLOWFISH,
+                         GCRY_CIPHER_MODE_ECB, 0);
+  if (gcry_err_code(err) != GPG_ERR_CIPHER_ALGO || cipher)
+    {
+      if (cipher)
+        gcry_cipher_close(cipher);
+      cipher = NULL;
+      return die("gcry_cipher_open accepted non-FIPS cipher in FIPS mode",
+                 err);
+    }
+  err = gcry_cipher_open(&cipher, GCRY_CIPHER_AES, GCRY_CIPHER_MODE_ECB, 0);
+  if (err || !cipher)
+    return die("gcry_cipher_open rejected AES in FIPS mode", err);
+  gcry_cipher_close(cipher);
+  cipher = NULL;
+  if (gcry_control(GCRYCTL_NO_FIPS_MODE, 0))
+    return die("NO_FIPS_MODE failed after cipher probe", 0);
+  if (gcry_fips_mode_active())
+    return die("NO_FIPS_MODE did not leave FIPS mode", 0);
 
   gcry_set_log_handler(capture_log, &log_capture);
   gcry_log_debug("compat smoke %d", 42);
@@ -1291,6 +1943,8 @@ main(void)
     return die("gcry_sexp_extract_param returned NULL values", 0);
 
   if (check_phase3_regressions ())
+    return 1;
+  if (check_phase5_cipher_regressions ())
     return 1;
 
   gcry_mpi_release(mpi_n);
