@@ -66,7 +66,7 @@ Phase 8 adds compatibility-specific harnesses on top of the imported upstream su
 
 | Harness / surface | First enabled phase | Coverage type | Execution |
 | --- | --- | --- | --- |
-| Original-object relink | Phase 8 | link-compatibility | `safe/scripts/relink-original-objects.sh --all` rebuilds original test objects and relinks every compiled regression binary against the safe shared library |
+| Original-object relink | Phase 8 | link-compatibility | `safe/scripts/relink-original-objects.sh --all` rebuilds original test objects with original headers/defines and relinks every compiled regression and benchmark binary against the safe shared library. Regression/testapi binaries are executed; upstream `benchmark` and `bench-slope` are link-only here because their runtime paths remain covered by `safe/scripts/run-upstream-tests.sh`. |
 | Public thread-callback path | Phase 8 | targeted compatibility smoke | `safe/scripts/run-compat-smoke.sh --all` covers `GCRY_THREAD_OPTION_PTHREAD_IMPL`, `GCRY_THREAD_OPTION_PTH_IMPL`, and `gcry_control(GCRYCTL_SET_THREAD_CBS, &gcry_threads_pthread)` |
 | Header-visible macro surface | Phase 8 | targeted compatibility smoke | `safe/scripts/run-compat-smoke.sh --all` compiles and runs `gcry_md_putc`, `gcry_fast_random_poll`, and `gcry_fips_mode_active` against the generated and staged headers |
 | Public variadic entries | Phase 8 | targeted compatibility smoke | `safe/scripts/run-compat-smoke.sh --all` compiles and calls `gcry_control`, `gcry_sexp_build`, `gcry_sexp_vlist`, `gcry_sexp_extract_param`, and `gcry_log_debug` from C |

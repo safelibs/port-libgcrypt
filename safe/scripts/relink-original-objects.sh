@@ -14,6 +14,7 @@ HARNESS_ROOT="${SAFE_DIR}/target/bootstrap/relink-original-objects"
 AUTOMAKE_LIBDIR="$(automake --print-libdir)"
 PACKAGE_VERSION="1.10.3"
 VERSION_NUMBER_HEX="0x010a03"
+LINK_ONLY_TESTS=(benchmark bench-slope)
 
 fail() {
   echo "relink-original-objects: $*" >&2
@@ -153,6 +154,9 @@ link_test_binary() {
     -pthread \
     -lgcrypt -lgpg-error \
     -o "${output_path}"
+
+  readelf -d "${output_path}" | grep -q 'Shared library: \[libgcrypt.so.20\]' \
+    || fail "${test_name} did not link against libgcrypt.so.20"
 }
 
 run_test_binary() {
@@ -164,6 +168,17 @@ run_test_binary() {
     LD_LIBRARY_PATH="${STAGE_LIBDIR}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" \
       "./${test_name}"
   )
+}
+
+is_link_only_test() {
+  local test_name="$1"
+  local link_only
+
+  for link_only in "${LINK_ONLY_TESTS[@]}"; do
+    [[ "${test_name}" == "${link_only}" ]] && return 0
+  done
+
+  return 1
 }
 
 run_testapi_binary() {
@@ -280,6 +295,10 @@ main() {
   for test_name in "${tests[@]}"; do
     compile_test_object "${test_name}"
     link_test_binary "${test_name}"
+    if is_link_only_test "${test_name}"; then
+      echo "relink-original-objects: linked ${test_name} against safe libgcrypt.so.20 (runtime covered by upstream benchmark harness)"
+      continue
+    fi
     if [[ "${test_name}" == "testapi" ]]; then
       run_testapi_binary
     else
