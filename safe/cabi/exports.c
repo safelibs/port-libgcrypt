@@ -208,42 +208,187 @@ gcry_set_gettext_handler(const char *(*f)(const char *))
   safe_gcry_set_gettext_handler(f);
 }
 
+static int
+sexp_format_next_spec(const char *format, size_t *offset)
+{
+  enum
+    {
+      SEXP_FORMAT_NORMAL,
+      SEXP_FORMAT_LENGTH,
+      SEXP_FORMAT_QUOTED,
+      SEXP_FORMAT_HEX,
+      SEXP_FORMAT_BASE64
+    } state = SEXP_FORMAT_NORMAL;
+  size_t idx = *offset;
+  size_t length = 0;
+  int escaped = 0;
+
+  if (!format)
+    return 0;
+
+  while (format[idx])
+    {
+      unsigned char byte = (unsigned char)format[idx];
+
+      switch (state)
+        {
+        case SEXP_FORMAT_NORMAL:
+          if (byte == '%')
+            {
+              if (!format[idx + 1])
+                {
+                  *offset = idx;
+                  return 0;
+                }
+              *offset = idx + 1;
+              return (unsigned char)format[idx + 1];
+            }
+          else if (byte == '"')
+            {
+              state = SEXP_FORMAT_QUOTED;
+              escaped = 0;
+              idx++;
+            }
+          else if (byte == '#')
+            {
+              state = SEXP_FORMAT_HEX;
+              idx++;
+            }
+          else if (byte == '|')
+            {
+              state = SEXP_FORMAT_BASE64;
+              idx++;
+            }
+          else if (byte >= '0' && byte <= '9')
+            {
+              state = SEXP_FORMAT_LENGTH;
+              length = byte - '0';
+              idx++;
+            }
+          else
+            idx++;
+          break;
+
+        case SEXP_FORMAT_LENGTH:
+          if (byte >= '0' && byte <= '9')
+            {
+              length = length * 10 + (byte - '0');
+              idx++;
+            }
+          else if (byte == ':')
+            {
+              idx++;
+              while (length && format[idx])
+                {
+                  idx++;
+                  length--;
+                }
+              state = SEXP_FORMAT_NORMAL;
+            }
+          else if (byte == '"')
+            {
+              state = SEXP_FORMAT_QUOTED;
+              escaped = 0;
+              idx++;
+            }
+          else if (byte == '#')
+            {
+              state = SEXP_FORMAT_HEX;
+              idx++;
+            }
+          else if (byte == '|')
+            {
+              state = SEXP_FORMAT_BASE64;
+              idx++;
+            }
+          else
+            {
+              state = SEXP_FORMAT_NORMAL;
+              idx++;
+            }
+          break;
+
+        case SEXP_FORMAT_QUOTED:
+          if (escaped)
+            {
+              escaped = 0;
+              idx++;
+            }
+          else if (byte == '\\')
+            {
+              escaped = 1;
+              idx++;
+            }
+          else if (byte == '"')
+            {
+              state = SEXP_FORMAT_NORMAL;
+              idx++;
+            }
+          else
+            idx++;
+          break;
+
+        case SEXP_FORMAT_HEX:
+          if (byte == '#')
+            state = SEXP_FORMAT_NORMAL;
+          idx++;
+          break;
+
+        case SEXP_FORMAT_BASE64:
+          if (byte == '|')
+            state = SEXP_FORMAT_NORMAL;
+          idx++;
+          break;
+        }
+    }
+
+  *offset = idx;
+  return 0;
+}
+
+static size_t
+sexp_format_arg_count(const char *format)
+{
+  size_t argc = 0;
+  size_t offset = 0;
+  int spec;
+
+  while ((spec = sexp_format_next_spec(format, &offset)))
+    {
+      switch (spec)
+        {
+        case 'm':
+        case 'M':
+        case 's':
+        case 'S':
+        case 'd':
+        case 'u':
+          argc += 1;
+          break;
+        case 'b':
+          argc += 2;
+          break;
+        default:
+          break;
+        }
+      offset++;
+    }
+
+  return argc;
+}
+
 gcry_error_t
 gcry_sexp_build(gcry_sexp_t *retsexp, size_t *erroff, const char *format, ...)
 {
   va_list ap;
   uintptr_t *args = NULL;
   size_t argc = 0;
-  const char *p;
+  size_t offset = 0;
+  int spec;
   gcry_error_t rc;
 
   va_start(ap, format);
-  for (p = format; p && *p; p++)
-    {
-      if (*p != '%')
-        continue;
-      p++;
-      if (!*p)
-        break;
-      switch (*p)
-        {
-        case 'm':
-        case 'M':
-        case 's':
-        case 'S':
-          argc += 1;
-          break;
-        case 'b':
-          argc += 2;
-          break;
-        case 'd':
-        case 'u':
-          argc += 1;
-          break;
-        default:
-          break;
-        }
-    }
+  argc = sexp_format_arg_count(format);
   if (argc)
     {
       args = malloc (argc * sizeof *args);
@@ -255,14 +400,9 @@ gcry_sexp_build(gcry_sexp_t *retsexp, size_t *erroff, const char *format, ...)
         }
     }
   argc = 0;
-  for (p = format; p && *p; p++)
+  while ((spec = sexp_format_next_spec(format, &offset)))
     {
-      if (*p != '%')
-        continue;
-      p++;
-      if (!*p)
-        break;
-      switch (*p)
+      switch (spec)
         {
         case 'm':
         case 'M':
@@ -283,6 +423,7 @@ gcry_sexp_build(gcry_sexp_t *retsexp, size_t *erroff, const char *format, ...)
         default:
           break;
         }
+      offset++;
     }
   va_end(ap);
   rc = safe_gcry_sexp_build_dispatch(retsexp, erroff, format, args, argc);

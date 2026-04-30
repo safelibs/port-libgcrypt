@@ -14,6 +14,12 @@ use super::{
 type gcry_prime_check_func_t =
     Option<unsafe extern "C" fn(*mut c_void, c_int, *mut gcry_mpi) -> c_int>;
 
+const GCRY_PRIME_CHECK_AT_FINISH: c_int = 0;
+
+// libgcrypt's public prime APIs are probabilistic for large candidates.  This
+// Rust port follows that contract by using GMP's probable-prime test with the
+// same style of repeated rounds needed by the upstream `prime` regression,
+// rather than trying to provide a deterministic primality proof.
 fn probable_prime(number: &Mpz) -> bool {
     unsafe { __gmpz_probab_prime_p(number.as_ptr(), 32) != 0 }
 }
@@ -117,17 +123,15 @@ pub extern "C" fn gcry_prime_generate(
             continue;
         }
 
-        let raw = gcry_mpi::from_numeric(Mpz::clone_from(candidate.as_ptr()), secure);
-        let accepted = if let Some(callback) = cb_func {
-            unsafe { callback(cb_arg, 0, raw) == 0 }
-        } else {
-            true
-        };
-        if accepted {
+        if let Some(callback) = cb_func {
+            let raw = gcry_mpi::from_numeric(Mpz::clone_from(candidate.as_ptr()), secure);
+            let accepted = unsafe { callback(cb_arg, GCRY_PRIME_CHECK_AT_FINISH, raw) != 0 };
             super::gcry_mpi_release(raw);
-            break candidate;
+            if !accepted {
+                return error::gcry_error_from_code(error::GPG_ERR_GENERAL);
+            }
         }
-        super::gcry_mpi_release(raw);
+        break candidate;
     };
 
     unsafe {
@@ -137,9 +141,7 @@ pub extern "C" fn gcry_prime_generate(
     if !factors.is_null() {
         let mut items = Vec::new();
         items.push(super::consts::const_value(2).deep_copy());
-        if factor_bits != 0 {
-            items.push(gcry_mpi::from_numeric(q, secure));
-        }
+        items.push(gcry_mpi::from_numeric(q, secure));
         unsafe {
             *factors = build_factor_array(items);
         }
@@ -171,6 +173,9 @@ pub extern "C" fn gcry_prime_group_generator(
             *r_g = null_mut();
         }
     }
+    if r_g.is_null() || factors.is_null() {
+        return error::gcry_error_from_code(error::GPG_ERR_INV_ARG);
+    }
     let Some(prime_value) = (unsafe { gcry_mpi::as_ref(prime) }) else {
         return error::gcry_error_from_code(error::GPG_ERR_INV_ARG);
     };
@@ -183,30 +188,38 @@ pub extern "C" fn gcry_prime_group_generator(
         __gmpz_sub_ui(p_minus_1.as_mut_ptr(), p_minus_1.as_ptr(), 1);
     }
 
+    let mut factor_count = 0usize;
+    loop {
+        let factor = unsafe { *factors.add(factor_count) };
+        if factor.is_null() {
+            break;
+        }
+        factor_count += 1;
+    }
+    if factor_count < 2 {
+        return error::gcry_error_from_code(error::GPG_ERR_INV_ARG);
+    }
+
     let mut candidate = if let Some(start) = unsafe { gcry_mpi::as_ref(start_g) } {
         if let MpiKind::Numeric(value) = &start.kind {
             Mpz::clone_from(value.as_ptr())
         } else {
-            Mpz::from_ui(2)
+            return error::gcry_error_from_code(error::GPG_ERR_INV_ARG);
         }
     } else {
-        Mpz::from_ui(2)
+        Mpz::from_ui(3)
     };
 
     loop {
         let mut ok = true;
         let mut idx = 0usize;
-        while !factors.is_null() {
+        while idx < factor_count {
             let factor = unsafe { *factors.add(idx) };
-            if factor.is_null() {
-                break;
-            }
             let Some(factor_value) = (unsafe { gcry_mpi::as_ref(factor) }) else {
-                break;
+                return error::gcry_error_from_code(error::GPG_ERR_INV_ARG);
             };
             let MpiKind::Numeric(factor_num) = &factor_value.kind else {
-                idx += 1;
-                continue;
+                return error::gcry_error_from_code(error::GPG_ERR_INV_ARG);
             };
             let mut exp = Mpz::new(0);
             unsafe {

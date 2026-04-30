@@ -74,6 +74,7 @@ fn single_element(sexp: &gcry_sexp) -> Sexpr {
 struct Parser<'a> {
     input: &'a [u8],
     pos: usize,
+    display_hint: bool,
 }
 
 struct ParsedRoot {
@@ -83,7 +84,11 @@ struct ParsedRoot {
 
 impl<'a> Parser<'a> {
     fn new(input: &'a [u8]) -> Self {
-        Self { input, pos: 0 }
+        Self {
+            input,
+            pos: 0,
+            display_hint: false,
+        }
     }
 
     fn peek(&self) -> Option<u8> {
@@ -106,13 +111,17 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_root(&mut self) -> Result<ParsedRoot, (usize, u32)> {
-        self.skip_ws();
-        let first = self.parse_element()?;
-        let mut items = vec![first];
+        let mut items = Vec::new();
         loop {
             self.skip_ws();
             match self.peek() {
                 None => {
+                    if self.display_hint {
+                        return Err((self.pos, error::GPG_ERR_SEXP_UNMATCHED_DH));
+                    }
+                    if items.is_empty() {
+                        return Err((self.pos, error::GPG_ERR_SEXP_UNMATCHED_PAREN));
+                    }
                     if items.len() == 1 {
                         return Ok(ParsedRoot {
                             root: items.pop().expect("single root"),
@@ -123,6 +132,20 @@ impl<'a> Parser<'a> {
                         root: Sexpr::List(items),
                         top_level_fragment: true,
                     });
+                }
+                Some(b'[') => {
+                    if self.display_hint {
+                        return Err((self.pos, error::GPG_ERR_SEXP_NESTED_DH));
+                    }
+                    self.pos += 1;
+                    self.display_hint = true;
+                }
+                Some(b']') => {
+                    if !self.display_hint {
+                        return Err((self.pos, error::GPG_ERR_SEXP_UNMATCHED_DH));
+                    }
+                    self.pos += 1;
+                    self.display_hint = false;
                 }
                 Some(b')') => return Err((self.pos, error::GPG_ERR_SEXP_UNMATCHED_PAREN)),
                 Some(_) => items.push(self.parse_element()?),
@@ -139,8 +162,25 @@ impl<'a> Parser<'a> {
             self.skip_ws();
             match self.peek() {
                 Some(b')') => {
+                    if self.display_hint {
+                        return Err((self.pos, error::GPG_ERR_SEXP_UNMATCHED_DH));
+                    }
                     self.pos += 1;
                     break;
+                }
+                Some(b'[') => {
+                    if self.display_hint {
+                        return Err((self.pos, error::GPG_ERR_SEXP_NESTED_DH));
+                    }
+                    self.pos += 1;
+                    self.display_hint = true;
+                }
+                Some(b']') => {
+                    if !self.display_hint {
+                        return Err((self.pos, error::GPG_ERR_SEXP_UNMATCHED_DH));
+                    }
+                    self.pos += 1;
+                    self.display_hint = false;
                 }
                 Some(_) => items.push(self.parse_element()?),
                 None => return Err((self.pos, error::GPG_ERR_SEXP_UNMATCHED_PAREN)),
@@ -152,6 +192,9 @@ impl<'a> Parser<'a> {
     fn parse_element(&mut self) -> Result<Sexpr, (usize, u32)> {
         self.skip_ws();
         match self.peek() {
+            Some(b'[') => Err((self.pos, error::GPG_ERR_SEXP_NESTED_DH)),
+            Some(b']') => Err((self.pos, error::GPG_ERR_SEXP_UNMATCHED_DH)),
+            Some(b'(') if self.display_hint => Err((self.pos, error::GPG_ERR_SEXP_UNMATCHED_DH)),
             Some(b'(') => self.parse_list(),
             Some(b'"') => self.parse_quoted_atom(),
             Some(b'#') => self.parse_hex_atom(),
@@ -182,24 +225,33 @@ impl<'a> Parser<'a> {
             let data = self.input[self.pos..self.pos + len].to_vec();
             self.pos += len;
             Ok(Sexpr::Atom(data))
+        } else if matches!(self.peek(), Some(b'"' | b'#' | b'|')) {
+            if self.input[start] == b'0' {
+                return Err((start, error::GPG_ERR_SEXP_ZERO_PREFIX));
+            }
+            match self.peek() {
+                Some(b'"') => self.parse_quoted_atom(),
+                Some(b'#') => self.parse_hex_atom(),
+                Some(b'|') => self.parse_base64_atom(),
+                _ => unreachable!(),
+            }
         } else {
-            self.pos = start;
-            self.parse_token()
+            Err((self.pos, error::GPG_ERR_SEXP_INV_LEN_SPEC))
         }
     }
 
     fn parse_token(&mut self) -> Result<Sexpr, (usize, u32)> {
         let start = self.pos;
         while let Some(byte) = self.peek() {
-            if matches!(
-                byte,
-                b' ' | b'\t' | b'\r' | b'\n' | b'\x0c' | b'\x0b' | b'(' | b')' | b'"' | b'#' | b'|'
-            ) {
+            if !is_token_char(byte) {
                 break;
             }
             self.pos += 1;
         }
         if start == self.pos {
+            if matches!(self.peek(), Some(b'{' | b'&' | b'\\')) {
+                return Err((self.pos, error::GPG_ERR_SEXP_UNEXPECTED_PUNC));
+            }
             return Err((self.pos, error::GPG_ERR_SEXP_BAD_CHARACTER));
         }
         Ok(Sexpr::Atom(self.input[start..self.pos].to_vec()))
@@ -222,6 +274,22 @@ impl<'a> Parser<'a> {
                         Some(b'"') => b'"',
                         Some(b'\'') => b'\'',
                         Some(b'\\') => b'\\',
+                        Some(b'0'..=b'7') => {
+                            self.pos -= 1;
+                            self.parse_octal_escape()?
+                        }
+                        Some(b'\r') => {
+                            if self.peek() == Some(b'\n') {
+                                self.pos += 1;
+                            }
+                            continue;
+                        }
+                        Some(b'\n') => {
+                            if self.peek() == Some(b'\r') {
+                                self.pos += 1;
+                            }
+                            continue;
+                        }
                         Some(b'x') => {
                             let hi = self
                                 .bump()
@@ -243,6 +311,21 @@ impl<'a> Parser<'a> {
             }
         }
         Err((self.pos, error::GPG_ERR_SEXP_UNMATCHED_PAREN))
+    }
+
+    fn parse_octal_escape(&mut self) -> Result<u8, (usize, u32)> {
+        let start = self.pos;
+        let mut value = 0u16;
+        for _ in 0..3 {
+            let Some(byte) = self.bump() else {
+                return Err((self.pos, error::GPG_ERR_SEXP_BAD_QUOTATION));
+            };
+            if !(b'0'..=b'7').contains(&byte) {
+                return Err((start, error::GPG_ERR_SEXP_BAD_QUOTATION));
+            }
+            value = (value << 3) | u16::from(byte - b'0');
+        }
+        Ok(value as u8)
     }
 
     fn parse_hex_atom(&mut self) -> Result<Sexpr, (usize, u32)> {
@@ -290,6 +373,11 @@ impl<'a> Parser<'a> {
         self.pos += 1;
         Ok(Sexpr::Atom(data))
     }
+}
+
+fn is_token_char(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric()
+        || matches!(byte, b'-' | b'.' | b'/' | b'_' | b':' | b'*' | b'+' | b'=')
 }
 
 fn hex_nibble(byte: u8) -> Option<u8> {
@@ -352,6 +440,7 @@ fn canonical_len_internal(buffer: &[u8], pos: &mut usize) -> Result<(), (usize, 
     let mut count = *pos;
     let mut datalen = 0usize;
     let mut level = 0usize;
+    let mut disphint = false;
 
     if count >= buffer.len() || buffer[count] != b'(' {
         return Err((count, error::GPG_ERR_SEXP_NOT_CANONICAL));
@@ -385,6 +474,9 @@ fn canonical_len_internal(buffer: &[u8], pos: &mut usize) -> Result<(), (usize, 
 
         match byte {
             b'(' => {
+                if disphint {
+                    return Err((count, error::GPG_ERR_SEXP_UNMATCHED_DH));
+                }
                 level += 1;
                 count += 1;
             }
@@ -392,12 +484,29 @@ fn canonical_len_internal(buffer: &[u8], pos: &mut usize) -> Result<(), (usize, 
                 if level == 0 {
                     return Err((count, error::GPG_ERR_SEXP_UNMATCHED_PAREN));
                 }
+                if disphint {
+                    return Err((count, error::GPG_ERR_SEXP_UNMATCHED_DH));
+                }
                 level -= 1;
                 count += 1;
                 if level == 0 {
                     *pos = count;
                     return Ok(());
                 }
+            }
+            b'[' => {
+                if disphint {
+                    return Err((count, error::GPG_ERR_SEXP_NESTED_DH));
+                }
+                disphint = true;
+                count += 1;
+            }
+            b']' => {
+                if !disphint {
+                    return Err((count, error::GPG_ERR_SEXP_UNMATCHED_DH));
+                }
+                disphint = false;
+                count += 1;
             }
             b'1'..=b'9' => {
                 datalen = (byte - b'0') as usize;
@@ -418,6 +527,7 @@ unsafe fn canonical_len_unbounded(buffer: *const u8) -> Result<usize, (usize, u3
     let mut count = 0usize;
     let mut datalen = 0usize;
     let mut level = 0usize;
+    let mut disphint = false;
 
     if unsafe { *buffer } != b'(' {
         return Err((0, error::GPG_ERR_SEXP_NOT_CANONICAL));
@@ -444,6 +554,9 @@ unsafe fn canonical_len_unbounded(buffer: *const u8) -> Result<usize, (usize, u3
 
         match byte {
             b'(' => {
+                if disphint {
+                    return Err((count, error::GPG_ERR_SEXP_UNMATCHED_DH));
+                }
                 level += 1;
                 count += 1;
             }
@@ -451,11 +564,28 @@ unsafe fn canonical_len_unbounded(buffer: *const u8) -> Result<usize, (usize, u3
                 if level == 0 {
                     return Err((count, error::GPG_ERR_SEXP_UNMATCHED_PAREN));
                 }
+                if disphint {
+                    return Err((count, error::GPG_ERR_SEXP_UNMATCHED_DH));
+                }
                 level -= 1;
                 count += 1;
                 if level == 0 {
                     return Ok(count);
                 }
+            }
+            b'[' => {
+                if disphint {
+                    return Err((count, error::GPG_ERR_SEXP_NESTED_DH));
+                }
+                disphint = true;
+                count += 1;
+            }
+            b']' => {
+                if !disphint {
+                    return Err((count, error::GPG_ERR_SEXP_UNMATCHED_DH));
+                }
+                disphint = false;
+                count += 1;
             }
             b'1'..=b'9' => {
                 datalen = (byte - b'0') as usize;
@@ -951,33 +1081,136 @@ fn extract_param_internal(
     0
 }
 
-fn build_from_format(format: &CStr, args: &[usize]) -> Result<(*mut gcry_sexp, usize), u32> {
-    let bytes = format.to_bytes();
-    let mut out = Vec::new();
+#[derive(Clone, Copy)]
+enum BuildScanState {
+    Normal,
+    Length { value: usize },
+    Quoted { escaped: bool },
+    Hex,
+    Base64,
+}
+
+fn scan_build_format_specs(bytes: &[u8]) -> Result<Vec<(usize, u8)>, (u32, usize)> {
+    let mut specs = Vec::new();
     let mut idx = 0usize;
+    let mut state = BuildScanState::Normal;
+
+    while idx < bytes.len() {
+        let byte = bytes[idx];
+        match state {
+            BuildScanState::Normal => match byte {
+                b'%' => {
+                    let Some(spec) = bytes.get(idx + 1).copied() else {
+                        return Err((
+                            error::gcry_error_from_code(error::GPG_ERR_SEXP_INV_LEN_SPEC),
+                            idx,
+                        ));
+                    };
+                    specs.push((idx + 1, spec));
+                    idx += 2;
+                }
+                b'"' => {
+                    state = BuildScanState::Quoted { escaped: false };
+                    idx += 1;
+                }
+                b'#' => {
+                    state = BuildScanState::Hex;
+                    idx += 1;
+                }
+                b'|' => {
+                    state = BuildScanState::Base64;
+                    idx += 1;
+                }
+                b'0'..=b'9' => {
+                    state = BuildScanState::Length {
+                        value: (byte - b'0') as usize,
+                    };
+                    idx += 1;
+                }
+                _ => idx += 1,
+            },
+            BuildScanState::Length { mut value } => match byte {
+                b'0'..=b'9' => {
+                    value = value
+                        .saturating_mul(10)
+                        .saturating_add((byte - b'0') as usize);
+                    state = BuildScanState::Length { value };
+                    idx += 1;
+                }
+                b':' => {
+                    idx = idx.saturating_add(1).saturating_add(value).min(bytes.len());
+                    state = BuildScanState::Normal;
+                }
+                b'"' => {
+                    state = BuildScanState::Quoted { escaped: false };
+                    idx += 1;
+                }
+                b'#' => {
+                    state = BuildScanState::Hex;
+                    idx += 1;
+                }
+                b'|' => {
+                    state = BuildScanState::Base64;
+                    idx += 1;
+                }
+                _ => {
+                    state = BuildScanState::Normal;
+                    idx += 1;
+                }
+            },
+            BuildScanState::Quoted { escaped } => {
+                if escaped {
+                    state = BuildScanState::Quoted { escaped: false };
+                } else if byte == b'\\' {
+                    state = BuildScanState::Quoted { escaped: true };
+                } else if byte == b'"' {
+                    state = BuildScanState::Normal;
+                }
+                idx += 1;
+            }
+            BuildScanState::Hex => {
+                if byte == b'#' {
+                    state = BuildScanState::Normal;
+                }
+                idx += 1;
+            }
+            BuildScanState::Base64 => {
+                if byte == b'|' {
+                    state = BuildScanState::Normal;
+                }
+                idx += 1;
+            }
+        }
+    }
+
+    Ok(specs)
+}
+
+fn build_from_format(
+    format: &CStr,
+    args: &[usize],
+) -> Result<(*mut gcry_sexp, usize), (u32, usize)> {
+    let bytes = format.to_bytes();
+    let specs = scan_build_format_specs(bytes)?;
+    let mut out = Vec::new();
+    let mut literal_start = 0usize;
     let mut arg_index = 0usize;
     let mut secure = false;
-    while idx < bytes.len() {
-        if bytes[idx] != b'%' {
-            out.push(bytes[idx]);
-            idx += 1;
-            continue;
-        }
-        idx += 1;
-        let Some(spec) = bytes.get(idx).copied() else {
-            return Err(error::gcry_error_from_code(
-                error::GPG_ERR_SEXP_INV_LEN_SPEC,
-            ));
-        };
+
+    for (idx, spec) in specs {
+        out.extend_from_slice(&bytes[literal_start..idx - 1]);
         match spec {
             b'm' | b'M' => {
                 let Some(raw) = args.get(arg_index).copied() else {
-                    return Err(error::gcry_error_from_code(error::GPG_ERR_MISSING_VALUE));
+                    return Err((
+                        error::gcry_error_from_code(error::GPG_ERR_MISSING_VALUE),
+                        idx,
+                    ));
                 };
                 let mpi = unsafe { gcry_mpi::as_ref(raw as *const gcry_mpi) }
-                    .ok_or(error::gcry_error_from_code(error::GPG_ERR_INV_ARG))?;
+                    .ok_or((error::gcry_error_from_code(error::GPG_ERR_INV_ARG), idx))?;
                 if spec == b'M' && mpi::gcry_mpi_is_neg(raw as *mut gcry_mpi) != 0 {
-                    return Err(error::gcry_error_from_code(error::GPG_ERR_INV_ARG));
+                    return Err((error::gcry_error_from_code(error::GPG_ERR_INV_ARG), idx));
                 }
                 let rendered = if mpi.is_opaque() {
                     mpi.opaque()
@@ -998,7 +1231,7 @@ fn build_from_format(format: &CStr, args: &[usize]) -> Result<(*mut gcry_sexp, u
                         raw as *const gcry_mpi,
                     );
                     if needed != 0 {
-                        return Err(needed);
+                        return Err((needed, idx));
                     }
                     rendered.resize(nwritten.max(1), 0);
                     let err = mpi::scan::gcry_mpi_print(
@@ -1009,7 +1242,7 @@ fn build_from_format(format: &CStr, args: &[usize]) -> Result<(*mut gcry_sexp, u
                         raw as *const gcry_mpi,
                     );
                     if err != 0 {
-                        return Err(err);
+                        return Err((err, idx));
                     }
                     rendered.truncate(nwritten);
                     rendered
@@ -1020,7 +1253,10 @@ fn build_from_format(format: &CStr, args: &[usize]) -> Result<(*mut gcry_sexp, u
             }
             b's' => {
                 let Some(raw) = args.get(arg_index).copied() else {
-                    return Err(error::gcry_error_from_code(error::GPG_ERR_MISSING_VALUE));
+                    return Err((
+                        error::gcry_error_from_code(error::GPG_ERR_MISSING_VALUE),
+                        idx,
+                    ));
                 };
                 let text = unsafe { CStr::from_ptr(raw as *const c_char) }.to_bytes();
                 append_advanced_atom(text, &mut out);
@@ -1028,14 +1264,20 @@ fn build_from_format(format: &CStr, args: &[usize]) -> Result<(*mut gcry_sexp, u
             }
             b'b' => {
                 let Some(len_raw) = args.get(arg_index).copied() else {
-                    return Err(error::gcry_error_from_code(error::GPG_ERR_MISSING_VALUE));
+                    return Err((
+                        error::gcry_error_from_code(error::GPG_ERR_MISSING_VALUE),
+                        idx,
+                    ));
                 };
                 let Some(ptr_raw) = args.get(arg_index + 1).copied() else {
-                    return Err(error::gcry_error_from_code(error::GPG_ERR_MISSING_VALUE));
+                    return Err((
+                        error::gcry_error_from_code(error::GPG_ERR_MISSING_VALUE),
+                        idx,
+                    ));
                 };
                 let len = len_raw as isize;
                 if len < 0 {
-                    return Err(error::gcry_error_from_code(error::GPG_ERR_INV_ARG));
+                    return Err((error::gcry_error_from_code(error::GPG_ERR_INV_ARG), idx));
                 }
                 let slice =
                     unsafe { std::slice::from_raw_parts(ptr_raw as *const u8, len as usize) };
@@ -1045,7 +1287,10 @@ fn build_from_format(format: &CStr, args: &[usize]) -> Result<(*mut gcry_sexp, u
             }
             b'd' | b'u' => {
                 let Some(raw) = args.get(arg_index).copied() else {
-                    return Err(error::gcry_error_from_code(error::GPG_ERR_MISSING_VALUE));
+                    return Err((
+                        error::gcry_error_from_code(error::GPG_ERR_MISSING_VALUE),
+                        idx,
+                    ));
                 };
                 let text = if spec == b'd' {
                     (raw as isize).to_string()
@@ -1057,29 +1302,85 @@ fn build_from_format(format: &CStr, args: &[usize]) -> Result<(*mut gcry_sexp, u
             }
             b'S' => {
                 let Some(raw) = args.get(arg_index).copied() else {
-                    return Err(error::gcry_error_from_code(error::GPG_ERR_MISSING_VALUE));
+                    return Err((
+                        error::gcry_error_from_code(error::GPG_ERR_MISSING_VALUE),
+                        idx,
+                    ));
                 };
                 let sexp = unsafe { gcry_sexp::as_ref(raw as *const gcry_sexp) }
-                    .ok_or(error::gcry_error_from_code(error::GPG_ERR_INV_ARG))?;
+                    .ok_or((error::gcry_error_from_code(error::GPG_ERR_INV_ARG), idx))?;
                 sprint_advanced_top(&sexp.root, sexp.top_level_fragment, &mut out);
                 secure |= sexp.secure;
                 arg_index += 1;
             }
             _ => {
-                return Err(error::gcry_error_from_code(
-                    error::GPG_ERR_SEXP_INV_LEN_SPEC,
+                return Err((
+                    error::gcry_error_from_code(error::GPG_ERR_SEXP_INV_LEN_SPEC),
+                    idx,
                 ));
             }
         }
-        idx += 1;
+        literal_start = idx + 1;
     }
+    out.extend_from_slice(&bytes[literal_start..]);
 
     let parsed = parse_bytes(out.as_ptr().cast(), out.len())
-        .map_err(|(_, code)| error::gcry_error_from_code(code))?;
+        .map_err(|(offset, code)| (error::gcry_error_from_code(code), offset))?;
     Ok((
         gcry_sexp::new_with_fragment(parsed.root, secure, parsed.top_level_fragment),
         arg_index,
     ))
+}
+
+unsafe fn collect_build_array_args(
+    format: &CStr,
+    arg_list: *mut *mut c_void,
+) -> Result<Vec<usize>, (u32, usize)> {
+    let specs = scan_build_format_specs(format.to_bytes())?;
+    let mut args = Vec::new();
+    let mut arg_index = 0usize;
+
+    for (idx, spec) in specs {
+        let mut next_slot = || -> Result<*mut c_void, (u32, usize)> {
+            let slot = unsafe { *arg_list.add(arg_index) };
+            arg_index += 1;
+            if slot.is_null() {
+                Err((
+                    error::gcry_error_from_code(error::GPG_ERR_MISSING_VALUE),
+                    idx,
+                ))
+            } else {
+                Ok(slot)
+            }
+        };
+
+        match spec {
+            b'm' | b'M' | b's' | b'S' => {
+                let slot = next_slot()?;
+                args.push(unsafe { *(slot as *const usize) });
+            }
+            b'b' => {
+                let len_slot = next_slot()?;
+                let ptr_slot = next_slot()?;
+                let len = unsafe { *(len_slot as *const c_int) };
+                args.push((len as isize) as usize);
+                args.push(unsafe { *(ptr_slot as *const usize) });
+            }
+            b'd' => {
+                let slot = next_slot()?;
+                let value = unsafe { *(slot as *const c_int) };
+                args.push((value as isize) as usize);
+            }
+            b'u' => {
+                let slot = next_slot()?;
+                let value = unsafe { *(slot as *const c_uint) };
+                args.push(value as usize);
+            }
+            _ => {}
+        }
+    }
+
+    Ok(args)
 }
 
 #[unsafe(export_name = "gcry_sexp_new")]
@@ -1228,9 +1529,17 @@ pub extern "C" fn gcry_sexp_build_array(
         return error::gcry_error_from_code(error::GPG_ERR_INV_ARG);
     }
     let format = unsafe { CStr::from_ptr(format) };
-    let args: Vec<usize> = (0..64)
-        .map(|idx| unsafe { *arg_list.add(idx) as usize })
-        .collect();
+    let args = match unsafe { collect_build_array_args(format, arg_list) } {
+        Ok(args) => args,
+        Err((code, offset)) => {
+            if !erroff.is_null() {
+                unsafe {
+                    *erroff = offset;
+                }
+            }
+            return code;
+        }
+    };
     match build_from_format(format, &args) {
         Ok((sexp, _)) => {
             unsafe {
@@ -1238,7 +1547,14 @@ pub extern "C" fn gcry_sexp_build_array(
             }
             0
         }
-        Err(code) => code,
+        Err((code, offset)) => {
+            if !erroff.is_null() {
+                unsafe {
+                    *erroff = offset;
+                }
+            }
+            code
+        }
     }
 }
 
@@ -1513,6 +1829,9 @@ pub extern "C" fn gcry_sexp_nth_buffer(
     let Some(data) = nth_atom(value, number) else {
         return null_mut();
     };
+    if data.is_empty() {
+        return null_mut();
+    }
     if !rlength.is_null() {
         unsafe {
             *rlength = data.len();
@@ -1529,6 +1848,9 @@ pub extern "C" fn gcry_sexp_nth_string(list: *mut gcry_sexp, number: c_int) -> *
     let Some(data) = nth_atom(value, number) else {
         return null_mut();
     };
+    if data.is_empty() {
+        return null_mut();
+    }
     let mut bytes = data.to_vec();
     bytes.push(0);
     mpi::alloc_output_bytes(&bytes, false).cast()
@@ -1599,7 +1921,14 @@ pub extern "C" fn safe_gcry_sexp_build_dispatch(
             }
             0
         }
-        Err(code) => code,
+        Err((code, offset)) => {
+            if !erroff.is_null() {
+                unsafe {
+                    *erroff = offset;
+                }
+            }
+            code
+        }
     }
 }
 

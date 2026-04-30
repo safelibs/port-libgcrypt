@@ -225,6 +225,9 @@ fn import_mpi(format: c_int, buffer: *const c_void, buflen: usize) -> Result<(Mp
 
     match format {
         GCRYMPI_FMT_HEX => {
+            if buflen != 0 {
+                return Err(error::gcry_error_from_code(error::GPG_ERR_INV_ARG));
+            }
             let (value, _, nread) = scan_hex(buffer, buflen)?;
             Ok((value, nread))
         }
@@ -289,7 +292,7 @@ pub extern "C" fn gcry_mpi_scan(
         }
     }
 
-    if ret_mpi.is_null() || buffer.is_null() {
+    if buffer.is_null() {
         return error::gcry_error_from_code(error::GPG_ERR_INV_ARG);
     }
 
@@ -297,9 +300,13 @@ pub extern "C" fn gcry_mpi_scan(
         Ok(value) => value,
         Err(err) => return err,
     };
-    let raw = gcry_mpi::from_numeric(result.0, false);
+    let raw = gcry_mpi::from_numeric(result.0, alloc::gcry_is_secure(buffer) != 0);
     unsafe {
-        *ret_mpi = raw;
+        if ret_mpi.is_null() {
+            super::gcry_mpi_release(raw);
+        } else {
+            *ret_mpi = raw;
+        }
         if !nscanned.is_null() {
             *nscanned = result.1;
         }
@@ -329,29 +336,24 @@ pub extern "C" fn gcry_mpi_print(
         Ok(bytes) => bytes,
         Err(err) => return err,
     };
-    let required = if format == GCRYMPI_FMT_HEX {
-        rendered.len().saturating_sub(1)
-    } else {
-        rendered.len()
-    };
-
-    if !nwritten.is_null() {
-        unsafe {
-            *nwritten = required;
-        }
-    }
+    let required = rendered.len();
 
     if buffer.is_null() {
+        if !nwritten.is_null() {
+            unsafe {
+                *nwritten = required;
+            }
+        }
         return 0;
     }
     if buflen < required {
-        return error::gcry_error_from_code(error::GPG_ERR_BUFFER_TOO_SHORT);
+        return error::gcry_error_from_code(error::GPG_ERR_TOO_SHORT);
     }
 
     unsafe {
         copy_nonoverlapping(rendered.as_ptr(), buffer, required);
-        if format == GCRYMPI_FMT_HEX && buflen > required {
-            *buffer.add(required) = 0;
+        if !nwritten.is_null() {
+            *nwritten = required;
         }
     }
     0
@@ -386,18 +388,18 @@ pub extern "C" fn gcry_mpi_aprint(
     let required = rendered.len();
     if !nwritten.is_null() {
         unsafe {
-            *nwritten = if format == GCRYMPI_FMT_HEX {
-                required.saturating_sub(1)
-            } else {
-                required
-            };
+            *nwritten = required;
         }
     }
     if buffer.is_null() {
         return 0;
     }
 
-    let ptr = alloc::gcry_malloc(required.max(1));
+    let ptr = if value.secure {
+        alloc::gcry_malloc_secure(required.max(1))
+    } else {
+        alloc::gcry_malloc(required.max(1))
+    };
     if ptr.is_null() {
         return set_errno_oom();
     }

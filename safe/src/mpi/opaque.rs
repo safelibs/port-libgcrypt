@@ -13,7 +13,10 @@ fn replace_with_opaque(a: *mut gcry_mpi, ptr: *mut c_void, nbits: c_uint) -> *mu
     };
     unsafe {
         if let Some(value) = gcry_mpi::as_mut(raw) {
+            let secure = alloc::gcry_is_secure(ptr) != 0;
             value.kind = super::MpiKind::Opaque(OpaqueValue { ptr, nbits });
+            value.secure = secure;
+            value.secret_sensitive = secure;
             value.clear_special_flags();
             value.sync_secure_registration();
         }
@@ -40,7 +43,11 @@ pub extern "C" fn gcry_mpi_set_opaque_copy(
     let copied = if p.is_null() || nbytes == 0 {
         null_mut()
     } else {
-        let ptr = alloc::gcry_malloc(nbytes);
+        let ptr = if alloc::gcry_is_secure(p) != 0 {
+            alloc::gcry_malloc_secure(nbytes)
+        } else {
+            alloc::gcry_malloc(nbytes)
+        };
         if ptr.is_null() {
             return null_mut();
         }
