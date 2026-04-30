@@ -7,602 +7,506 @@ phases:
     type: implement
     bounce_target: null
     required_preexisting_inputs:
-      - original/libgcrypt20-1.10.3/configure.ac
-      - original/libgcrypt20-1.10.3/config.h.in
-      - original/libgcrypt20-1.10.3/src/Makefile.am
-      - original/libgcrypt20-1.10.3/src/gcrypt.h.in
-      - original/libgcrypt20-1.10.3/src/gcrypt-testapi.h
-      - original/libgcrypt20-1.10.3/src/visibility.h
-      - original/libgcrypt20-1.10.3/src/g10lib.h
-      - original/libgcrypt20-1.10.3/src/libgcrypt.vers
-      - original/libgcrypt20-1.10.3/src/libgcrypt.def
-      - original/libgcrypt20-1.10.3/src/libgcrypt.m4
-      - original/libgcrypt20-1.10.3/src/libgcrypt.pc.in
-      - original/libgcrypt20-1.10.3/src/libgcrypt-config.in
-      - original/libgcrypt20-1.10.3/debian/libgcrypt20.install
-      - original/libgcrypt20-1.10.3/debian/libgcrypt20-dev.install
-      - original/libgcrypt20-1.10.3/debian/libgcrypt20.dirs
-      - original/libgcrypt20-1.10.3/debian/libgcrypt20.postinst
-      - original/libgcrypt20-1.10.3/debian/clean-up-unmanaged-libraries
-      - original/libgcrypt20-1.10.3/debian/libgcrypt20.symbols
-      - original/libgcrypt20-1.10.3/debian/patches/12_lessdeps_libgcrypt-config.diff
-      - original/libgcrypt20-1.10.3/debian/patches/15_multiarchpath_in_-L.diff
-      - original/libgcrypt20-1.10.3/tests/Makefile.am
-      - original/libgcrypt20-1.10.3/tests/testdrv.c
-      - original/libgcrypt20-1.10.3/tests/basic-disable-all-hwf.in
-      - original/libgcrypt20-1.10.3/tests/hashtest-256g.in
-      - original/libgcrypt20-1.10.3/compat/Makefile.am
-      - original/libgcrypt20-1.10.3/compat/
+      - safe/Cargo.toml
+      - safe/Cargo.lock
+      - safe/.cargo/config.toml
+      - safe/vendor/
+      - safe/build.rs
+      - safe/src/lib.rs
+      - safe/src/ffi.rs
+      - safe/cabi/exports.c
+      - safe/cabi/exports.h
+      - safe/abi/
+      - safe/tests/original-build/
+      - safe/scripts/check-abi.sh
+      - safe/scripts/run-original-tests.sh
+      - original/libgcrypt20-1.10.3/
   - order: 2
     id: check_p01_bootstrap_workspace
     type: check
     bounce_target: impl_p01_bootstrap_workspace
     required_preexisting_inputs:
+      - phase/impl_p01_bootstrap_workspace
+      - rust-toolchain.toml
+      - safe/rust-toolchain.toml
+      - safe/scripts/check-rust-toolchain.sh
       - safe/Cargo.toml
       - safe/Cargo.lock
-      - safe/build.rs
       - safe/.cargo/config.toml
-      - safe/src/
-      - safe/cabi/
-      - safe/abi/
-      - safe/docs/abi-map.md
-      - safe/tests/original-build/
+      - safe/vendor/
       - safe/scripts/check-abi.sh
       - safe/scripts/run-original-tests.sh
-      - original/libgcrypt20-1.10.3/config.h.in
-      - original/libgcrypt20-1.10.3/src/libgcrypt.vers
-      - original/libgcrypt20-1.10.3/tests/Makefile.am
-      - original/libgcrypt20-1.10.3/tests/testdrv.c
-      - original/libgcrypt20-1.10.3/tests/basic-disable-all-hwf.in
-      - original/libgcrypt20-1.10.3/tests/hashtest-256g.in
-      - original/libgcrypt20-1.10.3/tests/version.c
-      - original/libgcrypt20-1.10.3/tests/t-secmem.c
-      - original/libgcrypt20-1.10.3/compat/Makefile.am
-      - original/libgcrypt20-1.10.3/compat/
+      - safe/abi/
+      - safe/tests/original-build/
   - order: 3
     id: impl_p02_runtime_shell
     type: implement
     bounce_target: null
     required_preexisting_inputs:
-      - safe/Cargo.toml
-      - safe/Cargo.lock
-      - safe/build.rs
-      - safe/.cargo/config.toml
-      - safe/src/
-      - safe/cabi/
-      - safe/abi/
-      - safe/docs/abi-map.md
-      - safe/tests/original-build/
+      - phase/impl_p01_bootstrap_workspace
+      - safe/src/global.rs
+      - safe/src/alloc.rs
+      - safe/src/secmem.rs
+      - safe/src/log.rs
+      - safe/src/config.rs
+      - safe/src/context.rs
+      - safe/src/error.rs
+      - safe/src/hwfeatures.rs
+      - safe/cabi/exports.c
+      - safe/cabi/exports.h
       - safe/scripts/check-abi.sh
       - safe/scripts/run-original-tests.sh
+      - safe/tests/original-build/
+      - safe/docs/abi-map.md
       - original/libgcrypt20-1.10.3/src/global.c
       - original/libgcrypt20-1.10.3/src/misc.c
-      - original/libgcrypt20-1.10.3/src/secmem.c
       - original/libgcrypt20-1.10.3/src/stdmem.c
+      - original/libgcrypt20-1.10.3/src/secmem.c
       - original/libgcrypt20-1.10.3/src/context.c
       - original/libgcrypt20-1.10.3/src/fips.c
-      - original/libgcrypt20-1.10.3/src/hwfeatures.c
-      - original/libgcrypt20-1.10.3/tests/version.c
-      - original/libgcrypt20-1.10.3/tests/t-secmem.c
-      - original/libgcrypt20-1.10.3/compat/
-      - relevant_cves.json
   - order: 4
     id: check_p02_runtime_shell
     type: check
     bounce_target: impl_p02_runtime_shell
     required_preexisting_inputs:
+      - phase/impl_p01_bootstrap_workspace
+      - phase/impl_p02_runtime_shell
+      - safe/scripts/check-rust-toolchain.sh
       - safe/Cargo.toml
       - safe/Cargo.lock
-      - safe/build.rs
-      - safe/.cargo/config.toml
-      - safe/src/
-      - safe/cabi/
-      - safe/abi/
-      - safe/docs/abi-map.md
-      - safe/tests/original-build/
       - safe/scripts/check-abi.sh
       - safe/scripts/run-original-tests.sh
-      - original/libgcrypt20-1.10.3/src/global.c
-      - original/libgcrypt20-1.10.3/src/misc.c
-      - original/libgcrypt20-1.10.3/src/secmem.c
-      - original/libgcrypt20-1.10.3/src/stdmem.c
-      - original/libgcrypt20-1.10.3/src/context.c
-      - original/libgcrypt20-1.10.3/src/fips.c
-      - original/libgcrypt20-1.10.3/src/hwfeatures.c
-      - original/libgcrypt20-1.10.3/tests/version.c
-      - original/libgcrypt20-1.10.3/tests/t-secmem.c
-      - original/libgcrypt20-1.10.3/compat/
-      - relevant_cves.json
+      - safe/tests/original-build/
   - order: 5
     id: impl_p03_sexp_mpi_core
     type: implement
     bounce_target: null
     required_preexisting_inputs:
-      - safe/Cargo.toml
-      - safe/Cargo.lock
-      - safe/build.rs
-      - safe/.cargo/config.toml
-      - safe/src/
-      - safe/cabi/
-      - safe/abi/
-      - safe/docs/abi-map.md
-      - safe/tests/original-build/
-      - safe/scripts/check-abi.sh
+      - phase/impl_p02_runtime_shell
+      - safe/src/sexp.rs
+      - safe/src/mpi/mod.rs
+      - safe/src/mpi/arith.rs
+      - safe/src/mpi/scan.rs
+      - safe/src/mpi/opaque.rs
+      - safe/src/mpi/prime.rs
+      - safe/src/mpi/consts.rs
+      - safe/cabi/exports.c
+      - safe/cabi/exports.h
       - safe/scripts/run-original-tests.sh
+      - safe/tests/original-build/
+      - safe/tests/compat/public-api-smoke.c
+      - safe/docs/abi-map.md
       - original/libgcrypt20-1.10.3/src/sexp.c
       - original/libgcrypt20-1.10.3/mpi/
-      - original/libgcrypt20-1.10.3/tests/mpitests.c
-      - original/libgcrypt20-1.10.3/tests/t-sexp.c
-      - original/libgcrypt20-1.10.3/tests/t-convert.c
-      - original/libgcrypt20-1.10.3/tests/t-mpi-bit.c
-      - original/libgcrypt20-1.10.3/tests/prime.c
-      - original/libgcrypt20-1.10.3/compat/
-      - relevant_cves.json
   - order: 6
     id: check_p03_sexp_mpi_core
     type: check
     bounce_target: impl_p03_sexp_mpi_core
     required_preexisting_inputs:
+      - phase/impl_p02_runtime_shell
+      - phase/impl_p03_sexp_mpi_core
+      - safe/scripts/check-rust-toolchain.sh
       - safe/Cargo.toml
       - safe/Cargo.lock
-      - safe/build.rs
-      - safe/.cargo/config.toml
-      - safe/src/
-      - safe/cabi/
-      - safe/abi/
-      - safe/docs/abi-map.md
-      - safe/tests/original-build/
-      - safe/scripts/check-abi.sh
       - safe/scripts/run-original-tests.sh
-      - original/libgcrypt20-1.10.3/src/sexp.c
-      - original/libgcrypt20-1.10.3/mpi/
-      - original/libgcrypt20-1.10.3/tests/mpitests.c
-      - original/libgcrypt20-1.10.3/tests/t-sexp.c
-      - original/libgcrypt20-1.10.3/tests/t-convert.c
-      - original/libgcrypt20-1.10.3/tests/t-mpi-bit.c
-      - original/libgcrypt20-1.10.3/tests/prime.c
-      - original/libgcrypt20-1.10.3/compat/
-      - relevant_cves.json
+      - safe/tests/original-build/
   - order: 7
     id: impl_p04_rng_digest_mac_kdf
     type: implement
     bounce_target: null
     required_preexisting_inputs:
-      - safe/Cargo.toml
-      - safe/Cargo.lock
-      - safe/build.rs
-      - safe/.cargo/config.toml
-      - safe/src/
-      - safe/cabi/
-      - safe/abi/
-      - safe/docs/abi-map.md
-      - safe/tests/original-build/
-      - safe/scripts/check-abi.sh
+      - phase/impl_p03_sexp_mpi_core
+      - safe/src/drbg.rs
+      - safe/src/random.rs
+      - safe/src/os_rng.rs
+      - safe/src/digest/mod.rs
+      - safe/src/digest/algorithms.rs
+      - safe/src/mac.rs
+      - safe/src/kdf.rs
+      - safe/src/upstream.rs
+      - safe/vendor/
       - safe/scripts/run-original-tests.sh
-      - original/libgcrypt20-1.10.3/random/
-      - original/libgcrypt20-1.10.3/cipher/md.c
-      - original/libgcrypt20-1.10.3/cipher/mac.c
-      - original/libgcrypt20-1.10.3/cipher/kdf.c
-      - original/libgcrypt20-1.10.3/tests/random.c
-      - original/libgcrypt20-1.10.3/tests/hashtest.c
-      - original/libgcrypt20-1.10.3/tests/hmac.c
-      - original/libgcrypt20-1.10.3/tests/t-kdf.c
-      - original/libgcrypt20-1.10.3/src/gcrypt-testapi.h
-      - original/libgcrypt20-1.10.3/compat/
+      - safe/scripts/run-upstream-tests.sh
+      - safe/scripts/check-abi.sh
+      - safe/tests/original-build/
+      - safe/tests/upstream/
+      - safe/tests/compat/public-api-smoke.c
+      - safe/docs/abi-map.md
+      - safe/docs/cve-matrix.md
       - relevant_cves.json
   - order: 8
     id: check_p04_rng_digest_mac_kdf
     type: check
     bounce_target: impl_p04_rng_digest_mac_kdf
     required_preexisting_inputs:
+      - phase/impl_p03_sexp_mpi_core
+      - phase/impl_p04_rng_digest_mac_kdf
+      - safe/scripts/check-rust-toolchain.sh
       - safe/Cargo.toml
       - safe/Cargo.lock
-      - safe/build.rs
-      - safe/.cargo/config.toml
-      - safe/src/
-      - safe/cabi/
-      - safe/abi/
-      - safe/docs/abi-map.md
-      - safe/docs/cve-matrix.md
-      - safe/tests/original-build/
-      - safe/scripts/check-abi.sh
       - safe/scripts/run-original-tests.sh
-      - original/libgcrypt20-1.10.3/random/
-      - original/libgcrypt20-1.10.3/cipher/md.c
-      - original/libgcrypt20-1.10.3/cipher/mac.c
-      - original/libgcrypt20-1.10.3/cipher/kdf.c
-      - original/libgcrypt20-1.10.3/tests/random.c
-      - original/libgcrypt20-1.10.3/tests/hashtest.c
-      - original/libgcrypt20-1.10.3/tests/hmac.c
-      - original/libgcrypt20-1.10.3/tests/t-kdf.c
-      - original/libgcrypt20-1.10.3/src/gcrypt-testapi.h
-      - original/libgcrypt20-1.10.3/compat/
-      - relevant_cves.json
+      - safe/scripts/run-upstream-tests.sh
+      - safe/scripts/check-abi.sh
+      - safe/tests/original-build/
+      - safe/tests/upstream/
   - order: 9
     id: impl_p05_symmetric_ciphers
     type: implement
     bounce_target: null
     required_preexisting_inputs:
-      - safe/Cargo.toml
-      - safe/Cargo.lock
-      - safe/build.rs
-      - safe/.cargo/config.toml
-      - safe/src/
-      - safe/cabi/
-      - safe/abi/
+      - phase/impl_p04_rng_digest_mac_kdf
+      - safe/src/cipher/mod.rs
+      - safe/src/cipher/registry.rs
+      - safe/src/cipher/modes.rs
+      - safe/src/cipher/block.rs
+      - safe/src/cipher/aead.rs
+      - safe/src/cipher/stream.rs
+      - safe/src/hwfeatures.rs
+      - safe/src/upstream.rs
+      - safe/vendor/
+      - safe/scripts/run-original-tests.sh
+      - safe/scripts/run-upstream-tests.sh
+      - safe/tests/original-build/
+      - safe/tests/upstream/
       - safe/docs/abi-map.md
       - safe/docs/cve-matrix.md
-      - safe/tests/original-build/
-      - safe/scripts/check-abi.sh
-      - safe/scripts/run-original-tests.sh
-      - original/libgcrypt20-1.10.3/cipher/
-      - original/libgcrypt20-1.10.3/tests/basic.c
-      - original/libgcrypt20-1.10.3/tests/aeswrap.c
-      - original/libgcrypt20-1.10.3/tests/t-lock.c
-      - original/libgcrypt20-1.10.3/tests/basic-disable-all-hwf.in
-      - original/libgcrypt20-1.10.3/src/hwfeatures.c
-      - original/libgcrypt20-1.10.3/src/gcrypt-testapi.h
-      - original/libgcrypt20-1.10.3/compat/
       - relevant_cves.json
   - order: 10
     id: check_p05_symmetric_ciphers
     type: check
     bounce_target: impl_p05_symmetric_ciphers
     required_preexisting_inputs:
+      - phase/impl_p04_rng_digest_mac_kdf
+      - phase/impl_p05_symmetric_ciphers
+      - safe/scripts/check-rust-toolchain.sh
       - safe/Cargo.toml
       - safe/Cargo.lock
-      - safe/build.rs
-      - safe/.cargo/config.toml
-      - safe/src/
-      - safe/cabi/
-      - safe/abi/
-      - safe/docs/abi-map.md
-      - safe/docs/cve-matrix.md
-      - safe/tests/original-build/
-      - safe/scripts/check-abi.sh
       - safe/scripts/run-original-tests.sh
-      - original/libgcrypt20-1.10.3/cipher/
-      - original/libgcrypt20-1.10.3/tests/basic.c
-      - original/libgcrypt20-1.10.3/tests/aeswrap.c
-      - original/libgcrypt20-1.10.3/tests/t-lock.c
-      - original/libgcrypt20-1.10.3/tests/basic-disable-all-hwf.in
-      - original/libgcrypt20-1.10.3/src/hwfeatures.c
-      - original/libgcrypt20-1.10.3/src/gcrypt-testapi.h
-      - original/libgcrypt20-1.10.3/compat/
-      - relevant_cves.json
+      - safe/scripts/run-upstream-tests.sh
+      - safe/tests/original-build/
+      - safe/tests/upstream/
   - order: 11
-    id: impl_p06_pubkey_ecc
+    id: impl_p06_pubkey_ecc_no_bridge
     type: implement
     bounce_target: null
     required_preexisting_inputs:
-      - safe/Cargo.toml
-      - safe/Cargo.lock
+      - phase/impl_p05_symmetric_ciphers
+      - safe/src/pubkey/mod.rs
+      - safe/src/pubkey/encoding.rs
+      - safe/src/pubkey/rsa.rs
+      - safe/src/pubkey/dsa.rs
+      - safe/src/pubkey/elgamal.rs
+      - safe/src/pubkey/ecc.rs
+      - safe/src/pubkey/keygrip.rs
+      - safe/src/mpi/ec.rs
+      - safe/src/context.rs
+      - safe/src/upstream.rs
       - safe/build.rs
-      - safe/.cargo/config.toml
-      - safe/src/
-      - safe/cabi/
-      - safe/abi/
-      - safe/docs/abi-map.md
-      - safe/docs/cve-matrix.md
+      - safe/debian/rules
+      - safe/scripts/check-no-upstream-bridge.sh
+      - safe/scripts/check-installed-tools.sh
+      - test-original.sh
       - safe/tests/original-build/
-      - safe/scripts/check-abi.sh
-      - safe/scripts/run-original-tests.sh
-      - original/libgcrypt20-1.10.3/cipher/
-      - original/libgcrypt20-1.10.3/mpi/
-      - original/libgcrypt20-1.10.3/tests/
-      - original/libgcrypt20-1.10.3/src/gcrypt-testapi.h
-      - original/libgcrypt20-1.10.3/compat/
+      - safe/tests/upstream/
+      - safe/docs/bridge-inventory.md
       - relevant_cves.json
   - order: 12
-    id: check_p06_pubkey_ecc
+    id: check_p06_pubkey_ecc_no_bridge
     type: check
-    bounce_target: impl_p06_pubkey_ecc
+    bounce_target: impl_p06_pubkey_ecc_no_bridge
     required_preexisting_inputs:
+      - phase/impl_p05_symmetric_ciphers
+      - phase/impl_p06_pubkey_ecc_no_bridge
+      - safe/scripts/check-rust-toolchain.sh
       - safe/Cargo.toml
       - safe/Cargo.lock
-      - safe/build.rs
-      - safe/.cargo/config.toml
-      - safe/src/
-      - safe/cabi/
-      - safe/abi/
-      - safe/docs/abi-map.md
-      - safe/docs/cve-matrix.md
-      - safe/tests/original-build/
-      - safe/scripts/check-abi.sh
       - safe/scripts/run-original-tests.sh
-      - original/libgcrypt20-1.10.3/cipher/
-      - original/libgcrypt20-1.10.3/mpi/
-      - original/libgcrypt20-1.10.3/tests/
-      - original/libgcrypt20-1.10.3/src/gcrypt-testapi.h
-      - original/libgcrypt20-1.10.3/compat/
-      - relevant_cves.json
+      - safe/scripts/run-upstream-tests.sh
+      - safe/scripts/check-no-upstream-bridge.sh
+      - safe/tests/original-build/
+      - safe/tests/upstream/
   - order: 13
-    id: impl_p07_port_upstream_tests
+    id: impl_p07_upstream_test_harness
     type: implement
     bounce_target: null
     required_preexisting_inputs:
-      - safe/Cargo.toml
-      - safe/Cargo.lock
-      - safe/build.rs
-      - safe/.cargo/config.toml
-      - safe/src/
-      - safe/cabi/
-      - safe/abi/
-      - safe/docs/abi-map.md
-      - safe/docs/cve-matrix.md
+      - phase/impl_p06_pubkey_ecc_no_bridge
+      - safe/tests/upstream/
+      - safe/tests/compat/
       - safe/tests/original-build/
-      - safe/scripts/check-abi.sh
-      - safe/scripts/run-original-tests.sh
-      - original/libgcrypt20-1.10.3/config.h.in
+      - safe/scripts/import-upstream-tests.sh
+      - safe/scripts/run-upstream-tests.sh
       - original/libgcrypt20-1.10.3/tests/
       - original/libgcrypt20-1.10.3/compat/
-      - original/libgcrypt20-1.10.3/compat/Makefile.am
-      - original/libgcrypt20-1.10.3/src/gcrypt-testapi.h
-      - original/libgcrypt20-1.10.3/src/g10lib.h
-      - original/libgcrypt20-1.10.3/tests/Makefile.am
-      - original/libgcrypt20-1.10.3/tests/testdrv.c
   - order: 14
-    id: check_p07_port_upstream_tests
+    id: check_p07_upstream_test_harness
     type: check
-    bounce_target: impl_p07_port_upstream_tests
+    bounce_target: impl_p07_upstream_test_harness
     required_preexisting_inputs:
+      - phase/impl_p06_pubkey_ecc_no_bridge
+      - phase/impl_p07_upstream_test_harness
+      - safe/scripts/import-upstream-tests.sh
+      - safe/scripts/check-rust-toolchain.sh
       - safe/Cargo.toml
       - safe/Cargo.lock
-      - safe/build.rs
-      - safe/.cargo/config.toml
-      - safe/src/
-      - safe/cabi/
-      - safe/abi/
-      - safe/docs/abi-map.md
-      - safe/docs/cve-matrix.md
-      - safe/docs/test-matrix.md
-      - safe/tests/original-build/
+      - safe/scripts/run-upstream-tests.sh
       - safe/tests/upstream/
       - safe/tests/compat/
-      - safe/scripts/check-abi.sh
-      - safe/scripts/run-original-tests.sh
-      - safe/scripts/import-upstream-tests.sh
-      - safe/scripts/run-upstream-tests.sh
-      - original/libgcrypt20-1.10.3/config.h.in
-      - original/libgcrypt20-1.10.3/tests/
-      - original/libgcrypt20-1.10.3/compat/
-      - original/libgcrypt20-1.10.3/compat/Makefile.am
-      - original/libgcrypt20-1.10.3/src/gcrypt-testapi.h
-      - original/libgcrypt20-1.10.3/src/g10lib.h
-      - original/libgcrypt20-1.10.3/tests/Makefile.am
-      - original/libgcrypt20-1.10.3/tests/testdrv.c
   - order: 15
-    id: impl_p08_link_compat
+    id: impl_p08_link_source_compat
     type: implement
     bounce_target: null
     required_preexisting_inputs:
-      - safe/Cargo.toml
-      - safe/Cargo.lock
+      - phase/impl_p07_upstream_test_harness
       - safe/build.rs
-      - safe/.cargo/config.toml
-      - safe/src/
-      - safe/cabi/
-      - safe/abi/
-      - safe/docs/abi-map.md
-      - safe/docs/cve-matrix.md
-      - safe/docs/test-matrix.md
-      - safe/tests/original-build/
-      - safe/tests/upstream/
-      - safe/tests/compat/
+      - safe/cabi/exports.c
+      - safe/cabi/exports.h
       - safe/scripts/check-abi.sh
-      - safe/scripts/run-original-tests.sh
-      - safe/scripts/import-upstream-tests.sh
-      - safe/scripts/run-upstream-tests.sh
-      - original/libgcrypt20-1.10.3/src/gcrypt.h.in
-      - original/libgcrypt20-1.10.3/src/libgcrypt.vers
-      - original/libgcrypt20-1.10.3/src/visibility.h
-      - original/libgcrypt20-1.10.3/src/gcrypt-testapi.h
-      - original/libgcrypt20-1.10.3/debian/libgcrypt20.symbols
-      - original/libgcrypt20-1.10.3/tests/Makefile.am
-      - original/libgcrypt20-1.10.3/tests/testdrv.c
+      - safe/scripts/relink-original-objects.sh
+      - safe/scripts/run-compat-smoke.sh
+      - safe/scripts/check-no-upstream-bridge.sh
+      - safe/tests/original-build/
+      - safe/tests/compat/public-api-smoke.c
+      - safe/tests/compat/abi-only-exports.c
+      - safe/abi/
+      - safe/docs/test-matrix.md
+      - safe/docs/abi-map.md
+      - original/libgcrypt20-1.10.3/src/
       - original/libgcrypt20-1.10.3/tests/
-      - original/libgcrypt20-1.10.3/compat/
   - order: 16
-    id: check_p08_link_compat
+    id: check_p08_link_source_compat
     type: check
-    bounce_target: impl_p08_link_compat
+    bounce_target: impl_p08_link_source_compat
     required_preexisting_inputs:
+      - phase/impl_p07_upstream_test_harness
+      - phase/impl_p08_link_source_compat
+      - safe/scripts/check-rust-toolchain.sh
       - safe/Cargo.toml
       - safe/Cargo.lock
-      - safe/build.rs
-      - safe/.cargo/config.toml
-      - safe/src/
-      - safe/cabi/
-      - safe/abi/
-      - safe/docs/abi-map.md
-      - safe/docs/cve-matrix.md
-      - safe/docs/test-matrix.md
-      - safe/tests/original-build/
-      - safe/tests/upstream/
-      - safe/tests/compat/
       - safe/scripts/check-abi.sh
-      - safe/scripts/run-original-tests.sh
-      - safe/scripts/import-upstream-tests.sh
-      - safe/scripts/run-upstream-tests.sh
       - safe/scripts/relink-original-objects.sh
       - safe/scripts/run-compat-smoke.sh
-      - original/libgcrypt20-1.10.3/src/gcrypt.h.in
-      - original/libgcrypt20-1.10.3/src/libgcrypt.vers
-      - original/libgcrypt20-1.10.3/src/visibility.h
-      - original/libgcrypt20-1.10.3/src/gcrypt-testapi.h
-      - original/libgcrypt20-1.10.3/debian/libgcrypt20.symbols
-      - original/libgcrypt20-1.10.3/tests/Makefile.am
-      - original/libgcrypt20-1.10.3/tests/testdrv.c
-      - original/libgcrypt20-1.10.3/tests/
-      - original/libgcrypt20-1.10.3/compat/
+      - safe/scripts/check-no-upstream-bridge.sh
+      - safe/tests/original-build/
+      - safe/tests/compat/
   - order: 17
-    id: impl_p09_packaging_dependents
+    id: impl_p09_debian_dropin_package
     type: implement
     bounce_target: null
     required_preexisting_inputs:
-      - safe/Cargo.toml
-      - safe/Cargo.lock
+      - phase/impl_p08_link_source_compat
+      - rust-toolchain.toml
+      - safe/rust-toolchain.toml
+      - safe/scripts/check-rust-toolchain.sh
       - safe/build.rs
-      - safe/.cargo/config.toml
-      - safe/src/
-      - safe/cabi/
+      - safe/cabi/exports.c
+      - safe/cabi/exports.h
       - safe/abi/
-      - safe/docs/abi-map.md
-      - safe/docs/cve-matrix.md
-      - safe/docs/test-matrix.md
-      - safe/tests/original-build/
-      - safe/tests/upstream/
-      - safe/tests/compat/
-      - safe/scripts/check-abi.sh
-      - safe/scripts/run-original-tests.sh
-      - safe/scripts/import-upstream-tests.sh
-      - safe/scripts/run-upstream-tests.sh
-      - safe/scripts/relink-original-objects.sh
-      - safe/scripts/run-compat-smoke.sh
+      - safe/debian/
+      - safe/scripts/build-debs.sh
+      - safe/scripts/check-deb-metadata.sh
+      - safe/scripts/check-installed-tools.sh
+      - safe/scripts/check-no-upstream-bridge.sh
+      - safe/src/bin/dumpsexp.rs
+      - safe/src/bin/hmac256.rs
+      - safe/src/bin/mpicalc.rs
       - original/libgcrypt20-1.10.3/debian/
-      - original/libgcrypt20-1.10.3/doc/
-      - original/libgcrypt20-1.10.3/debian/control
-      - original/libgcrypt20-1.10.3/debian/rules
-      - original/libgcrypt20-1.10.3/src/libgcrypt.vers
-      - original/libgcrypt20-1.10.3/src/Makefile.am
-      - original/libgcrypt20-1.10.3/src/dumpsexp.c
-      - original/libgcrypt20-1.10.3/src/hmac256.c
-      - original/libgcrypt20-1.10.3/src/mpicalc.c
-      - original/libgcrypt20-1.10.3/doc/Makefile.am
-      - original/libgcrypt20-1.10.3/doc/gcrypt.texi
-      - original/libgcrypt20-1.10.3/doc/yat2m.c
-      - original/libgcrypt20-1.10.3/debian/libgcrypt20.install
-      - original/libgcrypt20-1.10.3/debian/libgcrypt20-dev.install
-      - original/libgcrypt20-1.10.3/debian/libgcrypt20.dirs
-      - original/libgcrypt20-1.10.3/debian/libgcrypt20.postinst
-      - original/libgcrypt20-1.10.3/debian/clean-up-unmanaged-libraries
-      - original/libgcrypt20-1.10.3/debian/libgcrypt20.symbols
-      - original/libgcrypt20-1.10.3/debian/libgcrypt20.docs
-      - original/libgcrypt20-1.10.3/debian/libgcrypt20-dev.manpages
-      - original/libgcrypt20-1.10.3/debian/dumpsexp.8
-      - original/libgcrypt20-1.10.3/debian/libgcrypt-config.1
-      - original/libgcrypt20-1.10.3/src/libgcrypt.m4
-      - original/libgcrypt20-1.10.3/debian/patches/12_lessdeps_libgcrypt-config.diff
-      - original/libgcrypt20-1.10.3/debian/patches/15_multiarchpath_in_-L.diff
-      - dependents.json
-      - test-original.sh
   - order: 18
-    id: check_p09_packaging_dependents
+    id: check_p09_debian_package
     type: check
-    bounce_target: impl_p09_packaging_dependents
+    bounce_target: impl_p09_debian_dropin_package
     required_preexisting_inputs:
-      - safe/Cargo.toml
-      - safe/Cargo.lock
-      - safe/build.rs
-      - safe/.cargo/config.toml
-      - safe/src/
-      - safe/cabi/
-      - safe/abi/
-      - safe/docs/abi-map.md
-      - safe/docs/cve-matrix.md
-      - safe/docs/test-matrix.md
-      - safe/tests/original-build/
-      - safe/tests/upstream/
-      - safe/tests/compat/
-      - safe/debian/
-      - safe/dist/
-      - safe/scripts/check-abi.sh
-      - safe/scripts/run-original-tests.sh
-      - safe/scripts/import-upstream-tests.sh
-      - safe/scripts/run-upstream-tests.sh
-      - safe/scripts/relink-original-objects.sh
-      - safe/scripts/run-compat-smoke.sh
+      - phase/impl_p08_link_source_compat
+      - phase/impl_p09_debian_dropin_package
+      - safe/scripts/check-rust-toolchain.sh
       - safe/scripts/build-debs.sh
       - safe/scripts/check-deb-metadata.sh
       - safe/scripts/check-installed-tools.sh
-      - original/libgcrypt20-1.10.3/debian/
-      - original/libgcrypt20-1.10.3/doc/
-      - original/libgcrypt20-1.10.3/debian/control
-      - original/libgcrypt20-1.10.3/debian/rules
-      - original/libgcrypt20-1.10.3/src/libgcrypt.vers
-      - original/libgcrypt20-1.10.3/src/Makefile.am
-      - original/libgcrypt20-1.10.3/src/dumpsexp.c
-      - original/libgcrypt20-1.10.3/src/hmac256.c
-      - original/libgcrypt20-1.10.3/src/mpicalc.c
-      - original/libgcrypt20-1.10.3/doc/Makefile.am
-      - original/libgcrypt20-1.10.3/doc/gcrypt.texi
-      - original/libgcrypt20-1.10.3/doc/yat2m.c
-      - original/libgcrypt20-1.10.3/debian/libgcrypt20.install
-      - original/libgcrypt20-1.10.3/debian/libgcrypt20-dev.install
-      - original/libgcrypt20-1.10.3/debian/libgcrypt20.dirs
-      - original/libgcrypt20-1.10.3/debian/libgcrypt20.postinst
-      - original/libgcrypt20-1.10.3/debian/clean-up-unmanaged-libraries
-      - original/libgcrypt20-1.10.3/debian/libgcrypt20.symbols
-      - original/libgcrypt20-1.10.3/debian/libgcrypt20.docs
-      - original/libgcrypt20-1.10.3/debian/libgcrypt20-dev.manpages
-      - original/libgcrypt20-1.10.3/debian/dumpsexp.8
-      - original/libgcrypt20-1.10.3/debian/libgcrypt-config.1
-      - original/libgcrypt20-1.10.3/src/libgcrypt.m4
-      - original/libgcrypt20-1.10.3/debian/patches/12_lessdeps_libgcrypt-config.diff
-      - original/libgcrypt20-1.10.3/debian/patches/15_multiarchpath_in_-L.diff
-      - dependents.json
-      - test-original.sh
+      - safe/scripts/check-no-upstream-bridge.sh
+      - safe/debian/
+      - safe/abi/
   - order: 19
-    id: impl_p10_final_sweep
+    id: impl_p10_dependent_image_matrix
     type: implement
     bounce_target: null
     required_preexisting_inputs:
-      - safe/Cargo.toml
-      - safe/Cargo.lock
-      - safe/build.rs
-      - safe/.cargo/config.toml
-      - safe/src/
-      - safe/cabi/
-      - safe/abi/
-      - safe/tests/original-build/
-      - safe/tests/upstream/
-      - safe/tests/compat/
-      - safe/scripts/check-abi.sh
-      - safe/scripts/run-original-tests.sh
-      - safe/scripts/import-upstream-tests.sh
-      - safe/scripts/run-upstream-tests.sh
-      - safe/scripts/relink-original-objects.sh
-      - safe/scripts/run-compat-smoke.sh
+      - phase/impl_p09_debian_dropin_package
+      - dependents.json
+      - test-original.sh
+      - safe/tests/compat/tool-fixtures/
+      - safe/scripts/check-no-upstream-bridge.sh
+      - safe/docs/test-matrix.md
+      - safe/debian/
+      - safe/scripts/check-rust-toolchain.sh
       - safe/scripts/build-debs.sh
       - safe/scripts/check-deb-metadata.sh
       - safe/scripts/check-installed-tools.sh
-      - safe/docs/abi-map.md
-      - safe/docs/cve-matrix.md
-      - safe/docs/test-matrix.md
-      - safe/debian/
-      - safe/dist/
-      - dependents.json
-      - test-original.sh
-      - relevant_cves.json
+      - safe/dist/safe-debs.manifest.json
+      - Ubuntu 24.04 package metadata for producing committed locks
   - order: 20
-    id: check_p10_final_sweep
+    id: check_p10_dependent_matrix_tester
     type: check
-    bounce_target: impl_p10_final_sweep
+    bounce_target: impl_p10_dependent_image_matrix
     required_preexisting_inputs:
-      - safe/Cargo.toml
-      - safe/Cargo.lock
-      - safe/build.rs
-      - safe/.cargo/config.toml
+      - phase/impl_p09_debian_dropin_package
+      - phase/impl_p10_dependent_image_matrix
+      - dependents.json
+      - test-original.sh
+      - safe/tests/dependents/metadata/matrix-manifest.json
+      - safe/tests/dependents/metadata/package-evidence.noble.json
+      - safe/tests/dependents/metadata/base-image.noble.digest
+      - safe/tests/dependents/metadata/ubuntu-snapshot.noble.sources
+      - safe/tests/dependents/metadata/install-packages.noble.lock
+      - safe/tests/dependents/metadata/safe-debs.noble.lock
+      - safe/tests/dependents/fixtures/
+      - safe/tests/dependents/probes/
+      - safe/tests/dependents/scenarios/
+      - safe/scripts/check-dependent-metadata.sh
+      - safe/scripts/build-dependent-image.sh
+      - safe/scripts/run-dependent-image-tests.sh
+      - safe/scripts/check-rust-toolchain.sh
+      - safe/scripts/build-debs.sh
+      - safe/dist/safe-debs.manifest.json
+  - order: 21
+    id: check_p10_dependent_matrix_senior
+    type: check
+    bounce_target: impl_p10_dependent_image_matrix
+    required_preexisting_inputs:
+      - phase/impl_p09_debian_dropin_package
+      - phase/impl_p10_dependent_image_matrix
+      - dependents.json
+      - safe/tests/dependents/metadata/matrix-manifest.json
+      - safe/tests/dependents/metadata/base-image.noble.digest
+      - safe/tests/dependents/metadata/ubuntu-snapshot.noble.sources
+      - safe/tests/dependents/metadata/install-packages.noble.lock
+      - safe/tests/dependents/metadata/safe-debs.noble.lock
+      - safe/tests/dependents/probes/
+      - safe/tests/dependents/scenarios/
+      - safe/scripts/check-dependent-metadata.sh
+      - safe/scripts/check-no-upstream-bridge.sh
+      - safe/scripts/build-dependent-image.sh
+      - safe/scripts/run-dependent-image-tests.sh
+      - safe/scripts/check-rust-toolchain.sh
+      - safe/scripts/build-debs.sh
+      - safe/dist/safe-debs.manifest.json
+  - order: 22
+    id: impl_p11_dependent_regression_fixups
+    type: implement
+    bounce_target: null
+    required_preexisting_inputs:
+      - phase/impl_p10_dependent_image_matrix
       - safe/src/
       - safe/cabi/
-      - safe/abi/
-      - safe/tests/original-build/
+      - safe/tests/dependents/
+      - safe/scripts/check-no-upstream-bridge.sh
+      - safe/scripts/check-abi.sh
+      - safe/scripts/run-upstream-tests.sh
+      - safe/scripts/relink-original-objects.sh
+      - safe/scripts/build-debs.sh
+      - safe/scripts/check-dependent-metadata.sh
+      - safe/scripts/build-dependent-image.sh
+      - safe/scripts/run-dependent-image-tests.sh
       - safe/tests/upstream/
       - safe/tests/compat/
-      - safe/scripts/check-abi.sh
-      - safe/scripts/run-original-tests.sh
-      - safe/scripts/import-upstream-tests.sh
+      - safe/docs/abi-map.md
+      - safe/docs/cve-matrix.md
+      - safe/docs/test-matrix.md
+      - dependents.json
+  - order: 23
+    id: check_p11_regression_tester
+    type: check
+    bounce_target: impl_p11_dependent_regression_fixups
+    required_preexisting_inputs:
+      - phase/impl_p10_dependent_image_matrix
+      - phase/impl_p11_dependent_regression_fixups
+      - safe/scripts/check-rust-toolchain.sh
+      - safe/Cargo.toml
+      - safe/Cargo.lock
+      - safe/scripts/run-regression-tests.sh
+      - safe/tests/regressions/manifest.json
+      - safe/scripts/check-no-upstream-bridge.sh
       - safe/scripts/run-upstream-tests.sh
+      - safe/scripts/relink-original-objects.sh
+      - safe/scripts/build-debs.sh
+      - safe/scripts/build-dependent-image.sh
+      - safe/scripts/run-dependent-image-tests.sh
+      - safe/tests/dependents/
+  - order: 24
+    id: check_p11_senior_tester
+    type: check
+    bounce_target: impl_p11_dependent_regression_fixups
+    required_preexisting_inputs:
+      - phase/impl_p10_dependent_image_matrix
+      - phase/impl_p11_dependent_regression_fixups
+      - safe/scripts/run-regression-tests.sh
+      - safe/tests/regressions/manifest.json
+      - safe/scripts/check-no-upstream-bridge.sh
+      - safe/scripts/check-abi.sh
+      - safe/scripts/check-dependent-metadata.sh
+      - safe/scripts/build-dependent-image.sh
+      - safe/scripts/run-dependent-image-tests.sh
+      - safe/scripts/check-rust-toolchain.sh
+      - safe/scripts/build-debs.sh
+      - safe/tests/dependents/
+  - order: 25
+    id: impl_p12_final_sweep
+    type: implement
+    bounce_target: null
+    required_preexisting_inputs:
+      - phase/impl_p11_dependent_regression_fixups
+      - safe/tests/dependents/
+      - safe/tests/regressions/
+      - safe/scripts/run-regression-tests.sh
+      - safe/docs/abi-map.md
+      - safe/docs/cve-matrix.md
+      - safe/docs/test-matrix.md
+      - safe/docs/bridge-inventory.md
+      - .plan/phases/
+      - .plan/workflow-structure.yaml
+  - order: 26
+    id: check_p12_final_full_compat
+    type: check
+    bounce_target: impl_p12_final_sweep
+    required_preexisting_inputs:
+      - phase/impl_p11_dependent_regression_fixups
+      - phase/impl_p12_final_sweep
+      - safe/scripts/check-rust-toolchain.sh
+      - safe/Cargo.toml
+      - safe/Cargo.lock
+      - safe/scripts/check-no-upstream-bridge.sh
+      - safe/scripts/check-abi.sh
+      - safe/scripts/import-upstream-tests.sh
+      - safe/scripts/run-original-tests.sh
+      - safe/scripts/run-upstream-tests.sh
+      - safe/scripts/run-regression-tests.sh
       - safe/scripts/relink-original-objects.sh
       - safe/scripts/run-compat-smoke.sh
       - safe/scripts/build-debs.sh
       - safe/scripts/check-deb-metadata.sh
       - safe/scripts/check-installed-tools.sh
-      - safe/docs/abi-map.md
-      - safe/docs/cve-matrix.md
-      - safe/docs/test-matrix.md
-      - safe/debian/
-      - safe/dist/
-      - dependents.json
+      - safe/scripts/check-dependent-metadata.sh
+      - safe/scripts/build-dependent-image.sh
+      - safe/scripts/run-dependent-image-tests.sh
       - test-original.sh
-      - relevant_cves.json
+      - safe/tests/dependents/
+      - safe/tests/regressions/
+  - order: 27
+    id: check_p12_final_safety_packaging
+    type: check
+    bounce_target: impl_p12_final_sweep
+    required_preexisting_inputs:
+      - phase/impl_p11_dependent_regression_fixups
+      - phase/impl_p12_final_sweep
+      - rust-toolchain.toml
+      - safe/rust-toolchain.toml
+      - safe/scripts/check-rust-toolchain.sh
+      - safe/docs/cve-matrix.md
+      - safe/docs/abi-map.md
+      - safe/docs/test-matrix.md
+      - dependents.json
+      - safe/tests/dependents/metadata/matrix-manifest.json
+      - safe/tests/dependents/metadata/base-image.noble.digest
+      - safe/tests/dependents/metadata/ubuntu-snapshot.noble.sources
+      - safe/tests/dependents/metadata/install-packages.noble.lock
+      - safe/tests/dependents/metadata/safe-debs.noble.lock
+      - safe/tests/regressions/manifest.json

@@ -1,124 +1,109 @@
-# 01 Bootstrap Workspace
+# Phase Name
 
-- Phase Name: Bootstrap safe workspace and ABI contract mirror
-- Implement Phase ID: `impl_p01_bootstrap_workspace`
+Bootstrap workspace and artifact contract
 
-## Preexisting Inputs
-- `original/libgcrypt20-1.10.3/configure.ac`
-- `original/libgcrypt20-1.10.3/config.h.in`
-- `original/libgcrypt20-1.10.3/src/Makefile.am`
+# Implement Phase ID
+
+`impl_p01_bootstrap_workspace`
+
+# Preexisting Inputs
+
+- `safe/Cargo.toml`
+- `safe/Cargo.lock`
+- `safe/.cargo/config.toml`
+- `.cargo/config.toml` if present as a worktree-only candidate.
+- `rust-toolchain.toml` if present as a worktree-only candidate.
+- `safe/rust-toolchain.toml` if present.
+- `safe/vendor/`
+- `safe/build.rs`
+- `safe/src/lib.rs`
+- `safe/src/ffi.rs`
+- `safe/cabi/exports.c`
+- `safe/cabi/exports.h`
+- `safe/abi/*`
+- `safe/tests/original-build/*`
+- `safe/scripts/check-abi.sh`
+- `safe/scripts/run-original-tests.sh`
 - `original/libgcrypt20-1.10.3/src/gcrypt.h.in`
 - `original/libgcrypt20-1.10.3/src/gcrypt-testapi.h`
 - `original/libgcrypt20-1.10.3/src/visibility.h`
-- `original/libgcrypt20-1.10.3/src/g10lib.h`
 - `original/libgcrypt20-1.10.3/src/libgcrypt.vers`
 - `original/libgcrypt20-1.10.3/src/libgcrypt.def`
 - `original/libgcrypt20-1.10.3/src/libgcrypt.m4`
 - `original/libgcrypt20-1.10.3/src/libgcrypt.pc.in`
 - `original/libgcrypt20-1.10.3/src/libgcrypt-config.in`
-- `original/libgcrypt20-1.10.3/debian/libgcrypt20.install`
-- `original/libgcrypt20-1.10.3/debian/libgcrypt20-dev.install`
-- `original/libgcrypt20-1.10.3/debian/libgcrypt20.dirs`
-- `original/libgcrypt20-1.10.3/debian/libgcrypt20.postinst`
-- `original/libgcrypt20-1.10.3/debian/clean-up-unmanaged-libraries`
-- `original/libgcrypt20-1.10.3/debian/libgcrypt20.symbols`
-- `original/libgcrypt20-1.10.3/debian/patches/12_lessdeps_libgcrypt-config.diff`
-- `original/libgcrypt20-1.10.3/debian/patches/15_multiarchpath_in_-L.diff`
 - `original/libgcrypt20-1.10.3/tests/Makefile.am`
 - `original/libgcrypt20-1.10.3/tests/testdrv.c`
-- `original/libgcrypt20-1.10.3/tests/basic-disable-all-hwf.in`
-- `original/libgcrypt20-1.10.3/tests/hashtest-256g.in`
-- `original/libgcrypt20-1.10.3/compat/Makefile.am`
 - `original/libgcrypt20-1.10.3/compat/`
 
-## New Outputs
-- `safe/` Cargo workspace skeleton
-- `safe/Cargo.lock`
-- Repo-local Cargo vendor tree or an explicit std-only offline Cargo configuration
-- `safe/docs/abi-map.md`
-- `safe/abi/` copies of all upstream ABI spec files
-- Committed upstream-test build-support artifacts under `safe/tests/original-build/`
-- `safe/scripts/check-abi.sh`
-- `safe/scripts/run-original-tests.sh`
+# New Outputs
 
-## File Changes
+- Committed baseline helper set for build, ABI, bridge detection, and target-root resolution.
+- A deterministic offline Cargo dependency decision: either a committed vendor closure under `safe/vendor/` or no external Rust dependencies.
+- Deterministic Cargo configuration for commands run from both the repository root and `safe/`, either by committing root `.cargo/config.toml` plus `safe/.cargo/config.toml` or by updating all scripts and documented commands to run Cargo from `safe/`.
+- A deterministic Rust toolchain contract: committed root `rust-toolchain.toml`, committed `safe/rust-toolchain.toml`, and committed `safe/scripts/check-rust-toolchain.sh` pinning and verifying Rust/Cargo `1.85.1` for edition 2024 builds.
+- Updated `safe/docs/abi-map.md` documenting which symbols are real implementations, temporary bridge implementations, or deliberate compatibility shims.
+- Updated `safe/docs/bridge-inventory.md` documenting every current bridge reference and its planned removal phase.
+
+# File Changes
+
 - `safe/Cargo.toml`
 - `safe/Cargo.lock`
-- `safe/build.rs`
 - `safe/.cargo/config.toml`
-- `safe/vendor/`
+- `.cargo/config.toml`
+- `rust-toolchain.toml`
+- `safe/rust-toolchain.toml`
+- `safe/vendor/**`
+- `safe/build.rs`
 - `safe/src/lib.rs`
 - `safe/src/ffi.rs`
 - `safe/cabi/exports.c`
 - `safe/cabi/exports.h`
-- `safe/abi/gcrypt.h.in`
-- `safe/abi/gcrypt-testapi.h`
-- `safe/abi/visibility.h`
-- `safe/abi/libgcrypt.vers`
-- `safe/abi/libgcrypt.def`
-- `safe/abi/libgcrypt.m4`
-- `safe/abi/libgcrypt.pc.in`
-- `safe/abi/libgcrypt-config.in`
-- `safe/docs/abi-map.md`
-- `safe/tests/original-build/config.h`
-- `safe/tests/original-build/test-build-vars.mk`
-- `safe/tests/original-build/basic-disable-all-hwf`
-- `safe/tests/original-build/hashtest-256g`
+- `safe/scripts/build-release-lib.sh`
+- `safe/scripts/cargo-target-root.sh`
+- `safe/scripts/check-rust-toolchain.sh`
+- `safe/scripts/check-no-upstream-bridge.sh`
 - `safe/scripts/check-abi.sh`
 - `safe/scripts/run-original-tests.sh`
+- `safe/docs/abi-map.md`
+- `safe/docs/bridge-inventory.md`
 
-## Implementation Details
-- Create `safe/` from scratch as a Rust package with `crate-type = ["cdylib", "staticlib", "rlib"]`, commit `Cargo.lock`, and structure the workspace so later Debian builds consume locked crate versions without changing the public surface.
-- Enforce offline Cargo reproducibility from phase 1 onward:
-  - `cargo build --manifest-path safe/Cargo.toml --release --offline` must pass.
-  - If third-party crates are used, vendor them into `safe/vendor/` and configure `safe/.cargo/config.toml` to replace crates.io with that committed tree.
-  - If the port stays `std`-only, still configure `safe/.cargo/config.toml` and helper scripts so later verifiers fail closed on network access.
-- Make the shared library install as `libgcrypt.so.20` with SONAME `libgcrypt.so.20`, plus the `libgcrypt.so` linker symlink and `libgcrypt.a`.
-- Vendor the upstream ABI specification files into `safe/abi/`, including `libgcrypt.m4`; do not hand-rewrite enums, macros, control codes, or autoconf metadata from scratch.
-- Generate `gcrypt.h` from vendored `gcrypt.h.in` and preserve the public enums, flags, `struct gcry_thread_cbs`, `GCRY_THREAD_OPTION_*` constants, `GCRY_THREAD_OPTION_PTH_IMPL`, `GCRY_THREAD_OPTION_PTHREAD_IMPL`, `gcry_md_handle` layout, `gcry_kdf_thread_ops_t` layout, and macro helpers such as `gcry_cipher_reset`, `gcry_md_putc`, `gcry_md_final`, `gcry_fast_random_poll`, and `gcry_fips_mode_active`.
-- Generate `libgcrypt-config` and `libgcrypt.pc` with Debian/Ubuntu-compatible behavior:
-  - `libgcrypt-config --libs` emits `-lgcrypt` without `-lgpg-error`.
-  - Standard multiarch library directories are not emitted as `-L`.
-  - The dev install layout includes `/usr/share/aclocal/libgcrypt.m4`.
-- Add a minimal C shim layer in `safe/cabi/` for the five public variadic ABI entry points:
-  - `gcry_control`
-  - `gcry_sexp_build`
-  - `gcry_sexp_vlist`
-  - `gcry_sexp_extract_param`
-  - `gcry_log_debug`
-- Keep the C shim limited to argument marshaling and forwarding into non-variadic Rust helpers.
-- Seed `safe/docs/abi-map.md` from `safe/abi/libgcrypt.vers`, `safe/abi/gcrypt.h.in`, and `safe/abi/visibility.h` with one row per exported symbol, ownership classification, planned implementation location, and planned verifier or harness coverage.
-- Record in `safe/docs/abi-map.md` that `gcry_md_get` and `gcry_pk_register` are the two Linux version-script exports not declared by installed `gcrypt.h`, with `gcry_md_get` owned by phase 4 and `gcry_pk_register` owned by phase 6.
-- Create `safe/scripts/check-abi.sh` to verify SONAME, `GCRYPT_1.6` version-script input, generated header presence, thread-compatibility macro smoke compilation, direct C compilation and linkage for the five variadic entry points, pkg-config output, Debian-patched `libgcrypt-config` behavior, presence of `libgcrypt.m4`, and the exported symbol set against `original/libgcrypt20-1.10.3/src/libgcrypt.vers`.
-- Commit the autotools-derived upstream test-build artifacts under `safe/tests/original-build/`:
-  - `config.h` derived from `original/libgcrypt20-1.10.3/config.h.in` with the Ubuntu 24.04/Linux macro values actually needed by the selected tests and Linux `compat/` path.
-  - Define at minimum the values consumed directly by `compat/compat.c` and the Linux test suite, including `PACKAGE_VERSION`, `BUILD_REVISION`, `BUILD_TIMESTAMP`, `HAVE_CONFIG_H`, `HAVE_W32_SYSTEM`, and `HAVE_W32CE_SYSTEM`, plus any additional feature macros required to compile the selected upstream tests on Ubuntu 24.04.
-  - `test-build-vars.mk` recording fixed wrapper values including `EXEEXT=""` and `RUN_LARGE_DATA_TESTS=yes`.
-  - Rendered wrappers for `basic-disable-all-hwf` and `hashtest-256g`.
-- Create `safe/scripts/run-original-tests.sh` to compile selected source files directly from `original/libgcrypt20-1.10.3/tests/` against the safe build products while consuming the committed phase-1 build-support artifacts, using `-DHAVE_CONFIG_H=1`, `-I safe/tests/original-build`, the Linux `compat/` file set implied by `original/libgcrypt20-1.10.3/compat/Makefile.am`, `GCRYPT_IN_REGRESSION_TEST=1`, and the upstream `--disable-new-dtags` workaround when `LD_LIBRARY_PATH` is set.
-- Add a `--verify-plumbing` mode to `safe/scripts/run-original-tests.sh` that proves the committed `config.h`, substitution manifest, rendered wrapper scripts, and selected `compat/` build path exist and are the exact artifacts used by the harness.
-- Provide skeleton exports for all 217 real versioned symbols immediately, using non-crashing compatibility stubs with return-type-appropriate placeholder behavior until later phases replace them.
+# Implementation Details
 
-## Verification Phases
-### `check_p01_bootstrap_workspace`
+- Keep `safe/build.rs` as the single renderer for `gcrypt.h`, `libgcrypt.pc`, `libgcrypt-config`, version-script exports, and bootstrap manifest files.
+- Decide whether `safe/src/ffi.rs` is dead. If dead, delete it and remove stale references. If it contains needed code, move the needed functions into live modules and document ownership in `safe/docs/abi-map.md`.
+- Commit or remove untracked helper files. Later phases may cite a helper only if this phase commits it.
+- Ensure generated C stubs remain temporary only. `safe_gcry_stub_zero` may exist after this phase only for symbols explicitly marked as later-phase work in `safe/docs/abi-map.md`.
+- Keep `safe/.cargo/config.toml` fail-closed with offline vendored sources.
+- Ensure repository-root commands such as `cargo build --manifest-path safe/Cargo.toml --release --locked --offline` use the committed vendor closure without relying on the current untracked root `.cargo/config.toml`. Commit the root config if root-level Cargo invocations remain in scripts or verification commands; otherwise update every script and verification command to run Cargo from `safe/`.
+- Commit identical root `rust-toolchain.toml` and `safe/rust-toolchain.toml` files pinning Rust `1.85.1`, `profile = "minimal"`, and `components = ["rustfmt"]`.
+- Add `safe/scripts/check-rust-toolchain.sh` and wire it into build scripts so host Cargo builds, Debian package builds, and dependent safe-image package preparation fail before Cargo runs when the active `rustc`/`cargo` do not match the pinned toolchain.
+- The toolchain checker must read the committed toolchain files, verify they agree, run `rustc -Vv` and `cargo -Vv`, require release `1.85.1`, require Cargo from the same toolchain, and fail with a clear message when the active toolchain is Ubuntu 24.04 packaged Rust 1.75 or any other unpinned version. It must not install Rust or fetch toolchains itself.
+- Preserve SONAME `libgcrypt.so.20` and version node `GCRYPT_1.6`.
+- Preserve the consume-existing-artifacts contract: use the committed original source snapshot, ABI templates, imported tests, and helper scripts in place rather than rediscovering or reimporting them.
+
+# Verification Phases
+
+- Phase ID: `check_p01_bootstrap_workspace`
 - Type: `check`
 - `bounce_target`: `impl_p01_bootstrap_workspace`
-- Purpose: verify that `safe/` builds a shared-library skeleton with the correct file layout, SONAME and linker inputs, generated header, ABI audit wiring, and committed upstream-test build plumbing before subsystem work starts.
+- Purpose: verify deterministic offline build, pinned Rust toolchain, ABI staging, committed helper status, and no stale unused bootstrap files.
 - Commands:
+  - `test "$(git rev-parse HEAD)" = "$(git rev-parse phase/impl_p01_bootstrap_workspace)"`
+  - `bash -c 'test -z "$(git status --short)"'`
+  - `safe/scripts/check-rust-toolchain.sh`
+  - `cargo build --manifest-path safe/Cargo.toml --release --locked --offline`
+  - `safe/scripts/check-abi.sh --check-soname --check-symbol-versions`
+  - `safe/scripts/run-original-tests.sh --verify-plumbing version t-secmem`
 
-```bash
-cargo build --manifest-path safe/Cargo.toml --release --offline
-safe/scripts/check-abi.sh --bootstrap
-safe/scripts/run-original-tests.sh --verify-plumbing version t-secmem
-```
+# Success Criteria
 
-## Success Criteria
-- `cargo build --manifest-path safe/Cargo.toml --release --offline` succeeds.
-- `safe/scripts/check-abi.sh --bootstrap` confirms SONAME, exported symbol inventory, generated header preservation, Debian-patched development metadata, and the five public variadic entry points.
-- `safe/scripts/run-original-tests.sh --verify-plumbing version t-secmem` proves the committed `config.h`, wrapper manifest, rendered wrapper scripts, and `compat/` inputs are the exact artifacts used by the early harness.
-- Manual review confirms `safe/tests/original-build/config.h` is committed from `original/libgcrypt20-1.10.3/config.h.in` and explicitly carries the required Linux test-build macros, including `PACKAGE_VERSION`, `BUILD_REVISION`, `BUILD_TIMESTAMP`, `HAVE_CONFIG_H`, `HAVE_W32_SYSTEM`, and `HAVE_W32CE_SYSTEM`.
-- Manual review confirms generated `gcrypt.h` preserves `struct gcry_thread_cbs`, the `GCRY_THREAD_OPTION_*` constants, and the `GCRY_THREAD_OPTION_PTH_IMPL` / `GCRY_THREAD_OPTION_PTHREAD_IMPL` macros.
-- Manual review confirms `safe/docs/abi-map.md` includes all 217 real versioned symbols from `safe/abi/libgcrypt.vers`, marks `gcry_md_get` as `visibility.h`-only, marks `gcry_pk_register` as ABI-only, and assigns explicit planned coverage ownership to every export.
+- Root and `safe/` Cargo commands are deterministic, offline, and compatible with the pinned Rust `1.85.1` toolchain.
+- `safe/scripts/check-rust-toolchain.sh` rejects Ubuntu 24.04 packaged Rust 1.75 and any unpinned or mismatched Rust/Cargo pair.
+- ABI staging still exports SONAME `libgcrypt.so.20` and version node `GCRYPT_1.6`.
+- Baseline original-test plumbing works for `version` and `t-secmem`.
+- Only committed helpers are relied on by later phases.
 
-## Git Commit Requirement
-The implementer must commit the phase's work to git before yielding.
+# Git Commit Requirement
+
+The implementer must commit work to git before yielding. End with one commit whose subject begins `impl_p01_bootstrap_workspace:` and force-update local tag `phase/impl_p01_bootstrap_workspace` to that commit before yielding.

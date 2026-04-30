@@ -1,20 +1,36 @@
-# 04 RNG Digest MAC KDF
+# Phase Name
 
-- Phase Name: Full RNG, digests, MACs, and KDFs
-- Implement Phase ID: `impl_p04_rng_digest_mac_kdf`
+RNG, digest, MAC, and KDF without upstream bridge
 
-## Preexisting Inputs
+# Implement Phase ID
+
+`impl_p04_rng_digest_mac_kdf`
+
+# Preexisting Inputs
+
+- Phase 3 committed tree and tag.
 - `safe/Cargo.toml`
 - `safe/Cargo.lock`
-- `safe/build.rs`
 - `safe/.cargo/config.toml`
-- `safe/src/`
-- `safe/cabi/`
-- `safe/abi/`
-- `safe/docs/abi-map.md`
-- `safe/tests/original-build/`
-- `safe/scripts/check-abi.sh`
+- `.cargo/config.toml` if committed by phase 1.
+- `safe/src/drbg.rs`
+- `safe/src/random.rs`
+- `safe/src/os_rng.rs`
+- `safe/src/digest/mod.rs`
+- `safe/src/digest/algorithms.rs`
+- `safe/src/mac.rs`
+- `safe/src/kdf.rs`
+- `safe/src/upstream.rs`
+- `safe/vendor/**`
 - `safe/scripts/run-original-tests.sh`
+- `safe/scripts/run-upstream-tests.sh`
+- `safe/scripts/check-abi.sh`
+- `safe/tests/original-build/*`
+- `safe/tests/upstream/*`
+- `safe/tests/compat/public-api-smoke.c`
+- `safe/abi/*`
+- `safe/docs/abi-map.md`
+- `safe/docs/cve-matrix.md`
 - `original/libgcrypt20-1.10.3/random/`
 - `original/libgcrypt20-1.10.3/cipher/md.c`
 - `original/libgcrypt20-1.10.3/cipher/mac.c`
@@ -23,57 +39,64 @@
 - `original/libgcrypt20-1.10.3/tests/hashtest.c`
 - `original/libgcrypt20-1.10.3/tests/hmac.c`
 - `original/libgcrypt20-1.10.3/tests/t-kdf.c`
-- `original/libgcrypt20-1.10.3/src/gcrypt-testapi.h`
-- `original/libgcrypt20-1.10.3/compat/`
 - `relevant_cves.json`
 
-## New Outputs
-- Full RNG implementation
-- Digest, MAC, and KDF implementations
-- Updated `safe/docs/abi-map.md`
-- Initial `safe/docs/cve-matrix.md`
+# New Outputs
 
-## File Changes
-- `safe/src/random.rs`
+- Local `DigestContext`, `MacContext`, and KDF handle implementations.
+- Rust-owned `gcry_md_*`, `gcry_mac_*`, `gcry_kdf_*`, and `gcry_random*` behavior.
+- Updated `safe/docs/cve-matrix.md` for RNG, digest, MAC, and KDF CVEs and review obligations.
+
+# File Changes
+
+- `safe/Cargo.toml`
+- `safe/Cargo.lock`
+- `safe/vendor/**`
 - `safe/src/drbg.rs`
+- `safe/src/random.rs`
+- `safe/src/os_rng.rs`
 - `safe/src/digest/mod.rs`
 - `safe/src/digest/algorithms.rs`
 - `safe/src/mac.rs`
 - `safe/src/kdf.rs`
-- `safe/src/os_rng.rs`
-- `safe/cabi/exports.c`
+- `safe/src/upstream.rs`
 - `safe/docs/abi-map.md`
 - `safe/docs/cve-matrix.md`
+- `safe/tests/compat/public-api-smoke.c`
 
-## Implementation Details
-- Implement the upstream random API semantics for `gcry_randomize`, `gcry_random_bytes`, `gcry_random_bytes_secure`, `gcry_random_add_bytes`, `gcry_create_nonce`, `gcry_mpi_randomize`, preferred-RNG controls, `GCRYCTL_FAST_POLL`, `GCRYCTL_GET_CURRENT_RNG_TYPE`, and the private regression controls used by `gcrypt-testapi.h`.
-- Design the RNG around a modern DRBG backed by OS entropy and explicit reseed and fork handling instead of reproducing the old mixing design; this is the phase-4 mitigation for `CVE-2016-6313`.
-- Match the fork behavior tested by `tests/random.c`, ensuring `gcry_randomize` and `gcry_create_nonce` do not repeat parent output after fork.
-- Implement the complete digest and MAC registry surface and the `*_algo_info` control paths behind header macros such as `gcry_md_test_algo`, `gcry_md_get_asnoid`, and `gcry_mac_test_algo`.
-- Preserve the public `gcry_md_handle` layout and `gcry_md_putc` buffering semantics exactly.
-- Implement the hidden-but-exported digest compatibility symbol `gcry_md_get` with upstream-compatible buffer, error, and FIPS-state semantics, document it in `safe/docs/abi-map.md` as phase-4-owned, and leave its concrete ABI-only smoke coverage to phase 8 because installed `gcrypt.h` does not declare it.
-- Implement KDFs and threaded KDF dispatch for `gcry_kdf_open`, `gcry_kdf_compute`, `gcry_kdf_final`, and `gcry_kdf_close`, covering S2K, PBKDF1, PBKDF2, scrypt, Argon2, and Balloon as defined by the public enums.
-- Keep digest, MAC, and KDF algorithm names and `map_name` strings exactly aligned with upstream because tests and downstream software depend on them.
-- Record RNG and timing-side-channel mitigations in `safe/docs/cve-matrix.md`.
-- If any public KDF enum or subalgorithm remains unexercised after this phase, record that gap in `safe/docs/abi-map.md` so phase 8 can add targeted compatibility smoke coverage.
+# Implementation Details
 
-## Verification Phases
-### `check_p04_rng_digest_mac_kdf`
+- Replace all digest, MAC, and KDF calls to `upstream::lib()` with local Rust state and algorithm implementations.
+- Use committed vendored crates where appropriate for SHA1/SHA2/SHA3/BLAKE2/SM3/Streebog/GOST94/HMAC/CMAC/Poly1305, and port missing required algorithms from the original source into safe Rust modules.
+- Preserve libgcrypt algorithm numbers, names, aliases, digest lengths, XOF behavior for SHAKE, `gcry_md_get` ABI-only export behavior, secure flags, copy/reset semantics, HMAC keyed digest behavior, and `gcry_md_hash_buffers` iovec handling.
+- Implement KDF coverage for S2K, PBKDF2, scrypt, Argon2, Balloon, and handle-based `gcry_kdf_open`/`compute`/`final`/`close` as exposed by `safe/abi/gcrypt.h.in`.
+- Keep DRBG reseed, fork detection, nonce creation, and random quality behavior aligned with `random.c` and the CVE matrix.
+- Preserve the consume-existing-artifacts contract by updating the existing RNG, digest, MAC, KDF, upstream-test, ABI, and CVE artifacts in place.
+
+# Verification Phases
+
+- Phase ID: `check_p04_rng_digest_mac_kdf`
 - Type: `check`
 - `bounce_target`: `impl_p04_rng_digest_mac_kdf`
-- Purpose: verify the random subsystem, digest layer, MAC layer, and KDF layer, including private regression hooks and algorithm-info control paths.
+- Purpose: verify local random, hash, HMAC/MAC, and KDF APIs and review relevant CVE obligations.
 - Commands:
+  - `test "$(git rev-parse HEAD)" = "$(git rev-parse phase/impl_p04_rng_digest_mac_kdf)"`
+  - `test "$(git rev-parse HEAD^)" = "$(git rev-parse phase/impl_p03_sexp_mpi_core)"`
+  - `bash -c 'test -z "$(git status --short)"'`
+  - `safe/scripts/check-rust-toolchain.sh`
+  - `cargo build --manifest-path safe/Cargo.toml --release --locked --offline`
+  - `safe/scripts/run-original-tests.sh random hashtest hmac t-kdf`
+  - `safe/scripts/run-upstream-tests.sh random hashtest hmac t-kdf`
+  - `safe/scripts/check-abi.sh --check-symbol-versions`
+  - `bash -c 'if rg -n "upstream::lib\\(\\)" safe/src/digest safe/src/mac.rs safe/src/kdf.rs; then exit 1; fi'`
 
-```bash
-cargo build --manifest-path safe/Cargo.toml --release --offline
-safe/scripts/run-original-tests.sh random hashtest hmac t-kdf
-```
+# Success Criteria
 
-## Success Criteria
-- `cargo build --manifest-path safe/Cargo.toml --release --offline` succeeds.
-- `safe/scripts/run-original-tests.sh random hashtest hmac t-kdf` passes.
-- `safe/docs/cve-matrix.md` explicitly covers `CVE-2016-6313` and the digest, MAC, and KDF timing obligations.
-- `safe/docs/abi-map.md` marks `gcry_md_get` as implemented while still reserving its ABI-only smoke verification for phase 8.
+- Random, digest, MAC, and KDF surfaces are Rust-owned and have no `upstream::lib()` calls in the listed modules.
+- Original and imported upstream tests for random, hash, HMAC, and KDF pass.
+- CVE documentation reflects the local implementation ownership and review obligations.
+- The phase is a single child commit of `phase/impl_p03_sexp_mpi_core` and leaves a clean worktree before tests.
 
-## Git Commit Requirement
-The implementer must commit the phase's work to git before yielding.
+# Git Commit Requirement
+
+The implementer must commit work to git before yielding. End with one commit whose subject begins `impl_p04_rng_digest_mac_kdf:` and whose first parent is `phase/impl_p03_sexp_mpi_core`; force-update local tag `phase/impl_p04_rng_digest_mac_kdf` to that commit before yielding.

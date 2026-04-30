@@ -1,38 +1,19 @@
-# 02 Runtime Shell
+# Phase Name
 
-- Phase Name: Runtime shell: version, control, config, allocation, and secure memory
-- Implement Phase ID: `impl_p02_runtime_shell`
+Runtime shell, control, allocation, and secure memory
 
-## Preexisting Inputs
+# Implement Phase ID
+
+`impl_p02_runtime_shell`
+
+# Preexisting Inputs
+
+- Phase 1 committed tree and tag.
 - `safe/Cargo.toml`
 - `safe/Cargo.lock`
-- `safe/build.rs`
 - `safe/.cargo/config.toml`
-- `safe/src/`
-- `safe/cabi/`
-- `safe/abi/`
-- `safe/docs/abi-map.md`
-- `safe/tests/original-build/`
-- `safe/scripts/check-abi.sh`
-- `safe/scripts/run-original-tests.sh`
-- `original/libgcrypt20-1.10.3/src/global.c`
-- `original/libgcrypt20-1.10.3/src/misc.c`
-- `original/libgcrypt20-1.10.3/src/secmem.c`
-- `original/libgcrypt20-1.10.3/src/stdmem.c`
-- `original/libgcrypt20-1.10.3/src/context.c`
-- `original/libgcrypt20-1.10.3/src/fips.c`
-- `original/libgcrypt20-1.10.3/src/hwfeatures.c`
-- `original/libgcrypt20-1.10.3/tests/version.c`
-- `original/libgcrypt20-1.10.3/tests/t-secmem.c`
-- `original/libgcrypt20-1.10.3/compat/`
-- `relevant_cves.json`
-
-## New Outputs
-- Working Rust runtime shell
-- Updated `safe/docs/abi-map.md`
-
-## File Changes
-- `safe/src/lib.rs`
+- `.cargo/config.toml` if committed by phase 1.
+- `safe/vendor/**`
 - `safe/src/global.rs`
 - `safe/src/alloc.rs`
 - `safe/src/secmem.rs`
@@ -40,56 +21,76 @@
 - `safe/src/config.rs`
 - `safe/src/context.rs`
 - `safe/src/error.rs`
-- `safe/src/os_rng.rs`
+- `safe/src/hwfeatures.rs`
+- `safe/src/lib.rs`
 - `safe/cabi/exports.c`
+- `safe/cabi/exports.h`
+- `safe/abi/*`
+- `safe/scripts/check-abi.sh`
+- `safe/scripts/run-original-tests.sh`
+- `safe/tests/original-build/*`
+- `safe/docs/abi-map.md`
+- `original/libgcrypt20-1.10.3/src/global.c`
+- `original/libgcrypt20-1.10.3/src/misc.c`
+- `original/libgcrypt20-1.10.3/src/stdmem.c`
+- `original/libgcrypt20-1.10.3/src/secmem.c`
+- `original/libgcrypt20-1.10.3/src/context.c`
+- `original/libgcrypt20-1.10.3/src/fips.c`
+- `original/libgcrypt20-1.10.3/tests/version.c`
+- `original/libgcrypt20-1.10.3/tests/t-secmem.c`
+
+# New Outputs
+
+- Rust-owned runtime shell with no dependency on upstream libgcrypt for non-crypto global behavior.
+- Updated ABI map for runtime-shell symbols.
+- Expanded `check-abi.sh` runtime shell probes where behavior was previously untested.
+
+# File Changes
+
+- `safe/src/global.rs`
+- `safe/src/alloc.rs`
+- `safe/src/secmem.rs`
+- `safe/src/log.rs`
+- `safe/src/config.rs`
+- `safe/src/context.rs`
+- `safe/src/error.rs`
+- `safe/src/hwfeatures.rs`
+- `safe/src/lib.rs`
+- `safe/cabi/exports.c`
+- `safe/cabi/exports.h`
 - `safe/scripts/check-abi.sh`
 - `safe/docs/abi-map.md`
 
-## Implementation Details
-- Implement `gcry_check_version` with upstream-compatible version-string negotiation so `GCRYPT_VERSION` in the header matches the library result.
-- Keep the ABI-visible library version at upstream `1.10.3` / `GCRYPT_1.6`; Debian revision metadata can vary later.
-- Implement the libgpg-error wrapper surface:
-  - `gcry_strerror`
-  - `gcry_strsource`
-  - `gcry_err_code_from_errno`
-  - `gcry_err_code_to_errno`
-  - `gcry_err_make_from_errno`
-  - `gcry_error_from_errno`
-- Implement the allocation surface:
-  - `gcry_malloc`, `gcry_calloc`, `gcry_realloc`, `gcry_strdup`, `gcry_free`
-  - Secure allocation variants
-  - The xmalloc/xcalloc/xstrdup family
-  - `gcry_is_secure`
-  - `gcry_set_allocation_handler`
-  - `gcry_set_outofcore_handler`
-- Port secure-memory behavior with a Rust allocator backed by locked pages where possible, confining unsafe code to OS boundaries such as `mlock`, `mmap`, zeroization, and raw pointer handoff.
-- Implement log, progress, fatal, and gettext handler registration and dispatch.
-- Implement `gcry_control` command handling for the non-crypto control plane from `original/libgcrypt20-1.10.3/src/gcrypt.h.in:255-337` and `src/global.c`, including verbosity and debug flags, secure-memory controls, initialization queries, config printing, FIPS queries and requests, hardware-feature disable requests, RNG type getters and setters, the private regression controls that do not require full crypto yet, and `GCRYCTL_SET_THREAD_CBS` as an upstream-compatible dummy compatibility hook that ignores callback contents, resets the preferred RNG type to default, and forces global initialization without reviving legacy thread-library installation.
-- Preserve upstream truthy semantics where `gcry_control(..._P)` returns `GPG_ERR_GENERAL` as success.
-- Implement `gcry_get_config` and `GCRYCTL_PRINT_CONFIG` with upstream-compatible key names and formatting, including the `version`, `cpu-arch`, and `rng-type` lines used by `tests/version.c`.
-- Implement minimal secure random allocation for `gcry_random_bytes_secure`, sufficient for `t-secmem`, with the full RNG design deferred to phase 4.
-- Extend `safe/scripts/check-abi.sh` with a runtime `--thread-cbs-noop` mode that compiles a C probe against the generated header, expands `GCRY_THREAD_OPTION_PTHREAD_IMPL`, calls `gcry_control(GCRYCTL_SET_THREAD_CBS, &gcry_threads_pthread)`, and verifies the compatibility no-op succeeds without dereferencing callback pointers while also resetting the preferred RNG type to the default and forcing global initialization.
-- Update `safe/docs/abi-map.md` to mark runtime-shell symbols as implemented and identify any remaining phase-owned stubs.
+# Implementation Details
 
-## Verification Phases
-### `check_p02_runtime_shell`
+- Implement or harden `safe_gcry_check_version`, `safe_gcry_control_dispatch`, `safe_gcry_get_config`, libgpg-error wrappers, allocation handlers, out-of-core handlers, gettext/log/fatal/progress handlers, and `gcry_ctx_release`.
+- Preserve upstream truthy `_P` control semantics for `GCRYCTL_INITIALIZATION_FINISHED_P`, `GCRYCTL_ANY_INITIALIZATION_P`, `GCRYCTL_OPERATIONAL_P`, and `GCRYCTL_FIPS_MODE_P`.
+- Keep the C varargs ABI in `safe/cabi/exports.c`; pass normalized arguments to Rust dispatch functions.
+- Keep unsafe code limited to C ABI pointers, `errno`, allocation calls, memory locking, and OS calls.
+- Ensure secure-memory bookkeeping preserves `gcry_is_secure`, xalloc overflow handling, and expected pool accounting from `t-secmem`.
+- Preserve the consume-existing-artifacts contract by updating the existing runtime modules, ABI files, scripts, tests, and documentation in place.
+
+# Verification Phases
+
+- Phase ID: `check_p02_runtime_shell`
 - Type: `check`
 - `bounce_target`: `impl_p02_runtime_shell`
-- Purpose: verify the non-cryptographic runtime shell that everything else depends on: version negotiation, `gcry_control`, handler registration, config reporting, secure-memory allocation, the obsolete-but-public thread-callback compatibility hook, and the minimal secure random allocation needed by `t-secmem`.
+- Purpose: verify version negotiation, control commands, config reporting, allocation handlers, secure memory, logging, thread-callback compatibility, and error wrappers.
 - Commands:
+  - `test "$(git rev-parse HEAD)" = "$(git rev-parse phase/impl_p02_runtime_shell)"`
+  - `test "$(git rev-parse HEAD^)" = "$(git rev-parse phase/impl_p01_bootstrap_workspace)"`
+  - `bash -c 'test -z "$(git status --short)"'`
+  - `safe/scripts/check-rust-toolchain.sh`
+  - `cargo build --manifest-path safe/Cargo.toml --release --locked --offline`
+  - `safe/scripts/check-abi.sh --thread-cbs-noop`
+  - `safe/scripts/run-original-tests.sh version t-secmem`
 
-```bash
-cargo build --manifest-path safe/Cargo.toml --release --offline
-safe/scripts/check-abi.sh --thread-cbs-noop
-safe/scripts/run-original-tests.sh version t-secmem
-```
+# Success Criteria
 
-## Success Criteria
-- `cargo build --manifest-path safe/Cargo.toml --release --offline` succeeds.
-- `safe/scripts/check-abi.sh --thread-cbs-noop` proves the public thread-compatibility surface remains available and that `GCRYCTL_SET_THREAD_CBS` behaves as the required compatibility no-op while resetting the preferred RNG type to the default and forcing global initialization.
-- `safe/scripts/run-original-tests.sh version t-secmem` passes against the safe build.
-- `gcry_get_config("no-such-item")` returns `NULL` with `errno == 0`, matching `tests/version.c`.
-- `safe/docs/abi-map.md` reflects the implemented runtime-shell symbols and remaining ownership boundaries.
+- Runtime shell, allocation, secure-memory, logging, config, context, error, and thread-callback behavior are Rust-owned and verified.
+- `version` and `t-secmem` pass without relying on upstream libgcrypt.
+- The phase is a single child commit of `phase/impl_p01_bootstrap_workspace` and leaves a clean worktree before tests.
 
-## Git Commit Requirement
-The implementer must commit the phase's work to git before yielding.
+# Git Commit Requirement
+
+The implementer must commit work to git before yielding. End with one commit whose subject begins `impl_p02_runtime_shell:` and whose first parent is `phase/impl_p01_bootstrap_workspace`; force-update local tag `phase/impl_p02_runtime_shell` to that commit before yielding.
