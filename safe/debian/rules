@@ -38,7 +38,7 @@ override_dh_auto_build:
 		-Wl,--no-gc-sections \
 		-Wl,--whole-archive "$(RUST_STATICLIB)" \
 		-Wl,--no-whole-archive \
-		-lgpg-error -lgmp -ldl -lpthread -lm -lc -lgcc_s
+		-lgpg-error -lgmp -lpthread -lm -lc -lgcc_s
 	mv -f "$(RUST_SHARED_LIB).tmp" "$(RUST_SHARED_LIB)"
 
 override_dh_auto_install:

@@ -4,6 +4,53 @@ use std::sync::{Mutex, OnceLock};
 
 use crate::error;
 
+pub(crate) enum GcryContextKind {
+    RandomOverride(Vec<u8>),
+    Ec(crate::mpi::ec::EcContext),
+}
+
+pub(crate) struct GcryContext {
+    pub(crate) kind: GcryContextKind,
+}
+
+pub(crate) fn new_random_override(bytes: Vec<u8>) -> *mut c_void {
+    Box::into_raw(Box::new(GcryContext {
+        kind: GcryContextKind::RandomOverride(bytes),
+    }))
+    .cast()
+}
+
+pub(crate) unsafe fn random_override<'a>(ctx: *mut c_void) -> Option<&'a [u8]> {
+    let ctx = unsafe { ctx.cast::<GcryContext>().as_ref()? };
+    match &ctx.kind {
+        GcryContextKind::RandomOverride(bytes) => Some(bytes.as_slice()),
+        GcryContextKind::Ec(_) => None,
+    }
+}
+
+pub(crate) fn new_ec(ctx: crate::mpi::ec::EcContext) -> *mut c_void {
+    Box::into_raw(Box::new(GcryContext {
+        kind: GcryContextKind::Ec(ctx),
+    }))
+    .cast()
+}
+
+pub(crate) unsafe fn ec_ref<'a>(ctx: *mut c_void) -> Option<&'a crate::mpi::ec::EcContext> {
+    let ctx = unsafe { ctx.cast::<GcryContext>().as_ref()? };
+    match &ctx.kind {
+        GcryContextKind::Ec(ec) => Some(ec),
+        GcryContextKind::RandomOverride(_) => None,
+    }
+}
+
+pub(crate) unsafe fn ec_mut<'a>(ctx: *mut c_void) -> Option<&'a mut crate::mpi::ec::EcContext> {
+    let ctx = unsafe { ctx.cast::<GcryContext>().as_mut()? };
+    match &mut ctx.kind {
+        GcryContextKind::Ec(ec) => Some(ec),
+        GcryContextKind::RandomOverride(_) => None,
+    }
+}
+
 #[derive(Debug, Default)]
 struct ExternalLockState {
     initialized: bool,
@@ -93,6 +140,6 @@ pub extern "C" fn gcry_ctx_release(ctx: *mut c_void) {
     }
 
     unsafe {
-        (crate::pubkey::encoding::api().ctx_release)(ctx);
+        drop(Box::from_raw(ctx.cast::<GcryContext>()));
     }
 }

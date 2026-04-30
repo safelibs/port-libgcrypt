@@ -1,15 +1,13 @@
 #include <gcrypt.h>
 #include <gpg-error.h>
 
-#include <dlfcn.h>
 #include <stdio.h>
 #include <string.h>
 
 /* Kept out of the installed header, but still exported for ABI compatibility. */
 gcry_err_code_t gcry_md_get(gcry_md_hd_t hd, int algo,
                             unsigned char *buffer, int buflen);
-
-typedef unsigned int (*gcry_pk_register_fn_t)(void);
+gcry_err_code_t gcry_pk_register(void);
 
 static int
 die(const char *message, unsigned long value)
@@ -26,8 +24,6 @@ main(void)
   const unsigned char *expected;
   unsigned int digest_len;
   gcry_err_code_t rc;
-  void *handle;
-  gcry_pk_register_fn_t pk_register;
 
   if (!gcry_check_version(GCRYPT_VERSION))
     return die("gcry_check_version rejected header version", 0);
@@ -56,28 +52,9 @@ main(void)
 
   gcry_md_close(md);
 
-  handle = dlopen("libgcrypt.so.20", RTLD_NOW | RTLD_LOCAL);
-  if (!handle)
-    {
-      fprintf(stderr, "abi-only-exports: dlopen failed: %s\n", dlerror());
-      return 1;
-    }
-
-  pk_register = (gcry_pk_register_fn_t)dlsym(handle, "gcry_pk_register");
-  if (!pk_register)
-    {
-      fprintf(stderr, "abi-only-exports: dlsym failed: %s\n", dlerror());
-      dlclose(handle);
-      return 1;
-    }
-
-  rc = pk_register();
+  rc = gcry_pk_register();
   if (gpg_err_code(rc) != GPG_ERR_NOT_SUPPORTED)
-    {
-      dlclose(handle);
-      return die("gcry_pk_register returned unexpected code", rc);
-    }
+    return die("gcry_pk_register returned unexpected code", rc);
 
-  dlclose(handle);
   return 0;
 }

@@ -1,482 +1,310 @@
-use std::ffi::{CString, c_char, c_int, c_uint, c_void};
-use std::ptr::{null, null_mut};
-use std::sync::OnceLock;
+use std::ffi::{CStr, CString, c_char, c_int};
+use std::ptr::null_mut;
 
-use crate::alloc;
+use crate::digest::{self, algorithms};
 use crate::error;
-use crate::mpi::{GCRYMPI_FMT_STD, gcry_mpi};
-use crate::sexp::{self, gcry_sexp};
+use crate::mpi::{self, GCRYMPI_FMT_OPAQUE, GCRYMPI_FMT_USG, Mpz, gcry_mpi};
+use crate::sexp;
 
-const RTLD_NOW: c_int = 2;
-const RTLD_LOCAL: c_int = 0;
-const GCRYSEXP_FMT_CANON: c_int = 1;
-const GCRYSEXP_FMT_ADVANCED: c_int = 3;
-const GCRYMPI_FLAG_OPAQUE: c_int = 2;
-
-type gcry_error_t = u32;
-
-type CheckVersionFn = unsafe extern "C" fn(*const c_char) -> *const c_char;
-type CtxReleaseFn = unsafe extern "C" fn(*mut c_void);
-
-type SexpSscanFn =
-    unsafe extern "C" fn(*mut *mut c_void, *mut usize, *const c_char, usize) -> gcry_error_t;
-type SexpSprintFn = unsafe extern "C" fn(*mut c_void, c_int, *mut c_void, usize) -> usize;
-type SexpReleaseFn = unsafe extern "C" fn(*mut c_void);
-
-type MpiNewFn = unsafe extern "C" fn(c_uint) -> *mut c_void;
-type MpiReleaseFn = unsafe extern "C" fn(*mut c_void);
-type MpiScanFn =
-    unsafe extern "C" fn(*mut *mut c_void, c_int, *const c_void, usize, *mut usize) -> gcry_error_t;
-type MpiPrintFn =
-    unsafe extern "C" fn(c_int, *mut u8, usize, *mut usize, *const c_void) -> gcry_error_t;
-type MpiGetFlagFn = unsafe extern "C" fn(*mut c_void, c_int) -> c_int;
-type MpiGetOpaqueFn = unsafe extern "C" fn(*mut c_void, *mut c_uint) -> *mut c_void;
-type MpiSetOpaqueCopyFn = unsafe extern "C" fn(*mut c_void, *const c_void, c_uint) -> *mut c_void;
-
-type PkResultFn = unsafe extern "C" fn(*mut *mut c_void, *mut c_void, *mut c_void) -> gcry_error_t;
-type PkVerifyFn = unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void) -> gcry_error_t;
-type PkTestKeyFn = unsafe extern "C" fn(*mut c_void) -> gcry_error_t;
-type PkGenKeyFn = unsafe extern "C" fn(*mut *mut c_void, *mut c_void) -> gcry_error_t;
-type PkCtlFn = unsafe extern "C" fn(c_int, *mut c_void, usize) -> gcry_error_t;
-type PkAlgoInfoFn = unsafe extern "C" fn(c_int, c_int, *mut c_void, *mut usize) -> gcry_error_t;
-type PkAlgoNameFn = unsafe extern "C" fn(c_int) -> *const c_char;
-type PkMapNameFn = unsafe extern "C" fn(*const c_char) -> c_int;
-type PkGetNbitsFn = unsafe extern "C" fn(*mut c_void) -> c_uint;
-type PkGetKeygripFn = unsafe extern "C" fn(*mut c_void, *mut u8) -> *mut u8;
-type PkGetCurveFn = unsafe extern "C" fn(*mut c_void, c_int, *mut c_uint) -> *const c_char;
-type PkGetParamFn = unsafe extern "C" fn(c_int, *const c_char) -> *mut c_void;
-type PubkeyGetSexpFn = unsafe extern "C" fn(*mut *mut c_void, c_int, *mut c_void) -> gcry_error_t;
-type EccGetAlgoKeylenFn = unsafe extern "C" fn(c_int) -> c_uint;
-type EccMulPointFn = unsafe extern "C" fn(c_int, *mut u8, *const u8, *const u8) -> gcry_error_t;
-type PkHashSignFn = unsafe extern "C" fn(
-    *mut *mut c_void,
-    *const c_char,
-    *mut c_void,
-    *mut c_void,
-    *mut c_void,
-) -> gcry_error_t;
-type PkHashVerifyFn = unsafe extern "C" fn(
-    *mut c_void,
-    *const c_char,
-    *mut c_void,
-    *mut c_void,
-    *mut c_void,
-) -> gcry_error_t;
-type PkRandomOverrideNewFn =
-    unsafe extern "C" fn(*mut *mut c_void, *const u8, usize) -> gcry_error_t;
-
-type PointNewFn = unsafe extern "C" fn(c_uint) -> *mut c_void;
-type PointReleaseFn = unsafe extern "C" fn(*mut c_void);
-type PointCopyFn = unsafe extern "C" fn(*mut c_void) -> *mut c_void;
-type PointGetFn = unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, *mut c_void);
-type PointSetFn =
-    unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, *mut c_void) -> *mut c_void;
-
-type EcNewFn = unsafe extern "C" fn(*mut *mut c_void, *mut c_void, *const c_char) -> gcry_error_t;
-type EcGetMpiFn = unsafe extern "C" fn(*const c_char, *mut c_void, c_int) -> *mut c_void;
-type EcGetPointFn = unsafe extern "C" fn(*const c_char, *mut c_void, c_int) -> *mut c_void;
-type EcSetMpiFn = unsafe extern "C" fn(*const c_char, *mut c_void, *mut c_void) -> gcry_error_t;
-type EcSetPointFn = unsafe extern "C" fn(*const c_char, *mut c_void, *mut c_void) -> gcry_error_t;
-type EcDecodePointFn = unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void) -> gcry_error_t;
-type EcGetAffineFn =
-    unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, *mut c_void) -> c_int;
-type EcDupFn = unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void);
-type EcPointVoidFn = unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, *mut c_void);
-type EcMulFn = unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, *mut c_void);
-type EcCurvePointFn = unsafe extern "C" fn(*mut c_void, *mut c_void) -> c_int;
-
-unsafe extern "C" {
-    fn dlopen(filename: *const c_char, flags: c_int) -> *mut c_void;
-    fn dlsym(handle: *mut c_void, symbol: *const c_char) -> *mut c_void;
-    fn dlerror() -> *const c_char;
+pub(crate) fn err(code: u32) -> u32 {
+    error::gcry_error_from_code(code)
 }
 
-pub(crate) struct PubkeyApi {
-    _handle: usize,
-    pub(crate) ctx_release: CtxReleaseFn,
-    pub(crate) sexp_sscan: SexpSscanFn,
-    pub(crate) sexp_sprint: SexpSprintFn,
-    pub(crate) sexp_release: SexpReleaseFn,
-    pub(crate) mpi_new: MpiNewFn,
-    pub(crate) mpi_release: MpiReleaseFn,
-    pub(crate) mpi_scan: MpiScanFn,
-    pub(crate) mpi_print: MpiPrintFn,
-    pub(crate) mpi_get_flag: MpiGetFlagFn,
-    pub(crate) mpi_get_opaque: MpiGetOpaqueFn,
-    pub(crate) mpi_set_opaque_copy: MpiSetOpaqueCopyFn,
-    pub(crate) pk_encrypt: PkResultFn,
-    pub(crate) pk_decrypt: PkResultFn,
-    pub(crate) pk_sign: PkResultFn,
-    pub(crate) pk_verify: PkVerifyFn,
-    pub(crate) pk_testkey: PkTestKeyFn,
-    pub(crate) pk_genkey: PkGenKeyFn,
-    pub(crate) pk_ctl: PkCtlFn,
-    pub(crate) pk_algo_info: PkAlgoInfoFn,
-    pub(crate) pk_algo_name: PkAlgoNameFn,
-    pub(crate) pk_map_name: PkMapNameFn,
-    pub(crate) pk_get_nbits: PkGetNbitsFn,
-    pub(crate) pk_get_keygrip: PkGetKeygripFn,
-    pub(crate) pk_get_curve: PkGetCurveFn,
-    pub(crate) pk_get_param: PkGetParamFn,
-    pub(crate) pubkey_get_sexp: PubkeyGetSexpFn,
-    pub(crate) ecc_get_algo_keylen: EccGetAlgoKeylenFn,
-    pub(crate) ecc_mul_point: EccMulPointFn,
-    pub(crate) pk_hash_sign: PkHashSignFn,
-    pub(crate) pk_hash_verify: PkHashVerifyFn,
-    pub(crate) pk_random_override_new: PkRandomOverrideNewFn,
-    pub(crate) point_new: PointNewFn,
-    pub(crate) point_release: PointReleaseFn,
-    pub(crate) point_copy: PointCopyFn,
-    pub(crate) point_get: PointGetFn,
-    pub(crate) point_snatch_get: PointGetFn,
-    pub(crate) point_set: PointSetFn,
-    pub(crate) point_snatch_set: PointSetFn,
-    pub(crate) ec_new: EcNewFn,
-    pub(crate) ec_get_mpi: EcGetMpiFn,
-    pub(crate) ec_get_point: EcGetPointFn,
-    pub(crate) ec_set_mpi: EcSetMpiFn,
-    pub(crate) ec_set_point: EcSetPointFn,
-    pub(crate) ec_decode_point: EcDecodePointFn,
-    pub(crate) ec_get_affine: EcGetAffineFn,
-    pub(crate) ec_dup: EcDupFn,
-    pub(crate) ec_add: EcPointVoidFn,
-    pub(crate) ec_sub: EcPointVoidFn,
-    pub(crate) ec_mul: EcMulFn,
-    pub(crate) ec_curve_point: EcCurvePointFn,
+pub(crate) fn hex_atom(bytes: &[u8]) -> String {
+    let mut out = String::with_capacity(2 + bytes.len() * 2);
+    out.push('#');
+    for byte in bytes {
+        out.push_str(&format!("{byte:02X}"));
+    }
+    out.push('#');
+    out
 }
 
-unsafe impl Send for PubkeyApi {}
-unsafe impl Sync for PubkeyApi {}
-
-fn describe_dlerror() -> String {
-    let ptr = unsafe { dlerror() };
-    if ptr.is_null() {
-        "unknown dynamic loader error".to_string()
-    } else {
-        unsafe { std::ffi::CStr::from_ptr(ptr) }
-            .to_string_lossy()
-            .into_owned()
-    }
-}
-
-unsafe fn load_symbol<T>(handle: *mut c_void, name: &'static str) -> T
-where
-    T: Copy,
-{
-    let name_c = CString::new(name).expect("symbol name without NUL");
-    let symbol = unsafe { dlsym(handle, name_c.as_ptr()) };
-    if symbol.is_null() {
-        panic!(
-            "failed to load upstream libgcrypt symbol {name}: {}",
-            describe_dlerror()
-        );
-    }
-    unsafe { std::mem::transmute_copy::<*mut c_void, T>(&symbol) }
-}
-
-unsafe fn open_upstream_handle() -> *mut c_void {
-    let mut candidates: Vec<String> = Vec::new();
-    if let Some(path) = std::env::var_os("SAFE_SYSTEM_LIBGCRYPT_PATH") {
-        candidates.push(path.to_string_lossy().into_owned());
-    }
-    if let Some(path) = option_env!("SAFE_SYSTEM_LIBGCRYPT_PATH") {
-        candidates.push(path.to_string());
-    }
-    candidates.extend(
-        [
-            "/lib/x86_64-linux-gnu/libgcrypt.so.20",
-            "/usr/lib/x86_64-linux-gnu/libgcrypt.so.20",
-            "/lib64/libgcrypt.so.20",
-            "/usr/lib64/libgcrypt.so.20",
-        ]
-        .into_iter()
-        .map(str::to_string),
-    );
-
-    for path in candidates {
-        let Ok(path) = CString::new(path) else {
-            continue;
-        };
-        let handle = unsafe { dlopen(path.as_ptr(), RTLD_NOW | RTLD_LOCAL) };
-        if !handle.is_null() {
-            return handle;
+pub(crate) fn string_atom(text: &str) -> String {
+    let mut out = String::with_capacity(text.len() + 2);
+    out.push('"');
+    for byte in text.bytes() {
+        match byte {
+            b'\\' => out.push_str("\\\\"),
+            b'"' => out.push_str("\\\""),
+            b'\n' => out.push_str("\\n"),
+            b'\r' => out.push_str("\\r"),
+            b'\t' => out.push_str("\\t"),
+            0x20..=0x7e => out.push(byte as char),
+            _ => out.push_str(&format!("\\x{byte:02x}")),
         }
     }
-
-    panic!(
-        "unable to load upstream libgcrypt.so.20: {}",
-        describe_dlerror()
-    );
+    out.push('"');
+    out
 }
 
-fn init() -> PubkeyApi {
-    let handle = unsafe { open_upstream_handle() };
-    let check_version: CheckVersionFn = unsafe { load_symbol(handle, "gcry_check_version") };
-    let version = unsafe { check_version(null()) };
-    if version.is_null() {
-        panic!("upstream libgcrypt initialization via gcry_check_version failed");
-    }
-
-    PubkeyApi {
-        _handle: handle as usize,
-        ctx_release: unsafe { load_symbol(handle, "gcry_ctx_release") },
-        sexp_sscan: unsafe { load_symbol(handle, "gcry_sexp_sscan") },
-        sexp_sprint: unsafe { load_symbol(handle, "gcry_sexp_sprint") },
-        sexp_release: unsafe { load_symbol(handle, "gcry_sexp_release") },
-        mpi_new: unsafe { load_symbol(handle, "gcry_mpi_new") },
-        mpi_release: unsafe { load_symbol(handle, "gcry_mpi_release") },
-        mpi_scan: unsafe { load_symbol(handle, "gcry_mpi_scan") },
-        mpi_print: unsafe { load_symbol(handle, "gcry_mpi_print") },
-        mpi_get_flag: unsafe { load_symbol(handle, "gcry_mpi_get_flag") },
-        mpi_get_opaque: unsafe { load_symbol(handle, "gcry_mpi_get_opaque") },
-        mpi_set_opaque_copy: unsafe { load_symbol(handle, "gcry_mpi_set_opaque_copy") },
-        pk_encrypt: unsafe { load_symbol(handle, "gcry_pk_encrypt") },
-        pk_decrypt: unsafe { load_symbol(handle, "gcry_pk_decrypt") },
-        pk_sign: unsafe { load_symbol(handle, "gcry_pk_sign") },
-        pk_verify: unsafe { load_symbol(handle, "gcry_pk_verify") },
-        pk_testkey: unsafe { load_symbol(handle, "gcry_pk_testkey") },
-        pk_genkey: unsafe { load_symbol(handle, "gcry_pk_genkey") },
-        pk_ctl: unsafe { load_symbol(handle, "gcry_pk_ctl") },
-        pk_algo_info: unsafe { load_symbol(handle, "gcry_pk_algo_info") },
-        pk_algo_name: unsafe { load_symbol(handle, "gcry_pk_algo_name") },
-        pk_map_name: unsafe { load_symbol(handle, "gcry_pk_map_name") },
-        pk_get_nbits: unsafe { load_symbol(handle, "gcry_pk_get_nbits") },
-        pk_get_keygrip: unsafe { load_symbol(handle, "gcry_pk_get_keygrip") },
-        pk_get_curve: unsafe { load_symbol(handle, "gcry_pk_get_curve") },
-        pk_get_param: unsafe { load_symbol(handle, "gcry_pk_get_param") },
-        pubkey_get_sexp: unsafe { load_symbol(handle, "gcry_pubkey_get_sexp") },
-        ecc_get_algo_keylen: unsafe { load_symbol(handle, "gcry_ecc_get_algo_keylen") },
-        ecc_mul_point: unsafe { load_symbol(handle, "gcry_ecc_mul_point") },
-        pk_hash_sign: unsafe { load_symbol(handle, "gcry_pk_hash_sign") },
-        pk_hash_verify: unsafe { load_symbol(handle, "gcry_pk_hash_verify") },
-        pk_random_override_new: unsafe { load_symbol(handle, "gcry_pk_random_override_new") },
-        point_new: unsafe { load_symbol(handle, "gcry_mpi_point_new") },
-        point_release: unsafe { load_symbol(handle, "gcry_mpi_point_release") },
-        point_copy: unsafe { load_symbol(handle, "gcry_mpi_point_copy") },
-        point_get: unsafe { load_symbol(handle, "gcry_mpi_point_get") },
-        point_snatch_get: unsafe { load_symbol(handle, "gcry_mpi_point_snatch_get") },
-        point_set: unsafe { load_symbol(handle, "gcry_mpi_point_set") },
-        point_snatch_set: unsafe { load_symbol(handle, "gcry_mpi_point_snatch_set") },
-        ec_new: unsafe { load_symbol(handle, "gcry_mpi_ec_new") },
-        ec_get_mpi: unsafe { load_symbol(handle, "gcry_mpi_ec_get_mpi") },
-        ec_get_point: unsafe { load_symbol(handle, "gcry_mpi_ec_get_point") },
-        ec_set_mpi: unsafe { load_symbol(handle, "gcry_mpi_ec_set_mpi") },
-        ec_set_point: unsafe { load_symbol(handle, "gcry_mpi_ec_set_point") },
-        ec_decode_point: unsafe { load_symbol(handle, "gcry_mpi_ec_decode_point") },
-        ec_get_affine: unsafe { load_symbol(handle, "gcry_mpi_ec_get_affine") },
-        ec_dup: unsafe { load_symbol(handle, "gcry_mpi_ec_dup") },
-        ec_add: unsafe { load_symbol(handle, "gcry_mpi_ec_add") },
-        ec_sub: unsafe { load_symbol(handle, "gcry_mpi_ec_sub") },
-        ec_mul: unsafe { load_symbol(handle, "gcry_mpi_ec_mul") },
-        ec_curve_point: unsafe { load_symbol(handle, "gcry_mpi_ec_curve_point") },
-    }
-}
-
-pub(crate) fn api() -> &'static PubkeyApi {
-    static API: OnceLock<PubkeyApi> = OnceLock::new();
-    API.get_or_init(init)
-}
-
-fn oom_error() -> u32 {
-    error::gcry_error_from_errno(crate::ENOMEM_VALUE)
-}
-
-pub(crate) unsafe fn release_upstream_sexp(sexp: *mut c_void) {
-    if !sexp.is_null() {
-        unsafe {
-            (api().sexp_release)(sexp);
-        }
-    }
-}
-
-pub(crate) unsafe fn release_upstream_mpi(mpi: *mut c_void) {
-    if !mpi.is_null() {
-        unsafe {
-            (api().mpi_release)(mpi);
-        }
-    }
-}
-
-pub(crate) fn sexp_to_upstream(local: *mut gcry_sexp) -> Result<*mut c_void, u32> {
-    if local.is_null() {
-        return Ok(null_mut());
-    }
-
-    // Advanced format is accepted by upstream for all inputs we need here and,
-    // unlike canonical format, can represent zero-length atoms without an
-    // unparseable "0:" length marker at the bridge boundary.
-    let needed = sexp::gcry_sexp_sprint(local, GCRYSEXP_FMT_ADVANCED, null_mut(), 0);
-    if needed == 0 {
-        return Err(error::gcry_error_from_code(error::GPG_ERR_INV_OBJ));
-    }
-
-    let mut rendered = vec![0u8; needed];
-    let written = sexp::gcry_sexp_sprint(
-        local,
-        GCRYSEXP_FMT_ADVANCED,
-        rendered.as_mut_ptr().cast(),
-        rendered.len(),
-    );
-    let datalen = if written == 0 { needed - 1 } else { written };
-
-    let mut upstream = null_mut();
-    let rc =
-        unsafe { (api().sexp_sscan)(&mut upstream, null_mut(), rendered.as_ptr().cast(), datalen) };
-    if rc != 0 {
-        return Err(rc);
-    }
-    Ok(upstream)
-}
-
-pub(crate) fn sexp_from_upstream(upstream: *mut c_void) -> Result<*mut gcry_sexp, u32> {
-    if upstream.is_null() {
-        return Ok(null_mut());
-    }
-
-    let needed = unsafe { (api().sexp_sprint)(upstream, GCRYSEXP_FMT_CANON, null_mut(), 0) };
-    if needed == 0 {
-        return Err(error::gcry_error_from_code(error::GPG_ERR_INV_OBJ));
-    }
-
-    let mut rendered = vec![0u8; needed];
-    let written = unsafe {
-        (api().sexp_sprint)(
-            upstream,
-            GCRYSEXP_FMT_CANON,
-            rendered.as_mut_ptr().cast(),
-            rendered.len(),
-        )
-    };
-    let datalen = if written == 0 { needed - 1 } else { written };
-
-    let mut local = null_mut();
-    let rc = sexp::gcry_sexp_sscan(&mut local, null_mut(), rendered.as_ptr().cast(), datalen);
-    if rc != 0 {
-        return Err(rc);
-    }
-    Ok(local)
-}
-
-pub(crate) fn local_to_upstream_mpi(local: *mut gcry_mpi) -> Result<*mut c_void, u32> {
-    if local.is_null() {
-        return Ok(null_mut());
-    }
-
-    let is_opaque = unsafe { gcry_mpi::as_ref(local) }.is_some_and(gcry_mpi::is_opaque);
-    if is_opaque {
-        let mut nbits = 0u32;
-        let data = crate::mpi::opaque::gcry_mpi_get_opaque(local, &mut nbits);
-        let upstream = unsafe { (api().mpi_set_opaque_copy)(null_mut(), data, nbits) };
-        if upstream.is_null() && (nbits != 0 || !data.is_null()) {
-            return Err(oom_error());
-        }
-        if upstream.is_null() {
-            let zero = unsafe { (api().mpi_new)(0) };
-            if zero.is_null() {
-                return Err(oom_error());
-            }
-            return Ok(zero);
-        }
-        return Ok(upstream);
-    }
-
-    let mut data = null_mut();
-    let mut datalen = 0usize;
-    let rc = crate::mpi::scan::gcry_mpi_aprint(GCRYMPI_FMT_STD, &mut data, &mut datalen, local);
-    if rc != 0 {
-        return Err(rc);
-    }
-
-    let result = if datalen == 0 {
-        let zero = unsafe { (api().mpi_new)(0) };
-        if zero.is_null() {
-            Err(oom_error())
-        } else {
-            Ok(zero)
-        }
-    } else {
-        let mut upstream = null_mut();
-        let rc = unsafe {
-            (api().mpi_scan)(
-                &mut upstream,
-                GCRYMPI_FMT_STD,
-                data.cast(),
-                datalen,
-                null_mut(),
-            )
-        };
-        if rc != 0 { Err(rc) } else { Ok(upstream) }
-    };
-
-    alloc::gcry_free(data.cast());
-    result
-}
-
-pub(crate) fn upstream_to_local_mpi(upstream: *mut c_void) -> Result<*mut gcry_mpi, u32> {
-    if upstream.is_null() {
-        return Ok(null_mut());
-    }
-
-    let is_opaque = unsafe { (api().mpi_get_flag)(upstream, GCRYMPI_FLAG_OPAQUE) != 0 };
-    if is_opaque {
-        let mut nbits = 0u32;
-        let opaque = unsafe { (api().mpi_get_opaque)(upstream, &mut nbits) };
-        let local = crate::mpi::opaque::gcry_mpi_set_opaque_copy(null_mut(), opaque, nbits);
-        if local.is_null() && (nbits != 0 || !opaque.is_null()) {
-            return Err(oom_error());
-        }
-        return Ok(local);
-    }
-
-    let mut needed = 0usize;
-    let rc = unsafe { (api().mpi_print)(GCRYMPI_FMT_STD, null_mut(), 0, &mut needed, upstream) };
-    if rc != 0 {
-        return Err(rc);
-    }
-
-    let mut rendered = vec![0u8; needed.max(1)];
-    let rc = unsafe {
-        (api().mpi_print)(
-            GCRYMPI_FMT_STD,
-            rendered.as_mut_ptr(),
-            rendered.len(),
-            &mut needed,
-            upstream,
-        )
-    };
-    if rc != 0 {
-        return Err(rc);
-    }
-
-    let mut local = null_mut();
-    let rc = crate::mpi::scan::gcry_mpi_scan(
-        &mut local,
-        GCRYMPI_FMT_STD,
-        rendered.as_ptr().cast(),
-        needed,
+pub(crate) fn build_sexp(text: &str) -> Result<*mut sexp::gcry_sexp, u32> {
+    let mut out = null_mut();
+    let rc = sexp::gcry_sexp_sscan(
+        &mut out,
         null_mut(),
+        text.as_ptr().cast::<c_char>(),
+        text.len(),
     );
-    if rc != 0 {
-        return Err(rc);
-    }
-    Ok(local)
+    if rc == 0 { Ok(out) } else { Err(rc) }
 }
 
-pub(crate) fn assign_local_from_upstream_mpi(target: *mut gcry_mpi, upstream: *mut c_void) -> u32 {
-    if target.is_null() {
-        return 0;
-    }
-
-    let local = match upstream_to_local_mpi(upstream) {
-        Ok(value) => value,
-        Err(err) => return err,
+pub(crate) fn find_token(sexp: *mut sexp::gcry_sexp, token: &str) -> *mut sexp::gcry_sexp {
+    let Ok(token) = CString::new(token) else {
+        return null_mut();
     };
-    if local.is_null() {
-        crate::mpi::gcry_mpi_set_ui(target, 0);
-        return 0;
-    }
+    sexp::gcry_sexp_find_token(sexp, token.as_ptr(), 0)
+}
 
-    crate::mpi::gcry_mpi_set(target, local);
-    crate::mpi::gcry_mpi_release(local);
-    0
+pub(crate) fn has_token(sexp: *mut sexp::gcry_sexp, token: &str) -> bool {
+    let found = find_token(sexp, token);
+    if found.is_null() {
+        false
+    } else {
+        sexp::gcry_sexp_release(found);
+        true
+    }
+}
+
+pub(crate) fn nth_data(list: *mut sexp::gcry_sexp, index: i32) -> Option<Vec<u8>> {
+    let mut len = 0usize;
+    let ptr = sexp::gcry_sexp_nth_data(list, index, &mut len);
+    if ptr.is_null() {
+        None
+    } else {
+        Some(unsafe { std::slice::from_raw_parts(ptr.cast::<u8>(), len) }.to_vec())
+    }
+}
+
+pub(crate) fn token_data(sexp: *mut sexp::gcry_sexp, token: &str) -> Option<Vec<u8>> {
+    let found = find_token(sexp, token);
+    if found.is_null() {
+        return None;
+    }
+    let data = nth_data(found, 1);
+    sexp::gcry_sexp_release(found);
+    data
+}
+
+pub(crate) fn token_string(sexp: *mut sexp::gcry_sexp, token: &str) -> Option<String> {
+    token_data(sexp, token).map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+}
+
+pub(crate) fn nth_mpi(
+    list: *mut sexp::gcry_sexp,
+    index: i32,
+    opaque: bool,
+) -> Option<*mut gcry_mpi> {
+    let mpi = sexp::gcry_sexp_nth_mpi(
+        list,
+        index,
+        if opaque {
+            GCRYMPI_FMT_OPAQUE
+        } else {
+            GCRYMPI_FMT_USG
+        },
+    );
+    (!mpi.is_null()).then_some(mpi)
+}
+
+pub(crate) fn token_mpi(sexp: *mut sexp::gcry_sexp, token: &str) -> Option<*mut gcry_mpi> {
+    let found = find_token(sexp, token);
+    if found.is_null() {
+        return None;
+    }
+    let mpi = nth_mpi(found, 1, false);
+    sexp::gcry_sexp_release(found);
+    mpi
+}
+
+pub(crate) fn token_mpi_opaque(sexp: *mut sexp::gcry_sexp, token: &str) -> Option<*mut gcry_mpi> {
+    let found = find_token(sexp, token);
+    if found.is_null() {
+        return None;
+    }
+    let mpi = nth_mpi(found, 1, true);
+    sexp::gcry_sexp_release(found);
+    mpi
+}
+
+pub(crate) fn mpi_to_mpz(mpi: *mut gcry_mpi) -> Option<Mpz> {
+    let value = unsafe { gcry_mpi::as_ref(mpi) }?;
+    Mpz::from_mpi(value)
+}
+
+pub(crate) fn token_mpz(sexp: *mut sexp::gcry_sexp, token: &str) -> Option<Mpz> {
+    let mpi = token_mpi(sexp, token)?;
+    let value = mpi_to_mpz(mpi);
+    mpi::gcry_mpi_release(mpi);
+    value
+}
+
+pub(crate) fn token_bytes_from_mpi(sexp: *mut sexp::gcry_sexp, token: &str) -> Option<Vec<u8>> {
+    if let Some(raw) = token_data(sexp, token) {
+        return Some(raw);
+    }
+    token_mpz(sexp, token).map(|value| value.to_be())
+}
+
+pub(crate) fn sexp_nth_mpz(sexp: *mut sexp::gcry_sexp, index: i32) -> Option<Mpz> {
+    let mpi = nth_mpi(sexp, index, false)?;
+    let value = mpi_to_mpz(mpi);
+    mpi::gcry_mpi_release(mpi);
+    value
+}
+
+pub(crate) fn has_flag(sexp: *mut sexp::gcry_sexp, flag: &str) -> bool {
+    let flags = find_token(sexp, "flags");
+    if flags.is_null() {
+        return false;
+    }
+    let wanted = flag.as_bytes();
+    let len = sexp::gcry_sexp_length(flags);
+    let mut found = false;
+    for idx in 1..len {
+        if nth_data(flags, idx).is_some_and(|item| item.eq_ignore_ascii_case(wanted)) {
+            found = true;
+            break;
+        }
+    }
+    sexp::gcry_sexp_release(flags);
+    found
+}
+
+pub(crate) fn flag_atoms(sexp: *mut sexp::gcry_sexp) -> Vec<String> {
+    let flags = find_token(sexp, "flags");
+    if flags.is_null() {
+        return Vec::new();
+    }
+    let len = sexp::gcry_sexp_length(flags);
+    let mut out = Vec::new();
+    for idx in 1..len {
+        if let Some(item) = nth_data(flags, idx) {
+            out.push(String::from_utf8_lossy(&item).to_ascii_lowercase());
+        }
+    }
+    sexp::gcry_sexp_release(flags);
+    out
+}
+
+pub(crate) fn data_value(data: *mut sexp::gcry_sexp) -> Option<Vec<u8>> {
+    if let Some(bytes) = token_data(data, "value") {
+        return Some(bytes);
+    }
+    if let Some(value) = token_mpz(data, "value") {
+        return Some(value.to_be());
+    }
+    let mpi = nth_mpi(data, 0, true).or_else(|| nth_mpi(data, 0, false))?;
+    let value = unsafe { gcry_mpi::as_ref(mpi) }.and_then(|mpi| {
+        if let Some(opaque) = mpi.opaque() {
+            Some(opaque.as_slice().to_vec())
+        } else {
+            Mpz::from_mpi(mpi).map(|value| value.to_be())
+        }
+    });
+    mpi::gcry_mpi_release(mpi);
+    value
+}
+
+pub(crate) fn hash_value(data: *mut sexp::gcry_sexp) -> Option<(String, Vec<u8>)> {
+    let hash = find_token(data, "hash");
+    if hash.is_null() {
+        return None;
+    }
+    let name = nth_data(hash, 1).map(|bytes| String::from_utf8_lossy(&bytes).into_owned());
+    let value = nth_data(hash, 2);
+    sexp::gcry_sexp_release(hash);
+    Some((name?, value?))
+}
+
+pub(crate) fn hash_algo_name(data: *mut sexp::gcry_sexp) -> Option<String> {
+    token_string(data, "hash-algo").or_else(|| hash_value(data).map(|(name, _)| name))
+}
+
+pub(crate) fn digest_algo(name: &str) -> Option<c_int> {
+    let c_name = CString::new(name).ok()?;
+    let algo = digest::gcry_md_map_name(c_name.as_ptr());
+    (algo != 0).then_some(algo)
+}
+
+fn bits2int(hash: &[u8], q: &Mpz) -> Mpz {
+    let qbits = q.bits();
+    let mut v = Mpz::from_be(hash);
+    let hbits = hash.len() * 8;
+    if hbits > qbits {
+        v = v.shr(hbits - qbits);
+    }
+    v
+}
+
+fn bits2octets(hash: &[u8], q: &Mpz, rlen: usize) -> Vec<u8> {
+    let mut z = bits2int(hash, q);
+    if z.cmp(q) >= 0 {
+        z = z.sub(q);
+    }
+    z.to_be_padded(rlen)
+}
+
+pub(crate) fn rfc6979_nonce(q: &Mpz, x: &Mpz, hash_name: &str, hash: &[u8]) -> Option<Mpz> {
+    let algo = digest_algo(hash_name)?;
+    let hlen = algorithms::digest_len(algo);
+    if hlen == 0 || hlen != hash.len() || q.is_zero() {
+        return None;
+    }
+    let qbits = q.bits();
+    let rlen = qbits.div_ceil(8);
+    let x_octets = x.to_be_padded(rlen);
+    let h_octets = bits2octets(hash, q, rlen);
+    let mut v = vec![0x01; hlen];
+    let mut k = vec![0x00; hlen];
+
+    let mut seed = Vec::with_capacity(hlen + 1 + rlen * 2);
+    seed.extend_from_slice(&v);
+    seed.push(0x00);
+    seed.extend_from_slice(&x_octets);
+    seed.extend_from_slice(&h_octets);
+    k = algorithms::hmac_once(algo, &k, &seed)?;
+    v = algorithms::hmac_once(algo, &k, &v)?;
+
+    seed.clear();
+    seed.extend_from_slice(&v);
+    seed.push(0x01);
+    seed.extend_from_slice(&x_octets);
+    seed.extend_from_slice(&h_octets);
+    k = algorithms::hmac_once(algo, &k, &seed)?;
+    v = algorithms::hmac_once(algo, &k, &v)?;
+
+    loop {
+        let mut t = Vec::with_capacity(rlen + hlen);
+        while t.len() * 8 < qbits {
+            v = algorithms::hmac_once(algo, &k, &v)?;
+            t.extend_from_slice(&v);
+        }
+        let candidate = bits2int(&t, q);
+        if !candidate.is_zero() && candidate.cmp(q) < 0 {
+            return Some(candidate);
+        }
+        let mut retry = Vec::with_capacity(v.len() + 1);
+        retry.extend_from_slice(&v);
+        retry.push(0x00);
+        k = algorithms::hmac_once(algo, &k, &retry)?;
+        v = algorithms::hmac_once(algo, &k, &v)?;
+    }
+}
+
+pub(crate) fn random_override(data: *mut sexp::gcry_sexp) -> Option<Vec<u8>> {
+    token_data(data, "random-override")
+}
+
+pub(crate) fn label(data: *mut sexp::gcry_sexp) -> Vec<u8> {
+    token_data(data, "label").unwrap_or_default()
+}
+
+pub(crate) fn cstr_eq(ptr: *const c_char, name: &str) -> bool {
+    if ptr.is_null() {
+        return false;
+    }
+    unsafe { CStr::from_ptr(ptr) }
+        .to_bytes()
+        .eq_ignore_ascii_case(name.as_bytes())
 }

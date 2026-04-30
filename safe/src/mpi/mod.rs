@@ -38,6 +38,15 @@ pub(crate) const MAX_EXTERN_PGP_BITS: usize = 16_384;
 type mp_bitcnt_t = usize;
 type mp_limb_t = c_ulong;
 
+fn hex_nibble(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
 #[derive(Debug)]
 #[repr(C)]
 pub(crate) struct __mpz_struct {
@@ -71,6 +80,7 @@ unsafe extern "C" {
     fn __gmpz_fdiv_qr(q: mpz_ptr, r: mpz_ptr, n: mpz_srcptr, d: mpz_srcptr);
     fn __gmpz_fdiv_r(rop: mpz_ptr, op1: mpz_srcptr, op2: mpz_srcptr);
     fn __gmpz_fdiv_r_2exp(rop: mpz_ptr, op1: mpz_srcptr, op2: mp_bitcnt_t);
+    fn __gmpz_fdiv_ui(op1: mpz_srcptr, op2: c_ulong) -> c_ulong;
     fn __gmpz_gcd(rop: mpz_ptr, op1: mpz_srcptr, op2: mpz_srcptr);
     fn __gmpz_import(
         rop: mpz_ptr,
@@ -90,6 +100,7 @@ unsafe extern "C" {
     fn __gmpz_mul_ui(rop: mpz_ptr, op1: mpz_srcptr, op2: c_ulong);
     fn __gmpz_neg(rop: mpz_ptr, op1: mpz_srcptr);
     fn __gmpz_nextprime(rop: mpz_ptr, op1: mpz_srcptr);
+    fn __gmpz_ior(rop: mpz_ptr, op1: mpz_srcptr, op2: mpz_srcptr);
     fn __gmpz_powm(rop: mpz_ptr, base: mpz_srcptr, exp: mpz_srcptr, modu: mpz_srcptr);
     fn __gmpz_powm_sec(rop: mpz_ptr, base: mpz_srcptr, exp: mpz_srcptr, modu: mpz_srcptr);
     fn __gmpz_probab_prime_p(n: mpz_srcptr, reps: c_int) -> c_int;
@@ -103,6 +114,7 @@ unsafe extern "C" {
     fn __gmpz_tdiv_q_2exp(rop: mpz_ptr, op1: mpz_srcptr, op2: mp_bitcnt_t);
     fn __gmpz_tdiv_qr(q: mpz_ptr, r: mpz_ptr, n: mpz_srcptr, d: mpz_srcptr);
     fn __gmpz_tstbit(op: mpz_srcptr, bit_index: mp_bitcnt_t) -> c_int;
+    fn __gmpz_xor(rop: mpz_ptr, op1: mpz_srcptr, op2: mpz_srcptr);
 }
 
 #[derive(Debug)]
@@ -141,6 +153,247 @@ impl Mpz {
         result
     }
 
+    pub(crate) fn from_be(bytes: &[u8]) -> Self {
+        import_unsigned_bytes(bytes)
+    }
+
+    pub(crate) fn from_le(bytes: &[u8]) -> Self {
+        let mut be = bytes.to_vec();
+        be.reverse();
+        import_unsigned_bytes(&be)
+    }
+
+    pub(crate) fn from_hex(input: &str) -> Self {
+        let mut text = input.trim();
+        if let Some(rest) = text.strip_prefix("0x").or_else(|| text.strip_prefix("0X")) {
+            text = rest;
+        }
+        let mut bytes = Vec::with_capacity(text.len().div_ceil(2));
+        let mut pending = if text.len() % 2 == 1 { Some(0u8) } else { None };
+        for byte in text.bytes().filter(|byte| !byte.is_ascii_whitespace()) {
+            let Some(nibble) = hex_nibble(byte) else {
+                continue;
+            };
+            if let Some(hi) = pending.take() {
+                bytes.push((hi << 4) | nibble);
+            } else {
+                pending = Some(nibble);
+            }
+        }
+        if let Some(hi) = pending {
+            bytes.push(hi << 4);
+        }
+        import_unsigned_bytes(&bytes)
+    }
+
+    pub(crate) fn from_mpi(value: &gcry_mpi) -> Option<Self> {
+        match &value.kind {
+            MpiKind::Numeric(number) => Some(Self::clone_from(number.as_ptr())),
+            MpiKind::Opaque(opaque) => Some(Self::from_be(opaque.as_slice())),
+        }
+    }
+
+    pub(crate) fn to_be(&self) -> Vec<u8> {
+        export_unsigned(self.as_ptr())
+    }
+
+    pub(crate) fn to_be_padded(&self, len: usize) -> Vec<u8> {
+        let bytes = self.to_be();
+        if bytes.len() >= len {
+            return bytes[bytes.len().saturating_sub(len)..].to_vec();
+        }
+        let mut out = vec![0u8; len - bytes.len()];
+        out.extend_from_slice(&bytes);
+        out
+    }
+
+    pub(crate) fn to_le_padded(&self, len: usize) -> Vec<u8> {
+        let mut out = self.to_be_padded(len);
+        out.reverse();
+        out
+    }
+
+    pub(crate) fn bits(&self) -> usize {
+        if self.is_zero() {
+            0
+        } else {
+            unsafe { __gmpz_sizeinbase(self.as_ptr(), 2) }
+        }
+    }
+
+    pub(crate) fn is_zero(&self) -> bool {
+        unsafe { __gmpz_cmp_ui(self.as_ptr(), 0) == 0 }
+    }
+
+    pub(crate) fn is_one(&self) -> bool {
+        unsafe { __gmpz_cmp_ui(self.as_ptr(), 1) == 0 }
+    }
+
+    pub(crate) fn test_bit(&self, bit: usize) -> bool {
+        unsafe { __gmpz_tstbit(self.as_ptr(), bit) != 0 }
+    }
+
+    pub(crate) fn cmp(&self, other: &Self) -> c_int {
+        unsafe { __gmpz_cmp(self.as_ptr(), other.as_ptr()) }
+    }
+
+    pub(crate) fn cmp_ui(&self, value: c_ulong) -> c_int {
+        unsafe { __gmpz_cmp_ui(self.as_ptr(), value) }
+    }
+
+    pub(crate) fn add(&self, other: &Self) -> Self {
+        let mut result = Self::new(self.bits().max(other.bits()) + 1);
+        unsafe { __gmpz_add(result.as_mut_ptr(), self.as_ptr(), other.as_ptr()) };
+        result
+    }
+
+    pub(crate) fn add_ui(&self, value: c_ulong) -> Self {
+        let mut result = Self::new(self.bits() + c_ulong::BITS as usize);
+        unsafe { __gmpz_add_ui(result.as_mut_ptr(), self.as_ptr(), value) };
+        result
+    }
+
+    pub(crate) fn sub(&self, other: &Self) -> Self {
+        let mut result = Self::new(self.bits().max(other.bits()));
+        unsafe { __gmpz_sub(result.as_mut_ptr(), self.as_ptr(), other.as_ptr()) };
+        result
+    }
+
+    pub(crate) fn sub_ui(&self, value: c_ulong) -> Self {
+        let mut result = Self::new(self.bits());
+        unsafe { __gmpz_sub_ui(result.as_mut_ptr(), self.as_ptr(), value) };
+        result
+    }
+
+    pub(crate) fn mul(&self, other: &Self) -> Self {
+        let mut result = Self::new(self.bits() + other.bits());
+        unsafe { __gmpz_mul(result.as_mut_ptr(), self.as_ptr(), other.as_ptr()) };
+        result
+    }
+
+    pub(crate) fn mul_ui(&self, value: c_ulong) -> Self {
+        let mut result = Self::new(self.bits() + c_ulong::BITS as usize);
+        unsafe { __gmpz_mul_ui(result.as_mut_ptr(), self.as_ptr(), value) };
+        result
+    }
+
+    pub(crate) fn shl(&self, bits: usize) -> Self {
+        let mut result = Self::new(self.bits() + bits);
+        unsafe { __gmpz_mul_2exp(result.as_mut_ptr(), self.as_ptr(), bits) };
+        result
+    }
+
+    pub(crate) fn shr(&self, bits: usize) -> Self {
+        let mut result = Self::new(self.bits().saturating_sub(bits));
+        unsafe { __gmpz_tdiv_q_2exp(result.as_mut_ptr(), self.as_ptr(), bits) };
+        result
+    }
+
+    pub(crate) fn div_rem(&self, divisor: &Self) -> (Self, Self) {
+        let mut q = Self::new(self.bits());
+        let mut r = Self::new(divisor.bits());
+        unsafe { __gmpz_tdiv_qr(q.as_mut_ptr(), r.as_mut_ptr(), self.as_ptr(), divisor.as_ptr()) };
+        (q, r)
+    }
+
+    pub(crate) fn modulo(&self, modulus: &Self) -> Self {
+        let mut result = Self::new(modulus.bits());
+        unsafe { __gmpz_mod(result.as_mut_ptr(), self.as_ptr(), modulus.as_ptr()) };
+        result
+    }
+
+    pub(crate) fn rem_ui(&self, value: c_ulong) -> c_ulong {
+        unsafe { __gmpz_fdiv_ui(self.as_ptr(), value) }
+    }
+
+    pub(crate) fn powm(&self, exponent: &Self, modulus: &Self) -> Self {
+        let mut result = Self::new(modulus.bits());
+        unsafe {
+            __gmpz_powm(
+                result.as_mut_ptr(),
+                self.as_ptr(),
+                exponent.as_ptr(),
+                modulus.as_ptr(),
+            )
+        };
+        result
+    }
+
+    pub(crate) fn powm_sec(&self, exponent: &Self, modulus: &Self) -> Self {
+        if exponent.is_zero() || modulus.cmp_ui(2) < 0 || modulus.rem_ui(2) == 0 {
+            return self.powm(exponent, modulus);
+        }
+        let mut result = Self::new(modulus.bits());
+        let base = self.modulo(modulus);
+        unsafe {
+            __gmpz_powm_sec(
+                result.as_mut_ptr(),
+                base.as_ptr(),
+                exponent.as_ptr(),
+                modulus.as_ptr(),
+            )
+        };
+        result
+    }
+
+    pub(crate) fn invert(&self, modulus: &Self) -> Option<Self> {
+        let mut result = Self::new(modulus.bits());
+        let ok = unsafe { __gmpz_invert(result.as_mut_ptr(), self.as_ptr(), modulus.as_ptr()) };
+        (ok != 0).then_some(result)
+    }
+
+    pub(crate) fn gcd(&self, other: &Self) -> Self {
+        let mut result = Self::new(self.bits().min(other.bits()));
+        unsafe { __gmpz_gcd(result.as_mut_ptr(), self.as_ptr(), other.as_ptr()) };
+        result
+    }
+
+    pub(crate) fn next_prime(&self) -> Self {
+        let mut result = Self::new(self.bits() + 1);
+        unsafe { __gmpz_nextprime(result.as_mut_ptr(), self.as_ptr()) };
+        result
+    }
+
+    pub(crate) fn probable_prime(&self) -> bool {
+        unsafe { __gmpz_probab_prime_p(self.as_ptr(), 32) != 0 }
+    }
+
+    pub(crate) fn bit_or(&self, other: &Self) -> Self {
+        let mut result = Self::new(self.bits().max(other.bits()));
+        unsafe { __gmpz_ior(result.as_mut_ptr(), self.as_ptr(), other.as_ptr()) };
+        result
+    }
+
+    pub(crate) fn bit_xor(&self, other: &Self) -> Self {
+        let mut result = Self::new(self.bits().max(other.bits()));
+        unsafe { __gmpz_xor(result.as_mut_ptr(), self.as_ptr(), other.as_ptr()) };
+        result
+    }
+
+    pub(crate) fn mod_add(&self, other: &Self, modulus: &Self) -> Self {
+        self.add(other).modulo(modulus)
+    }
+
+    pub(crate) fn mod_sub(&self, other: &Self, modulus: &Self) -> Self {
+        self.sub(other).modulo(modulus)
+    }
+
+    pub(crate) fn mod_mul(&self, other: &Self, modulus: &Self) -> Self {
+        self.mul(other).modulo(modulus)
+    }
+
+    pub(crate) fn mod_square(&self, modulus: &Self) -> Self {
+        self.mul(self).modulo(modulus)
+    }
+
+    pub(crate) fn mod_neg(&self, modulus: &Self) -> Self {
+        if self.is_zero() {
+            Self::from_ui(0)
+        } else {
+            modulus.sub(&self.modulo(modulus)).modulo(modulus)
+        }
+    }
+
     pub(crate) fn as_ptr(&self) -> mpz_srcptr {
         &self.raw
     }
@@ -155,6 +408,12 @@ impl Drop for Mpz {
         unsafe {
             __gmpz_clear(self.as_mut_ptr());
         }
+    }
+}
+
+impl Clone for Mpz {
+    fn clone(&self) -> Self {
+        Self::clone_from(self.as_ptr())
     }
 }
 

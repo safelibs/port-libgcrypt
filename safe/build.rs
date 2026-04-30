@@ -1,5 +1,5 @@
-use std::collections::BTreeSet;
 use std::env;
+use std::collections::BTreeSet;
 use std::ffi::OsString;
 use std::fs;
 use std::io;
@@ -101,10 +101,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rustc-link-search=native={}", out_dir.display());
     println!("cargo:rustc-link-lib=static:+whole-archive=safe_cabi");
     println!("cargo:rustc-link-lib=gmp");
-    println!("cargo:rustc-link-lib=dl");
-    if let Some(system_libgcrypt) = find_system_libgcrypt() {
-        println!("cargo:rustc-env=SAFE_SYSTEM_LIBGCRYPT_PATH={system_libgcrypt}");
-    }
     let build_manifest = format!(
         "BUILD_REVISION={BUILD_REVISION}\nBUILD_TIMESTAMP={BUILD_TIMESTAMP}\nGENERATED_INCLUDE={}\nGENERATED_PKGCONFIG={}\nGENERATED_CONFIG={}\n",
         include_dir.join("gcrypt.h").display(),
@@ -506,26 +502,6 @@ fn compile_c_exports(
     ]))?;
 
     Ok(())
-}
-
-fn find_system_libgcrypt() -> Option<String> {
-    let output = Command::new("ldconfig").arg("-p").output().ok()?;
-    if !output.status.success() {
-        return None;
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    stdout.lines().find_map(|line| {
-        if !line.contains("libgcrypt.so.20") {
-            return None;
-        }
-        let path = line.split("=>").nth(1)?.trim();
-        if path.is_empty() {
-            None
-        } else {
-            Some(path.to_string())
-        }
-    })
 }
 
 fn run(command: &mut Command) -> io::Result<()> {
