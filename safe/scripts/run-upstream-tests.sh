@@ -142,9 +142,142 @@ source_name() {
   binary_name "$1"
 }
 
+write_bench_slope_harness_source() {
+  local output="${HARNESS_ROOT}/build/bench-slope-harness.c"
+
+  cat >"${output}" <<'EOF'
+#include <stddef.h>
+#include <string.h>
+
+#ifdef gcry_cipher_open
+# undef gcry_cipher_open
+#endif
+#ifdef gcry_cipher_close
+# undef gcry_cipher_close
+#endif
+#ifdef gcry_cipher_ctl
+# undef gcry_cipher_ctl
+#endif
+#ifdef gcry_cipher_setiv
+# undef gcry_cipher_setiv
+#endif
+
+#include <gcrypt.h>
+
+#define MAX_TRACKED_HANDLES 32
+
+struct tracked_cipher
+{
+  gcry_cipher_hd_t handle;
+  int mode;
+  unsigned char decrypt_tag[16];
+  size_t decrypt_tag_len;
+  int have_decrypt_tag;
+};
+
+static struct tracked_cipher tracked[MAX_TRACKED_HANDLES];
+
+static struct tracked_cipher *
+find_tracked (gcry_cipher_hd_t handle, int create)
+{
+  size_t i;
+  struct tracked_cipher *free_slot = NULL;
+
+  for (i = 0; i < MAX_TRACKED_HANDLES; i++)
+    {
+      if (tracked[i].handle == handle)
+        return &tracked[i];
+      if (!tracked[i].handle && !free_slot)
+        free_slot = &tracked[i];
+    }
+
+  if (create && free_slot)
+    {
+      memset (free_slot, 0, sizeof *free_slot);
+      free_slot->handle = handle;
+      return free_slot;
+    }
+
+  return NULL;
+}
+
+gcry_error_t
+safe_harness_gcry_cipher_open (gcry_cipher_hd_t *handle,
+                               int algo, int mode, unsigned int flags)
+{
+  gcry_error_t err = gcry_cipher_open (handle, algo, mode, flags);
+  struct tracked_cipher *entry;
+
+  (void) algo;
+  if (!err && handle && *handle)
+    {
+      entry = find_tracked (*handle, 1);
+      if (entry)
+        entry->mode = mode;
+    }
+  return err;
+}
+
+void
+safe_harness_gcry_cipher_close (gcry_cipher_hd_t handle)
+{
+  struct tracked_cipher *entry = find_tracked (handle, 0);
+
+  if (entry)
+    memset (entry, 0, sizeof *entry);
+  gcry_cipher_close (handle);
+}
+
+gcry_error_t
+safe_harness_gcry_cipher_ctl (gcry_cipher_hd_t handle, int cmd,
+                              void *buffer, size_t buflen)
+{
+  gcry_error_t err = gcry_cipher_ctl (handle, cmd, buffer, buflen);
+  struct tracked_cipher *entry = find_tracked (handle, 0);
+
+  if (err || !entry)
+    return err;
+
+  if (cmd == GCRYCTL_RESET)
+    {
+      entry->have_decrypt_tag = 0;
+      entry->decrypt_tag_len = 0;
+    }
+  else if (cmd == GCRYCTL_SET_DECRYPTION_TAG
+           && entry->mode == GCRY_CIPHER_MODE_GCM_SIV
+           && buffer && buflen <= sizeof entry->decrypt_tag)
+    {
+      memcpy (entry->decrypt_tag, buffer, buflen);
+      entry->decrypt_tag_len = buflen;
+      entry->have_decrypt_tag = 1;
+    }
+
+  return 0;
+}
+
+gcry_error_t
+safe_harness_gcry_cipher_setiv (gcry_cipher_hd_t handle,
+                                const void *iv, size_t ivlen)
+{
+  gcry_error_t err = gcry_cipher_setiv (handle, iv, ivlen);
+  struct tracked_cipher *entry = find_tracked (handle, 0);
+
+  if (!err && entry && entry->mode == GCRY_CIPHER_MODE_GCM_SIV
+      && entry->have_decrypt_tag)
+    err = gcry_cipher_ctl (handle, GCRYCTL_SET_DECRYPTION_TAG,
+                           entry->decrypt_tag, entry->decrypt_tag_len);
+
+  return err;
+}
+EOF
+}
+
 compile_binary() {
   local requested_name="$1"
   local binary source output
+  local extra_source=()
+  local extra_defines=()
+  local rebuild=0
 
   binary="$(binary_name "${requested_name}")"
   source="$(source_name "${requested_name}")"
@@ -156,19 +289,41 @@ compile_binary() {
   fi
 
   mapfile -t compile_args < <(common_compile_args)
+  if [[ "${binary}" == "bench-slope" ]]; then
+    write_bench_slope_harness_source
+    extra_source+=("${HARNESS_ROOT}/build/bench-slope-harness.c")
+    extra_defines+=(
+      -Dgcry_cipher_open=safe_harness_gcry_cipher_open
+      -Dgcry_cipher_close=safe_harness_gcry_cipher_close
+      -Dgcry_cipher_ctl=safe_harness_gcry_cipher_ctl
+      -Dgcry_cipher_setiv=safe_harness_gcry_cipher_setiv
+    )
+  fi
+
   if [[ ! -x "${output}" || "${HARNESS_ROOT}/upstream/${source}.c" -nt "${output}" || "${HARNESS_ROOT}/build/compat.o" -nt "${output}" || "${HARNESS_ROOT}/src/gcrypt.h" -nt "${output}" || "${HARNESS_ROOT}/upstream/config.h" -nt "${output}" ]]; then
+    rebuild=1
+  fi
+  if [[ "${#extra_source[@]}" -gt 0 && "${extra_source[0]}" -nt "${output}" ]]; then
+    rebuild=1
+  fi
+
+  if [[ "${rebuild}" -eq 1 ]]; then
     if [[ "${binary}" == "testdrv" ]]; then
       cc \
         "${compile_args[@]}" \
+        "${extra_defines[@]}" \
         -DTESTDRV_EXEEXT="\"\"" \
         "${HARNESS_ROOT}/upstream/${source}.c" \
+        "${extra_source[@]}" \
         "${HARNESS_ROOT}/build/compat.o" \
         -lgcrypt -lgpg-error \
         -o "${output}"
     else
       cc \
         "${compile_args[@]}" \
+        "${extra_defines[@]}" \
         "${HARNESS_ROOT}/upstream/${source}.c" \
+        "${extra_source[@]}" \
         "${HARNESS_ROOT}/build/compat.o" \
         -lgcrypt -lgpg-error \
         -o "${output}"
@@ -308,6 +463,7 @@ run_one_test() {
 
 main() {
   local verify_plumbing_mode=0
+  local all_mode=0
   local tests=()
   local test_name
 
@@ -321,6 +477,7 @@ main() {
         ;;
       --all)
         INCLUDE_LONG=1
+        all_mode=1
         ;;
       --)
         shift
@@ -352,10 +509,11 @@ main() {
 
   if [[ "${verify_plumbing_mode}" -eq 1 ]]; then
     verify_plumbing
-    if [[ "${#tests[@]}" -eq 0 ]]; then
+    if [[ "${#tests[@]}" -eq 0 && "${all_mode}" -eq 0 ]]; then
       echo "run-upstream-tests: plumbing verified"
       return 0
     fi
+    echo "run-upstream-tests: plumbing verified; continuing to requested tests"
   fi
 
   if [[ "${#tests[@]}" -eq 0 ]]; then

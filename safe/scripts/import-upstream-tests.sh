@@ -91,6 +91,7 @@ build_expected_tree() {
 verify_tree_matches() {
   local expected="$1"
   local actual="$2"
+  local allow_local_compat_extras="${3:-0}"
   local expected_path relative actual_path
 
   require_dir "${actual}"
@@ -102,20 +103,56 @@ verify_tree_matches() {
       fail "drift detected under ${actual_path}"
     fi
   done < <(find "${expected}" -type f -print0)
+
+  while IFS= read -r -d '' actual_path; do
+    relative="${actual_path#${actual}/}"
+    expected_path="${expected}/${relative}"
+    if [[ -f "${expected_path}" ]]; then
+      continue
+    fi
+    if [[ "${allow_local_compat_extras}" -eq 1 ]] && is_allowed_local_compat_extra "${relative}"; then
+      continue
+    fi
+    fail "unexpected file under ${actual}: ${relative}"
+  done < <(find "${actual}" -type f -print0)
 }
 
 replace_tree() {
   local expected="$1"
   local actual="$2"
+  local allow_local_compat_extras="${3:-0}"
   local expected_path relative actual_path
 
   mkdir -p "${actual}"
+  while IFS= read -r -d '' actual_path; do
+    relative="${actual_path#${actual}/}"
+    expected_path="${expected}/${relative}"
+    if [[ -f "${expected_path}" ]]; then
+      continue
+    fi
+    if [[ "${allow_local_compat_extras}" -eq 1 ]] && is_allowed_local_compat_extra "${relative}"; then
+      continue
+    fi
+    rm -f "${actual_path}"
+  done < <(find "${actual}" -type f -print0)
+
   while IFS= read -r -d '' expected_path; do
     relative="${expected_path#${expected}/}"
     actual_path="${actual}/${relative}"
     mkdir -p "$(dirname "${actual_path}")"
     cp -a "${expected_path}" "${actual_path}"
   done < <(find "${expected}" -type f -print0)
+}
+
+is_allowed_local_compat_extra() {
+  case "$1" in
+    abi-only-exports.c|public-api-smoke.c|tool-fixtures/*)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
 }
 
 verify_import_inventory() {
@@ -159,14 +196,14 @@ main() {
 
   if [[ "${verify_only}" -eq 1 ]]; then
     verify_tree_matches "${TMPDIR_IMPORT}/upstream" "${TARGET_UPSTREAM_DIR}"
-    verify_tree_matches "${TMPDIR_IMPORT}/compat" "${TARGET_COMPAT_DIR}"
+    verify_tree_matches "${TMPDIR_IMPORT}/compat" "${TARGET_COMPAT_DIR}" 1
     verify_import_inventory
     echo "import-upstream-tests: verified"
     return 0
   fi
 
   replace_tree "${TMPDIR_IMPORT}/upstream" "${TARGET_UPSTREAM_DIR}"
-  replace_tree "${TMPDIR_IMPORT}/compat" "${TARGET_COMPAT_DIR}"
+  replace_tree "${TMPDIR_IMPORT}/compat" "${TARGET_COMPAT_DIR}" 1
   verify_import_inventory
   echo "import-upstream-tests: synchronized"
 }
