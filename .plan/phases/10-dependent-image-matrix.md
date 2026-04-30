@@ -15,9 +15,10 @@ Dependent application image and 12-scenario matrix
 - `safe/scripts/check-no-upstream-bridge.sh`
 - `safe/docs/test-matrix.md`
 - Phase 9 committed package sources under `safe/debian/`.
-- Phase 9 package scripts: `safe/scripts/check-rust-toolchain.sh`, `safe/scripts/build-debs.sh`, `safe/scripts/check-deb-metadata.sh`, and `safe/scripts/check-installed-tools.sh`.
-- Phase 9 per-build local package provenance output `safe/dist/safe-debs.manifest.json`, produced fresh by `safe/scripts/build-debs.sh` in the same invocation that constructs the safe image.
-- Ubuntu 24.04 package metadata available during this phase only for producing committed locks.
+- `safe/scripts/check-rust-toolchain.sh`
+- `safe/scripts/build-debs.sh`
+- `safe/scripts/check-deb-metadata.sh`
+- `safe/scripts/check-installed-tools.sh`
 
 # New Outputs
 
@@ -88,6 +89,7 @@ Dependent application image and 12-scenario matrix
 - `install-packages.noble.lock` must distinguish `origin: base-image`, `origin: ubuntu-snapshot`, and `implementation: both|original` entries. Base-image entries must record the pinned base image digest they came from. Ubuntu snapshot entries must record package name, architecture, binary version, source package, source version, and snapshot source file identity.
 - `safe-debs.noble.lock` must contain exactly two `origin: local-safe-deb`, `implementation: safe` policy entries: `libgcrypt20` and `libgcrypt20-dev`. Each entry must record expected package name, architecture, source package, exact Debian version from phase 10 `safe/debian/changelog`, required file glob under `safe/dist/`, and required metadata fields to compare against `safe/dist/safe-debs.manifest.json`. It must not contain a committed `.deb` SHA256 because later phases rebuild safe packages from their own phase commits.
 - `safe/scripts/build-debs.sh` must produce `safe/dist/safe-debs.manifest.json` in the same invocation that produces the safe `.deb` files. The manifest must record each safe `.deb` filename, SHA256, package name, architecture, version, source package, source version, phase commit, phase tag when present, and pinned Rust toolchain output. `safe/scripts/build-dependent-image.sh --implementation safe` must fail if this manifest is absent, stale relative to the selected phase commit, or inconsistent with the `.deb` files it installs.
+- Ubuntu 24.04 package metadata may be consulted only during this phase to produce the committed lock and evidence artifacts listed under New Outputs. Those committed artifacts become the only package metadata inputs for later phases.
 - The image build must run `dpkg-query` before tests and verify every installed package name, architecture, binary version, source package, and source version. Original images validate all packages against `install-packages.noble.lock`. Safe images validate all non-libgcrypt packages against `install-packages.noble.lock`, validate `libgcrypt20` and `libgcrypt20-dev` against `safe-debs.noble.lock` plus the just-built `safe/dist/safe-debs.manifest.json`, and fail if Ubuntu snapshot `libgcrypt20` remains installed after local package replacement.
 - Extra apt packages not present in `install-packages.noble.lock` are failures unless they are part of the pinned base image digest and recorded as `origin: base-image` entries. Extra local `.deb` packages in the safe image are failures unless explicitly listed in `safe-debs.noble.lock`.
 - `safe/scripts/check-dependent-metadata.sh` must validate the 15-row manifest, the preserved 8 baseline identities, the 3 library-flavored exceptions, the 12 executable scenario rows, the base-image digest file, the fixed Noble snapshot sources file, the full apt/base package closure lock, the local safe package metadata policy lock, and the existence of every fixture, probe source, and scenario path referenced by the manifest.

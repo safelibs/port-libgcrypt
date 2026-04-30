@@ -105,13 +105,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(system_libgcrypt) = find_system_libgcrypt() {
         println!("cargo:rustc-env=SAFE_SYSTEM_LIBGCRYPT_PATH={system_libgcrypt}");
     }
-    println!(
-        "cargo:rustc-cdylib-link-arg=-Wl,--version-script={}",
-        abi_dir.join("libgcrypt.vers").display()
-    );
-    println!("cargo:rustc-cdylib-link-arg=-Wl,--no-gc-sections");
-    println!("cargo:rustc-cdylib-link-arg=-Wl,-soname,libgcrypt.so.20");
-
     let build_manifest = format!(
         "BUILD_REVISION={BUILD_REVISION}\nBUILD_TIMESTAMP={BUILD_TIMESTAMP}\nGENERATED_INCLUDE={}\nGENERATED_PKGCONFIG={}\nGENERATED_CONFIG={}\n",
         include_dir.join("gcrypt.h").display(),

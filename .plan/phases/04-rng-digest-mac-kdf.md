@@ -40,6 +40,7 @@ RNG, digest, MAC, and KDF without upstream bridge
 - `original/libgcrypt20-1.10.3/tests/hmac.c`
 - `original/libgcrypt20-1.10.3/tests/t-kdf.c`
 - `relevant_cves.json`
+- `all_cves.json`
 
 # New Outputs
 
@@ -71,7 +72,7 @@ RNG, digest, MAC, and KDF without upstream bridge
 - Preserve libgcrypt algorithm numbers, names, aliases, digest lengths, XOF behavior for SHAKE, `gcry_md_get` ABI-only export behavior, secure flags, copy/reset semantics, HMAC keyed digest behavior, and `gcry_md_hash_buffers` iovec handling.
 - Implement KDF coverage for S2K, PBKDF2, scrypt, Argon2, Balloon, and handle-based `gcry_kdf_open`/`compute`/`final`/`close` as exposed by `safe/abi/gcrypt.h.in`.
 - Keep DRBG reseed, fork detection, nonce creation, and random quality behavior aligned with `random.c` and the CVE matrix.
-- Preserve the consume-existing-artifacts contract by updating the existing RNG, digest, MAC, KDF, upstream-test, ABI, and CVE artifacts in place.
+- Preserve the consume-existing-artifacts contract by updating the existing RNG, digest, MAC, KDF, upstream-test, ABI, and CVE artifacts in place, consuming both `relevant_cves.json` and `all_cves.json` rather than rediscovering security metadata.
 
 # Verification Phases
 

@@ -553,11 +553,13 @@ fn sprint_canon(node: &Sexpr, out: &mut Vec<u8>) {
 }
 
 fn sprint_canon_top(node: &Sexpr, top_level_fragment: bool, out: &mut Vec<u8>) {
-    if top_level_fragment && let Sexpr::List(items) = node {
-        for item in items {
-            sprint_canon(item, out);
+    if top_level_fragment {
+        if let Sexpr::List(items) = node {
+            for item in items {
+                sprint_canon(item, out);
+            }
+            return;
         }
-        return;
     }
     sprint_canon(node, out);
 }
@@ -579,11 +581,13 @@ fn sprint_advanced(node: &Sexpr, out: &mut Vec<u8>) {
 }
 
 fn sprint_advanced_top(node: &Sexpr, top_level_fragment: bool, out: &mut Vec<u8>) {
-    if top_level_fragment && let Sexpr::List(items) = node {
-        for item in items {
-            sprint_advanced(item, out);
+    if top_level_fragment {
+        if let Sexpr::List(items) = node {
+            for item in items {
+                sprint_advanced(item, out);
+            }
+            return;
         }
-        return;
     }
     sprint_advanced(node, out);
 }
@@ -617,10 +621,10 @@ fn find_token_recursive(node: &Sexpr, token: &[u8], secure: bool) -> Option<*mut
     match node {
         Sexpr::Atom(_) => None,
         Sexpr::List(items) => {
-            if let Some(Sexpr::Atom(head)) = items.first()
-                && head == token
-            {
-                return Some(gcry_sexp::new(Sexpr::List(items.clone()), secure));
+            if let Some(Sexpr::Atom(head)) = items.first() {
+                if head == token {
+                    return Some(gcry_sexp::new(Sexpr::List(items.clone()), secure));
+                }
             }
             for item in items {
                 if let Some(found) = find_token_recursive(item, token, secure) {

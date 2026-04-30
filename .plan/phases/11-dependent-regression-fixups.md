@@ -26,6 +26,8 @@ Dependent regression fixups and catch-all compatibility
 - `safe/docs/cve-matrix.md`
 - `safe/docs/test-matrix.md`
 - `dependents.json`
+- `relevant_cves.json`
+- `all_cves.json`
 
 # New Outputs
 
@@ -61,7 +63,7 @@ Dependent regression fixups and catch-all compatibility
 - Rebuild the safe Debian packages and safe dependent image after applying fixes. Do not reuse Docker images or `safe/dist/` contents produced before the phase 11 commit.
 - Consume the phase 10 committed base-image digest, Ubuntu snapshot source file, apt/base package closure lock, local safe package policy lock, fixtures, probes, and scenario manifests directly. Do not update package locks, re-resolve apt metadata, reinterpret local safe package policy, or fetch source packages in phase 11.
 - Do not change the safe package names, source package name, architecture policy, or Debian version recorded in `safe/tests/dependents/metadata/safe-debs.noble.lock`; phase 11 may change package contents only by rebuilding local `.deb`s from the current phase commit and recording that rebuild in `safe/dist/safe-debs.manifest.json`.
-- Preserve the consume-existing-artifacts contract by consuming phase 10 dependent metadata, locks, fixtures, probes, and scenarios in place.
+- Preserve the consume-existing-artifacts contract by consuming phase 10 dependent metadata, locks, fixtures, probes, scenarios, and existing CVE source artifacts in place.
 
 # Verification Phases
 

@@ -1,11 +1,13 @@
 # ABI Map
 
-Seeded from `safe/abi/libgcrypt.vers`, `safe/abi/gcrypt.h.in`, and `safe/abi/visibility.h`. This phase still exports all 217 `GCRYPT_1.6` symbols immediately, but the runtime shell now owns the version/control/config/error/allocation/randomness/secure-memory surface instead of the old bootstrap shim. Digest/MAC/KDF (phase 4), symmetric ciphers (phase 5), and now the public-key/ECC/context-release surface (phase 6) are implemented through the installed upstream `libgcrypt.so.20`, with local Rust ABI shims preserving the `gcry_sexp` / `gcry_mpi` layouts and compatibility quirks expected by the upstream test suite.
+Seeded from `safe/abi/libgcrypt.vers`, `safe/abi/gcrypt.h.in`, and `safe/abi/visibility.h`. This phase exports all 217 `GCRYPT_1.6` symbols immediately and fixes the bootstrap artifact contract: `safe/build.rs` is the single renderer for generated public headers, metadata, version-script exports, bootstrap manifests, and temporary C stubs; Cargo has no external Rust dependencies; and both root and `safe/` Cargo invocations are fail-closed against `safe/vendor/`.
+
+`safe/src/ffi.rs` was dead code and has been removed. Live ownership is now documented directly against the split Rust modules below.
 
 - `gcry_md_get` is a Linux version-script export that is not declared by installed `gcrypt.h`; it is classified as `visibility-only`, implemented in phase 4, and verified by the phase-8 ABI-only smoke probe in `safe/tests/compat/abi-only-exports.c`.
 - `gcry_pk_register` is a Linux version-script export that is not declared by installed `gcrypt.h`; it is classified as `abi-only`, implemented in phase 6 as a `GPG_ERR_NOT_SUPPORTED` compatibility shim, and verified by the phase-8 ABI-only smoke probe in `safe/tests/compat/abi-only-exports.c`.
 - `gcry_ctx_release` is now owned by phase 6 and forwards the opaque upstream pubkey/ECC context handles created by the local bridge.
-- Phase 3 supersedes the stale row-level `Bootstrap compatibility stub` notes for the `gcry_sexp_*`, `gcry_mpi_*`, `gcry_prime_*`, and `_gcry_mpi_get_const` families listed below.
+- The only generated public-symbol stubs after this bootstrap phase are `gcry_log_debughex`, `gcry_log_debugpnt`, and `gcry_log_debugsxp`; all three call `safe_gcry_stub_zero` from generated C and are marked below as temporary later-phase work.
 - Phase 4 now owns the RNG, digest, MAC, and KDF families. The phase-4-only `gcry_md_get` symbol is covered by the phase-8 ABI-only smoke probe; the header-only `GCRY_KDF_NONE` and `GCRY_KDF_BALLOON` enums remain review-only notes because they are not exported symbols and are not rewritten by the verifier.
 - Phase 5 now owns the symmetric cipher family through [`safe/src/cipher/mod.rs`](../src/cipher/mod.rs), [`safe/src/cipher/registry.rs`](../src/cipher/registry.rs), [`safe/src/cipher/modes.rs`](../src/cipher/modes.rs), [`safe/src/cipher/aead.rs`](../src/cipher/aead.rs), [`safe/src/cipher/block.rs`](../src/cipher/block.rs), [`safe/src/cipher/stream.rs`](../src/cipher/stream.rs), and [`safe/src/upstream.rs`](../src/upstream.rs), with `GCRYCTL_DISABLE_HWF` bookkeeping owned locally by [`safe/src/global.rs`](../src/global.rs) and [`safe/src/hwfeatures.rs`](../src/hwfeatures.rs). The current verifier exercises this surface through `aeswrap`, `basic --cipher-modes`, `basic-disable-all-hwf`, and `t-lock`; public-key symbols remain phase-6-owned.
 - Phase 6 now owns the `gcry_pk_*`, `gcry_pubkey_get_sexp`, `gcry_ecc_*`, `gcry_mpi_point_*`, `gcry_mpi_ec_*`, `gcry_ctx_release`, `gcry_pk_hash_*`, and `gcry_pk_random_override_new` surfaces through [`safe/src/pubkey/mod.rs`](../src/pubkey/mod.rs), [`safe/src/pubkey/ecc.rs`](../src/pubkey/ecc.rs), [`safe/src/pubkey/keygrip.rs`](../src/pubkey/keygrip.rs), [`safe/src/pubkey/encoding.rs`](../src/pubkey/encoding.rs), [`safe/src/mpi/ec.rs`](../src/mpi/ec.rs), [`safe/src/context.rs`](../src/context.rs), and the phase-3 S-expression/MPI compatibility fixes in [`safe/src/sexp.rs`](../src/sexp.rs). The current verifier exercises that surface through `keygen`, `pubkey`, `keygrip`, `pkcs1v2`, `fips186-dsa`, `dsa-rfc6979`, `t-dsa`, `curves`, `t-ecdsa`, `t-ed25519`, `t-cv25519`, `t-x448`, `t-ed448`, `t-rsa-pss`, `t-rsa-15`, `t-rsa-testparm`, `t-mpi-point`, and `testapi`.
@@ -122,87 +124,87 @@ Seeded from `safe/abi/libgcrypt.vers`, `safe/abi/gcrypt.h.in`, and `safe/abi/vis
 | `gcry_ecc_get_algo_keylen` | header+visibility | `safe/src/pubkey/ecc.rs` + `safe/src/pubkey/encoding.rs` | Phase 6 public-key/ECC verifier suite + `check-abi.sh` export-set check | Implemented phase-6 ECC key-length query by forwarding to upstream libgcrypt. |
 | `gcry_ecc_mul_point` | header+visibility | `safe/src/pubkey/ecc.rs` + `safe/src/pubkey/encoding.rs` | Phase 6 public-key/ECC verifier suite + `check-abi.sh` export-set check | Implemented phase-6 fixed-function ECC multiplication helper by forwarding to upstream libgcrypt. |
 | `gcry_kdf_derive` | header+visibility | `safe/src/kdf.rs` + `safe/src/upstream.rs` | `cargo build --manifest-path safe/Cargo.toml --release --offline` + `safe/scripts/run-original-tests.sh t-kdf` + export-set check | Implemented phase-4 KDF family by forwarding `gcry_kdf_derive`, `gcry_kdf_open`, `gcry_kdf_compute`, `gcry_kdf_final`, and `gcry_kdf_close` to the installed upstream `libgcrypt.so.20`, preserving OpenPGP S2K, PBKDF1, PBKDF2, scrypt, Argon2, and threaded KDF dispatch semantics. `GCRY_KDF_NONE` and `GCRY_KDF_BALLOON` are header-only review notes rather than exported-symbol coverage items. |
-| `gcry_prime_check` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed prime surface. |
-| `gcry_prime_generate` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed prime surface. |
-| `gcry_prime_group_generator` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed prime surface. |
-| `gcry_prime_release_factors` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed prime surface. |
+| `gcry_prime_check` | header+visibility | `safe/src/mpi/prime.rs` | `check-abi.sh` export-set check | Implemented Rust-backed prime surface. |
+| `gcry_prime_generate` | header+visibility | `safe/src/mpi/prime.rs` | `check-abi.sh` export-set check | Implemented Rust-backed prime surface. |
+| `gcry_prime_group_generator` | header+visibility | `safe/src/mpi/prime.rs` | `check-abi.sh` export-set check | Implemented Rust-backed prime surface. |
+| `gcry_prime_release_factors` | header+visibility | `safe/src/mpi/prime.rs` | `check-abi.sh` export-set check | Implemented Rust-backed prime surface. |
 | `gcry_random_add_bytes` | header+visibility | `safe/src/random.rs` + `safe/src/drbg.rs` + `safe/src/os_rng.rs` | `cargo build --manifest-path safe/Cargo.toml --release --offline` + `safe/scripts/run-original-tests.sh random` + export-set check | Implemented phase-4 RNG entropy injection against the local DRBG pools instead of leaving the API as a no-op. |
 | `gcry_random_bytes` | header+visibility | `safe/src/random.rs` + `safe/src/drbg.rs` + `safe/src/os_rng.rs` + `safe/src/alloc.rs` | `cargo build --manifest-path safe/Cargo.toml --release --offline` + `safe/scripts/run-original-tests.sh random` + export-set check | Implemented phase-4 random allocation on top of a ChaCha-style DRBG seeded from OS entropy, with reseed scheduling and fork detection. |
 | `gcry_random_bytes_secure` | header+visibility | `safe/src/random.rs` + `safe/src/drbg.rs` + `safe/src/os_rng.rs` + `safe/src/alloc.rs` + `safe/src/secmem.rs` | `cargo build --manifest-path safe/Cargo.toml --release --offline` + `safe/scripts/run-original-tests.sh random` + export-set check | Implemented phase-4 secure random allocation on top of a ChaCha-style DRBG seeded from OS entropy, with reseed scheduling and fork detection. |
 | `gcry_randomize` | header+visibility | `safe/src/random.rs` + `safe/src/drbg.rs` + `safe/src/os_rng.rs` | `cargo build --manifest-path safe/Cargo.toml --release --offline` + `safe/scripts/run-original-tests.sh random` + export-set check | Implemented phase-4 buffer filling with fork-aware DRBG output, preferred-RNG controls, `GCRYCTL_FAST_POLL`, `GCRYCTL_GET_CURRENT_RNG_TYPE`, and `GCRYCTL_CLOSE_RANDOM_DEVICE` handling. |
 | `gcry_create_nonce` | header+visibility | `safe/src/random.rs` + `safe/src/drbg.rs` + `safe/src/os_rng.rs` | `cargo build --manifest-path safe/Cargo.toml --release --offline` + `safe/scripts/run-original-tests.sh random` + export-set check | Implemented phase-4 nonce generation through a dedicated fork-aware nonce DRBG so parent and child do not repeat post-fork output. |
-| `gcry_sexp_alist` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
-| `gcry_sexp_append` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
-| `gcry_sexp_build` | header+visibility | `safe/cabi/exports.c` -> `safe/src/ffi.rs` | `check-abi.sh` variadic smoke + export-set check | Implemented Rust-backed variadic shim. |
-| `gcry_sexp_build_array` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
-| `gcry_sexp_cadr` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
-| `gcry_sexp_canon_len` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
-| `gcry_sexp_car` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
-| `gcry_sexp_cdr` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
-| `gcry_sexp_cons` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
-| `gcry_sexp_create` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
-| `gcry_sexp_dump` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
-| `gcry_sexp_find_token` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
-| `gcry_sexp_length` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
-| `gcry_sexp_new` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
-| `gcry_sexp_nth` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
-| `gcry_sexp_nth_buffer` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
-| `gcry_sexp_nth_data` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
-| `gcry_sexp_nth_mpi` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
-| `gcry_sexp_prepend` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
-| `gcry_sexp_release` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
-| `gcry_sexp_sprint` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
-| `gcry_sexp_sscan` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
-| `gcry_sexp_vlist` | header+visibility | `safe/cabi/exports.c` -> `safe/src/ffi.rs` | `check-abi.sh` variadic smoke + export-set check | Implemented Rust-backed variadic shim. |
-| `gcry_sexp_nth_string` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
-| `gcry_sexp_extract_param` | header+visibility | `safe/cabi/exports.c` -> `safe/src/ffi.rs` | `check-abi.sh` variadic smoke + export-set check | Implemented Rust-backed variadic shim. |
-| `gcry_mpi_is_neg` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_neg` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_abs` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_add` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_add_ui` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_addm` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_aprint` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_clear_bit` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_clear_flag` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_clear_highbit` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_cmp` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_cmp_ui` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_copy` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_div` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_dump` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_gcd` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_get_flag` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_get_nbits` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_get_opaque` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_invm` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_mod` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_mul` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_mul_2exp` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_mul_ui` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_mulm` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_new` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_powm` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_print` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_sexp_alist` | header+visibility | `safe/src/sexp.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_append` | header+visibility | `safe/src/sexp.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_build` | header+visibility | `safe/cabi/exports.c` -> `safe/src/sexp.rs` | `check-abi.sh` variadic smoke + export-set check | Implemented Rust-backed variadic shim. |
+| `gcry_sexp_build_array` | header+visibility | `safe/src/sexp.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_cadr` | header+visibility | `safe/src/sexp.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_canon_len` | header+visibility | `safe/src/sexp.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_car` | header+visibility | `safe/src/sexp.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_cdr` | header+visibility | `safe/src/sexp.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_cons` | header+visibility | `safe/src/sexp.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_create` | header+visibility | `safe/src/sexp.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_dump` | header+visibility | `safe/src/sexp.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_find_token` | header+visibility | `safe/src/sexp.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_length` | header+visibility | `safe/src/sexp.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_new` | header+visibility | `safe/src/sexp.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_nth` | header+visibility | `safe/src/sexp.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_nth_buffer` | header+visibility | `safe/src/sexp.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_nth_data` | header+visibility | `safe/src/sexp.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_nth_mpi` | header+visibility | `safe/src/sexp.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_prepend` | header+visibility | `safe/src/sexp.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_release` | header+visibility | `safe/src/sexp.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_sprint` | header+visibility | `safe/src/sexp.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_sscan` | header+visibility | `safe/src/sexp.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_vlist` | header+visibility | `safe/cabi/exports.c` -> `safe/src/sexp.rs` | `check-abi.sh` variadic smoke + export-set check | Implemented Rust-backed variadic shim. |
+| `gcry_sexp_nth_string` | header+visibility | `safe/src/sexp.rs` | `check-abi.sh` export-set check | Implemented Rust-backed S-expression surface. |
+| `gcry_sexp_extract_param` | header+visibility | `safe/cabi/exports.c` -> `safe/src/sexp.rs` | `check-abi.sh` variadic smoke + export-set check | Implemented Rust-backed variadic shim. |
+| `gcry_mpi_is_neg` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_neg` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_abs` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_add` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_add_ui` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_addm` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_aprint` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_clear_bit` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_clear_flag` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_clear_highbit` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_cmp` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_cmp_ui` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_copy` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_div` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_dump` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_gcd` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_get_flag` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_get_nbits` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_get_opaque` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_invm` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_mod` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_mul` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_mul_2exp` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_mul_ui` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_mulm` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_new` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_powm` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_print` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
 | `gcry_mpi_randomize` | header+visibility | `safe/src/mpi/mod.rs` + `safe/src/random.rs` + `safe/src/drbg.rs` | `cargo build --manifest-path safe/Cargo.toml --release --offline` + `safe/scripts/run-original-tests.sh random` + `check-abi.sh` export-set check | Implemented Rust-backed MPI randomization using the phase-4 RNG semantics, including `GCRY_WEAK_RANDOM` nonce behavior and fixed-width top-bit handling. |
-| `gcry_mpi_release` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_rshift` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_scan` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_set` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_set_bit` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_set_flag` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_set_highbit` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_set_opaque` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_set_opaque_copy` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_set_ui` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_snew` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_sub` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_sub_ui` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_subm` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_swap` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_test_bit` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_lshift` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
-| `gcry_mpi_snatch` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_release` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_rshift` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_scan` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_set` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_set_bit` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_set_flag` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_set_highbit` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_set_opaque` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_set_opaque_copy` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_set_ui` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_snew` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_sub` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_sub_ui` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_subm` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_swap` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_test_bit` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_lshift` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_snatch` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
 | `gcry_mpi_point_new` | header+visibility | `safe/src/mpi/ec.rs` + `safe/src/pubkey/encoding.rs` | Phase 6 public-key/ECC verifier suite + `check-abi.sh` export-set check | Implemented phase-6 point-allocation surface by forwarding to upstream libgcrypt and keeping point handles opaque across the ABI boundary. |
 | `gcry_mpi_point_release` | header+visibility | `safe/src/mpi/ec.rs` + `safe/src/pubkey/encoding.rs` | Phase 6 public-key/ECC verifier suite + `check-abi.sh` export-set check | Implemented phase-6 point-release surface by forwarding to upstream libgcrypt. |
 | `gcry_mpi_point_get` | header+visibility | `safe/src/mpi/ec.rs` + `safe/src/pubkey/encoding.rs` | Phase 6 public-key/ECC verifier suite + `check-abi.sh` export-set check | Implemented phase-6 point-coordinate extraction by converting upstream MPIs back into the local ABI. |
@@ -222,14 +224,14 @@ Seeded from `safe/abi/libgcrypt.vers`, `safe/abi/gcrypt.h.in`, and `safe/abi/vis
 | `gcry_mpi_ec_curve_point` | header+visibility | `safe/src/mpi/ec.rs` + `safe/src/pubkey/encoding.rs` | Phase 6 public-key/ECC verifier suite + `check-abi.sh` export-set check | Implemented phase-6 curve-membership query by forwarding to upstream libgcrypt. |
 | `gcry_mpi_ec_decode_point` | header+visibility | `safe/src/mpi/ec.rs` + `safe/src/pubkey/encoding.rs` | Phase 6 public-key/ECC verifier suite + `check-abi.sh` export-set check | Implemented phase-6 point-decoding helper by forwarding to upstream libgcrypt. |
 | `gcry_mpi_point_copy` | header+visibility | `safe/src/mpi/ec.rs` + `safe/src/pubkey/encoding.rs` | Phase 6 public-key/ECC verifier suite + `check-abi.sh` export-set check | Implemented phase-6 point-copy surface by forwarding to upstream libgcrypt. |
-| `gcry_mpi_get_ui` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
+| `gcry_mpi_get_ui` | header+visibility | `safe/src/mpi/mod.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI surface. |
 | `gcry_log_debug` | header+visibility | `safe/cabi/exports.c` -> `safe/src/log.rs` | `check-abi.sh` variadic smoke + export-set check | Implemented runtime-shell variadic log dispatch. |
-| `gcry_log_debughex` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_log_debugmpi` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_log_debugpnt` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
-| `gcry_log_debugsxp` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Bootstrap compatibility stub. |
+| `gcry_log_debughex` | header+visibility | generated C stub -> `safe_gcry_stub_zero` | `check-abi.sh` export-set check | Temporary compatibility shim; planned for phase 2 runtime logging ownership. |
+| `gcry_log_debugmpi` | header+visibility | `safe/src/mpi/mod.rs` + `safe/src/log.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI debug logging surface. |
+| `gcry_log_debugpnt` | header+visibility | generated C stub -> `safe_gcry_stub_zero` | `check-abi.sh` export-set check | Temporary compatibility shim; planned for phase 6 ECC point ownership. |
+| `gcry_log_debugsxp` | header+visibility | generated C stub -> `safe_gcry_stub_zero` | `check-abi.sh` export-set check | Temporary compatibility shim; planned for phase 3 S-expression ownership. |
 | `gcry_get_config` | header+visibility | `safe/src/config.rs` | `run-original-tests.sh` version + `check-abi.sh` export-set check | Implemented runtime-shell config surface, including `version`, `cpu-arch`, and `rng-type`. |
-| `_gcry_mpi_get_const` | header+visibility | `safe/src/ffi.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI constant accessor. |
+| `_gcry_mpi_get_const` | header+visibility | `safe/src/mpi/consts.rs` | `check-abi.sh` export-set check | Implemented Rust-backed MPI constant accessor. |
 | `gcry_ctx_release` | header+visibility | `safe/src/context.rs` + `safe/src/pubkey/encoding.rs` | Phase 6 public-key/ECC verifier suite + `check-abi.sh` export-set check | Implemented phase-6 context release by forwarding opaque pubkey/ECC contexts to upstream libgcrypt. |
 | `gcry_pk_hash_sign` | header+visibility | `safe/src/pubkey/mod.rs` + `safe/src/pubkey/encoding.rs` | Phase 6 public-key/ECC verifier suite + `check-abi.sh` export-set check | Implemented phase-6 deterministic / random-override signing helper by forwarding to upstream libgcrypt. |
 | `gcry_pk_hash_verify` | header+visibility | `safe/src/pubkey/mod.rs` + `safe/src/pubkey/encoding.rs` | Phase 6 public-key/ECC verifier suite + `check-abi.sh` export-set check | Implemented phase-6 deterministic / random-override verification helper by forwarding to upstream libgcrypt. |

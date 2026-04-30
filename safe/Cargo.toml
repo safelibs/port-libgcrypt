@@ -10,7 +10,7 @@ build = "build.rs"
 
 [lib]
 name = "gcrypt"
-crate-type = ["cdylib", "staticlib", "rlib"]
+crate-type = ["staticlib", "rlib"]
 
 [dependencies]
 

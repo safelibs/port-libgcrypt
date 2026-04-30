@@ -34,6 +34,7 @@ Symmetric ciphers, modes, AEAD, and hardware flags
 - `original/libgcrypt20-1.10.3/tests/basic.c`
 - `original/libgcrypt20-1.10.3/tests/t-lock.c`
 - `relevant_cves.json`
+- `all_cves.json`
 
 # New Outputs
 
@@ -65,7 +66,7 @@ Symmetric ciphers, modes, AEAD, and hardware flags
 - Preserve `gcry_cipher_open`, `close`, `ctl`, `info`, `setkey`, `setiv`, `setctr`, `encrypt`, `decrypt`, `authenticate`, `gettag`, and `checktag` semantics including in-place encryption, partial blocks, secure handles, and error code shape.
 - Implement `GCRYCTL_DISABLE_HWF` and hardware-feature reporting as local bookkeeping that affects algorithm selection where applicable but never changes exported ABI.
 - Keep constant-time requirements explicit for software AES and secret-dependent operations.
-- Preserve the consume-existing-artifacts contract by updating the existing cipher modules, tests, vendored dependencies, and CVE artifacts in place.
+- Preserve the consume-existing-artifacts contract by updating the existing cipher modules, tests, vendored dependencies, and CVE artifacts in place, consuming both `relevant_cves.json` and `all_cves.json` rather than rediscovering security metadata.
 
 # Verification Phases
 

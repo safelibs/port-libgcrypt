@@ -11,17 +11,35 @@ pub(crate) const GCRY_LOG_DEBUG: c_int = 100;
 
 const DEFAULT_FATAL_MESSAGE: &[u8] = b"Fatal error\0";
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug)]
 struct FatalHandler {
     callback: gcry_handler_error_t,
     opaque: *mut c_void,
 }
 
+impl Default for FatalHandler {
+    fn default() -> Self {
+        Self {
+            callback: None,
+            opaque: std::ptr::null_mut(),
+        }
+    }
+}
+
 #[allow(dead_code)]
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug)]
 struct ProgressHandler {
     callback: gcry_handler_progress_t,
     opaque: *mut c_void,
+}
+
+impl Default for ProgressHandler {
+    fn default() -> Self {
+        Self {
+            callback: None,
+            opaque: std::ptr::null_mut(),
+        }
+    }
 }
 
 unsafe impl Send for FatalHandler {}

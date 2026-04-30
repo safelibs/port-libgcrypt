@@ -83,10 +83,19 @@ pub(crate) struct AllocationHandlers {
     pub(crate) free: gcry_handler_free_t,
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) struct OutOfCoreHandler {
     pub(crate) callback: gcry_handler_no_mem_t,
     pub(crate) opaque: *mut c_void,
+}
+
+impl Default for OutOfCoreHandler {
+    fn default() -> Self {
+        Self {
+            callback: None,
+            opaque: std::ptr::null_mut(),
+        }
+    }
 }
 
 unsafe impl Send for OutOfCoreHandler {}

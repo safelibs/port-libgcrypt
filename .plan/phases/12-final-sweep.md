@@ -9,10 +9,31 @@ Final safety, compatibility, and packaging sweep
 # Preexisting Inputs
 
 - Phase 11 committed tree and tag.
-- Entire repository.
+- `safe/Cargo.toml`
+- `safe/Cargo.lock`
+- `safe/.cargo/config.toml`
+- `.cargo/config.toml`
+- `rust-toolchain.toml`
+- `safe/rust-toolchain.toml`
+- `safe/build.rs`
+- `safe/src/`
+- `safe/cabi/`
+- `safe/abi/`
+- `safe/debian/`
+- `safe/scripts/`
+- `safe/tests/original-build/`
+- `safe/tests/upstream/`
+- `safe/tests/compat/`
 - `safe/tests/dependents/**`
 - `safe/tests/regressions/**`
 - `safe/scripts/run-regression-tests.sh`
+- `test-original.sh`
+- `dependents.json`
+- `relevant_cves.json`
+- `all_cves.json`
+- `.plan/plan.md`
+- `.plan/phases/`
+- `.plan/workflow-structure.yaml`
 
 # New Outputs
 
@@ -40,7 +61,7 @@ Final safety, compatibility, and packaging sweep
 - Consume the committed phase 10 dependent image provenance locks exactly as written: pinned base image digest, fixed Noble snapshot sources, full apt/base package closure lock, local safe package policy lock, fixtures, compile probes, and scenario manifests. Phase 12 may update documentation or workflow files, but it must not refresh or reinterpret these locks.
 - Do not change the safe package names, source package name, architecture policy, or Debian version recorded in `safe/tests/dependents/metadata/safe-debs.noble.lock`; final package rebuilds must prove current-commit local package provenance through `safe/dist/safe-debs.manifest.json`.
 - Ensure the final workflow files generated from this plan obey the Generated Workflow Contract exactly: linear execution, inline-only YAML, explicit top-level check phases, single fixed `bounce_target` for each check, no top-level checks collection, no YAML-source indirection, verifier phases immediately after their implement phase, and concrete phase tag/parent checks.
-- Preserve the consume-existing-artifacts contract by consuming committed source snapshots, CVE data, dependent inventory, test harnesses, imported tests, phase 10 dependent locks, fixtures, probes, and scenarios directly.
+- Preserve the consume-existing-artifacts contract by consuming committed source snapshots, CVE data from `relevant_cves.json` and `all_cves.json`, dependent inventory, test harnesses, imported tests, phase 10 dependent locks, fixtures, probes, and scenarios directly.
 
 # Verification Phases
 
@@ -89,7 +110,7 @@ Final safety, compatibility, and packaging sweep
   - `bash -c 'rg -n "unsafe" safe/src safe/cabi safe/build.rs || true'`
   - `bash -c 'if rg -n -g "!safe/scripts/check-no-upstream-bridge.sh" "SAFE_SYSTEM_LIBGCRYPT_PATH|dlopen|dlsym|rustc-link-lib=dl|(^|[^[:alnum:]_])-ldl([^[:alnum:]_]|$)|safe_gcry_stub_zero|Not implemented|todo!|unimplemented!" safe/src safe/cabi safe/build.rs safe/scripts safe/tests/compat safe/tests/dependents safe/tests/regressions safe/debian test-original.sh; then exit 1; fi'`
   - `git diff --stat HEAD^..HEAD`
-  - Review `rust-toolchain.toml`, `safe/rust-toolchain.toml`, `safe/scripts/check-rust-toolchain.sh`, `safe/docs/cve-matrix.md`, `safe/docs/abi-map.md`, `safe/docs/test-matrix.md`, `dependents.json`, `safe/tests/dependents/metadata/matrix-manifest.json`, `safe/tests/dependents/metadata/base-image.noble.digest`, `safe/tests/dependents/metadata/ubuntu-snapshot.noble.sources`, `safe/tests/dependents/metadata/install-packages.noble.lock`, `safe/tests/dependents/metadata/safe-debs.noble.lock`, and `safe/tests/regressions/manifest.json`.
+  - Review `rust-toolchain.toml`, `safe/rust-toolchain.toml`, `safe/scripts/check-rust-toolchain.sh`, `relevant_cves.json`, `all_cves.json`, `safe/docs/cve-matrix.md`, `safe/docs/abi-map.md`, `safe/docs/test-matrix.md`, `dependents.json`, `safe/tests/dependents/metadata/matrix-manifest.json`, `safe/tests/dependents/metadata/base-image.noble.digest`, `safe/tests/dependents/metadata/ubuntu-snapshot.noble.sources`, `safe/tests/dependents/metadata/install-packages.noble.lock`, `safe/tests/dependents/metadata/safe-debs.noble.lock`, and `safe/tests/regressions/manifest.json`.
 
 # Success Criteria
 

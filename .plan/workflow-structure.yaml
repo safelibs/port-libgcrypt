@@ -10,6 +10,7 @@ phases:
       - safe/Cargo.toml
       - safe/Cargo.lock
       - safe/.cargo/config.toml
+      - .cargo/config.toml
       - safe/vendor/
       - safe/build.rs
       - safe/src/lib.rs
@@ -20,30 +21,54 @@ phases:
       - safe/tests/original-build/
       - safe/scripts/check-abi.sh
       - safe/scripts/run-original-tests.sh
-      - original/libgcrypt20-1.10.3/
+      - original/libgcrypt20-1.10.3/src/gcrypt.h.in
+      - original/libgcrypt20-1.10.3/src/gcrypt-testapi.h
+      - original/libgcrypt20-1.10.3/src/visibility.h
+      - original/libgcrypt20-1.10.3/src/libgcrypt.vers
+      - original/libgcrypt20-1.10.3/src/libgcrypt.def
+      - original/libgcrypt20-1.10.3/src/libgcrypt.m4
+      - original/libgcrypt20-1.10.3/src/libgcrypt.pc.in
+      - original/libgcrypt20-1.10.3/src/libgcrypt-config.in
+      - original/libgcrypt20-1.10.3/tests/Makefile.am
+      - original/libgcrypt20-1.10.3/tests/testdrv.c
+      - original/libgcrypt20-1.10.3/compat/
   - order: 2
     id: check_p01_bootstrap_workspace
     type: check
     bounce_target: impl_p01_bootstrap_workspace
     required_preexisting_inputs:
       - phase/impl_p01_bootstrap_workspace
-      - rust-toolchain.toml
-      - safe/rust-toolchain.toml
-      - safe/scripts/check-rust-toolchain.sh
       - safe/Cargo.toml
       - safe/Cargo.lock
       - safe/.cargo/config.toml
+      - .cargo/config.toml
+      - rust-toolchain.toml
+      - safe/rust-toolchain.toml
       - safe/vendor/
-      - safe/scripts/check-abi.sh
-      - safe/scripts/run-original-tests.sh
+      - safe/build.rs
+      - safe/cabi/exports.c
+      - safe/cabi/exports.h
       - safe/abi/
       - safe/tests/original-build/
+      - safe/scripts/check-rust-toolchain.sh
+      - safe/scripts/check-abi.sh
+      - safe/scripts/run-original-tests.sh
+      - original/libgcrypt20-1.10.3/tests/Makefile.am
+      - original/libgcrypt20-1.10.3/tests/testdrv.c
   - order: 3
     id: impl_p02_runtime_shell
     type: implement
     bounce_target: null
     required_preexisting_inputs:
       - phase/impl_p01_bootstrap_workspace
+      - safe/Cargo.toml
+      - safe/Cargo.lock
+      - safe/.cargo/config.toml
+      - .cargo/config.toml
+      - rust-toolchain.toml
+      - safe/rust-toolchain.toml
+      - safe/scripts/check-rust-toolchain.sh
+      - safe/vendor/
       - safe/src/global.rs
       - safe/src/alloc.rs
       - safe/src/secmem.rs
@@ -52,8 +77,10 @@ phases:
       - safe/src/context.rs
       - safe/src/error.rs
       - safe/src/hwfeatures.rs
+      - safe/src/lib.rs
       - safe/cabi/exports.c
       - safe/cabi/exports.h
+      - safe/abi/
       - safe/scripts/check-abi.sh
       - safe/scripts/run-original-tests.sh
       - safe/tests/original-build/
@@ -64,6 +91,8 @@ phases:
       - original/libgcrypt20-1.10.3/src/secmem.c
       - original/libgcrypt20-1.10.3/src/context.c
       - original/libgcrypt20-1.10.3/src/fips.c
+      - original/libgcrypt20-1.10.3/tests/version.c
+      - original/libgcrypt20-1.10.3/tests/t-secmem.c
   - order: 4
     id: check_p02_runtime_shell
     type: check
@@ -71,18 +100,45 @@ phases:
     required_preexisting_inputs:
       - phase/impl_p01_bootstrap_workspace
       - phase/impl_p02_runtime_shell
-      - safe/scripts/check-rust-toolchain.sh
       - safe/Cargo.toml
       - safe/Cargo.lock
+      - safe/.cargo/config.toml
+      - .cargo/config.toml
+      - rust-toolchain.toml
+      - safe/rust-toolchain.toml
+      - safe/scripts/check-rust-toolchain.sh
+      - safe/vendor/
+      - safe/src/global.rs
+      - safe/src/alloc.rs
+      - safe/src/secmem.rs
+      - safe/src/log.rs
+      - safe/src/config.rs
+      - safe/src/context.rs
+      - safe/src/error.rs
+      - safe/src/hwfeatures.rs
+      - safe/src/lib.rs
+      - safe/cabi/exports.c
+      - safe/cabi/exports.h
+      - safe/abi/
       - safe/scripts/check-abi.sh
       - safe/scripts/run-original-tests.sh
       - safe/tests/original-build/
+      - original/libgcrypt20-1.10.3/tests/version.c
+      - original/libgcrypt20-1.10.3/tests/t-secmem.c
   - order: 5
     id: impl_p03_sexp_mpi_core
     type: implement
     bounce_target: null
     required_preexisting_inputs:
       - phase/impl_p02_runtime_shell
+      - safe/Cargo.toml
+      - safe/Cargo.lock
+      - safe/.cargo/config.toml
+      - .cargo/config.toml
+      - rust-toolchain.toml
+      - safe/rust-toolchain.toml
+      - safe/scripts/check-rust-toolchain.sh
+      - safe/vendor/
       - safe/src/sexp.rs
       - safe/src/mpi/mod.rs
       - safe/src/mpi/arith.rs
@@ -90,6 +146,7 @@ phases:
       - safe/src/mpi/opaque.rs
       - safe/src/mpi/prime.rs
       - safe/src/mpi/consts.rs
+      - safe/src/lib.rs
       - safe/cabi/exports.c
       - safe/cabi/exports.h
       - safe/scripts/run-original-tests.sh
@@ -98,6 +155,11 @@ phases:
       - safe/docs/abi-map.md
       - original/libgcrypt20-1.10.3/src/sexp.c
       - original/libgcrypt20-1.10.3/mpi/
+      - original/libgcrypt20-1.10.3/tests/mpitests.c
+      - original/libgcrypt20-1.10.3/tests/t-sexp.c
+      - original/libgcrypt20-1.10.3/tests/t-convert.c
+      - original/libgcrypt20-1.10.3/tests/t-mpi-bit.c
+      - original/libgcrypt20-1.10.3/tests/prime.c
   - order: 6
     id: check_p03_sexp_mpi_core
     type: check
@@ -105,17 +167,48 @@ phases:
     required_preexisting_inputs:
       - phase/impl_p02_runtime_shell
       - phase/impl_p03_sexp_mpi_core
-      - safe/scripts/check-rust-toolchain.sh
       - safe/Cargo.toml
       - safe/Cargo.lock
+      - safe/.cargo/config.toml
+      - .cargo/config.toml
+      - rust-toolchain.toml
+      - safe/rust-toolchain.toml
+      - safe/scripts/check-rust-toolchain.sh
+      - safe/vendor/
+      - safe/src/sexp.rs
+      - safe/src/mpi/mod.rs
+      - safe/src/mpi/arith.rs
+      - safe/src/mpi/scan.rs
+      - safe/src/mpi/opaque.rs
+      - safe/src/mpi/prime.rs
+      - safe/src/mpi/consts.rs
+      - safe/src/lib.rs
+      - safe/cabi/exports.c
+      - safe/cabi/exports.h
       - safe/scripts/run-original-tests.sh
       - safe/tests/original-build/
+      - safe/tests/compat/public-api-smoke.c
+      - original/libgcrypt20-1.10.3/src/sexp.c
+      - original/libgcrypt20-1.10.3/mpi/
+      - original/libgcrypt20-1.10.3/tests/mpitests.c
+      - original/libgcrypt20-1.10.3/tests/t-sexp.c
+      - original/libgcrypt20-1.10.3/tests/t-convert.c
+      - original/libgcrypt20-1.10.3/tests/t-mpi-bit.c
+      - original/libgcrypt20-1.10.3/tests/prime.c
   - order: 7
     id: impl_p04_rng_digest_mac_kdf
     type: implement
     bounce_target: null
     required_preexisting_inputs:
       - phase/impl_p03_sexp_mpi_core
+      - safe/Cargo.toml
+      - safe/Cargo.lock
+      - safe/.cargo/config.toml
+      - .cargo/config.toml
+      - rust-toolchain.toml
+      - safe/rust-toolchain.toml
+      - safe/scripts/check-rust-toolchain.sh
+      - safe/vendor/
       - safe/src/drbg.rs
       - safe/src/random.rs
       - safe/src/os_rng.rs
@@ -124,16 +217,25 @@ phases:
       - safe/src/mac.rs
       - safe/src/kdf.rs
       - safe/src/upstream.rs
-      - safe/vendor/
       - safe/scripts/run-original-tests.sh
       - safe/scripts/run-upstream-tests.sh
       - safe/scripts/check-abi.sh
       - safe/tests/original-build/
       - safe/tests/upstream/
       - safe/tests/compat/public-api-smoke.c
+      - safe/abi/
       - safe/docs/abi-map.md
       - safe/docs/cve-matrix.md
+      - original/libgcrypt20-1.10.3/random/
+      - original/libgcrypt20-1.10.3/cipher/md.c
+      - original/libgcrypt20-1.10.3/cipher/mac.c
+      - original/libgcrypt20-1.10.3/cipher/kdf.c
+      - original/libgcrypt20-1.10.3/tests/random.c
+      - original/libgcrypt20-1.10.3/tests/hashtest.c
+      - original/libgcrypt20-1.10.3/tests/hmac.c
+      - original/libgcrypt20-1.10.3/tests/t-kdf.c
       - relevant_cves.json
+      - all_cves.json
   - order: 8
     id: check_p04_rng_digest_mac_kdf
     type: check
@@ -141,20 +243,53 @@ phases:
     required_preexisting_inputs:
       - phase/impl_p03_sexp_mpi_core
       - phase/impl_p04_rng_digest_mac_kdf
-      - safe/scripts/check-rust-toolchain.sh
       - safe/Cargo.toml
       - safe/Cargo.lock
+      - safe/.cargo/config.toml
+      - .cargo/config.toml
+      - rust-toolchain.toml
+      - safe/rust-toolchain.toml
+      - safe/scripts/check-rust-toolchain.sh
+      - safe/vendor/
+      - safe/src/drbg.rs
+      - safe/src/random.rs
+      - safe/src/os_rng.rs
+      - safe/src/digest/mod.rs
+      - safe/src/digest/algorithms.rs
+      - safe/src/mac.rs
+      - safe/src/kdf.rs
+      - safe/src/upstream.rs
       - safe/scripts/run-original-tests.sh
       - safe/scripts/run-upstream-tests.sh
       - safe/scripts/check-abi.sh
       - safe/tests/original-build/
       - safe/tests/upstream/
+      - safe/tests/compat/public-api-smoke.c
+      - safe/abi/
+      - original/libgcrypt20-1.10.3/random/
+      - original/libgcrypt20-1.10.3/cipher/md.c
+      - original/libgcrypt20-1.10.3/cipher/mac.c
+      - original/libgcrypt20-1.10.3/cipher/kdf.c
+      - original/libgcrypt20-1.10.3/tests/random.c
+      - original/libgcrypt20-1.10.3/tests/hashtest.c
+      - original/libgcrypt20-1.10.3/tests/hmac.c
+      - original/libgcrypt20-1.10.3/tests/t-kdf.c
+      - relevant_cves.json
+      - all_cves.json
   - order: 9
     id: impl_p05_symmetric_ciphers
     type: implement
     bounce_target: null
     required_preexisting_inputs:
       - phase/impl_p04_rng_digest_mac_kdf
+      - safe/Cargo.toml
+      - safe/Cargo.lock
+      - safe/.cargo/config.toml
+      - .cargo/config.toml
+      - rust-toolchain.toml
+      - safe/rust-toolchain.toml
+      - safe/scripts/check-rust-toolchain.sh
+      - safe/vendor/
       - safe/src/cipher/mod.rs
       - safe/src/cipher/registry.rs
       - safe/src/cipher/modes.rs
@@ -163,14 +298,19 @@ phases:
       - safe/src/cipher/stream.rs
       - safe/src/hwfeatures.rs
       - safe/src/upstream.rs
-      - safe/vendor/
       - safe/scripts/run-original-tests.sh
       - safe/scripts/run-upstream-tests.sh
       - safe/tests/original-build/
       - safe/tests/upstream/
+      - safe/tests/compat/public-api-smoke.c
       - safe/docs/abi-map.md
       - safe/docs/cve-matrix.md
+      - original/libgcrypt20-1.10.3/cipher/
+      - original/libgcrypt20-1.10.3/tests/aeswrap.c
+      - original/libgcrypt20-1.10.3/tests/basic.c
+      - original/libgcrypt20-1.10.3/tests/t-lock.c
       - relevant_cves.json
+      - all_cves.json
   - order: 10
     id: check_p05_symmetric_ciphers
     type: check
@@ -178,19 +318,47 @@ phases:
     required_preexisting_inputs:
       - phase/impl_p04_rng_digest_mac_kdf
       - phase/impl_p05_symmetric_ciphers
-      - safe/scripts/check-rust-toolchain.sh
       - safe/Cargo.toml
       - safe/Cargo.lock
+      - safe/.cargo/config.toml
+      - .cargo/config.toml
+      - rust-toolchain.toml
+      - safe/rust-toolchain.toml
+      - safe/scripts/check-rust-toolchain.sh
+      - safe/vendor/
+      - safe/src/cipher/mod.rs
+      - safe/src/cipher/registry.rs
+      - safe/src/cipher/modes.rs
+      - safe/src/cipher/block.rs
+      - safe/src/cipher/aead.rs
+      - safe/src/cipher/stream.rs
+      - safe/src/hwfeatures.rs
+      - safe/src/upstream.rs
       - safe/scripts/run-original-tests.sh
       - safe/scripts/run-upstream-tests.sh
       - safe/tests/original-build/
       - safe/tests/upstream/
+      - safe/tests/compat/public-api-smoke.c
+      - original/libgcrypt20-1.10.3/cipher/
+      - original/libgcrypt20-1.10.3/tests/aeswrap.c
+      - original/libgcrypt20-1.10.3/tests/basic.c
+      - original/libgcrypt20-1.10.3/tests/t-lock.c
+      - relevant_cves.json
+      - all_cves.json
   - order: 11
     id: impl_p06_pubkey_ecc_no_bridge
     type: implement
     bounce_target: null
     required_preexisting_inputs:
       - phase/impl_p05_symmetric_ciphers
+      - safe/Cargo.toml
+      - safe/Cargo.lock
+      - safe/.cargo/config.toml
+      - .cargo/config.toml
+      - rust-toolchain.toml
+      - safe/rust-toolchain.toml
+      - safe/scripts/check-rust-toolchain.sh
+      - safe/vendor/
       - safe/src/pubkey/mod.rs
       - safe/src/pubkey/encoding.rs
       - safe/src/pubkey/rsa.rs
@@ -201,15 +369,30 @@ phases:
       - safe/src/mpi/ec.rs
       - safe/src/context.rs
       - safe/src/upstream.rs
+      - safe/src/lib.rs
+      - safe/cabi/exports.c
+      - safe/cabi/exports.h
       - safe/build.rs
       - safe/debian/rules
+      - safe/scripts/run-original-tests.sh
+      - safe/scripts/run-upstream-tests.sh
       - safe/scripts/check-no-upstream-bridge.sh
       - safe/scripts/check-installed-tools.sh
       - test-original.sh
       - safe/tests/original-build/
       - safe/tests/upstream/
+      - safe/docs/abi-map.md
+      - safe/docs/cve-matrix.md
       - safe/docs/bridge-inventory.md
+      - original/libgcrypt20-1.10.3/cipher/pubkey.c
+      - original/libgcrypt20-1.10.3/cipher/rsa.c
+      - original/libgcrypt20-1.10.3/cipher/dsa.c
+      - original/libgcrypt20-1.10.3/cipher/elgamal.c
+      - original/libgcrypt20-1.10.3/cipher/
+      - original/libgcrypt20-1.10.3/mpi/
+      - original/libgcrypt20-1.10.3/tests/
       - relevant_cves.json
+      - all_cves.json
   - order: 12
     id: check_p06_pubkey_ecc_no_bridge
     type: check
@@ -217,14 +400,41 @@ phases:
     required_preexisting_inputs:
       - phase/impl_p05_symmetric_ciphers
       - phase/impl_p06_pubkey_ecc_no_bridge
-      - safe/scripts/check-rust-toolchain.sh
       - safe/Cargo.toml
       - safe/Cargo.lock
+      - safe/.cargo/config.toml
+      - .cargo/config.toml
+      - rust-toolchain.toml
+      - safe/rust-toolchain.toml
+      - safe/scripts/check-rust-toolchain.sh
+      - safe/vendor/
+      - safe/src/pubkey/mod.rs
+      - safe/src/pubkey/encoding.rs
+      - safe/src/pubkey/rsa.rs
+      - safe/src/pubkey/dsa.rs
+      - safe/src/pubkey/elgamal.rs
+      - safe/src/pubkey/ecc.rs
+      - safe/src/pubkey/keygrip.rs
+      - safe/src/mpi/ec.rs
+      - safe/src/context.rs
+      - safe/src/upstream.rs
+      - safe/src/lib.rs
+      - safe/cabi/exports.c
+      - safe/cabi/exports.h
+      - safe/build.rs
+      - safe/debian/rules
       - safe/scripts/run-original-tests.sh
       - safe/scripts/run-upstream-tests.sh
       - safe/scripts/check-no-upstream-bridge.sh
+      - safe/scripts/check-installed-tools.sh
+      - test-original.sh
       - safe/tests/original-build/
       - safe/tests/upstream/
+      - original/libgcrypt20-1.10.3/cipher/
+      - original/libgcrypt20-1.10.3/mpi/
+      - original/libgcrypt20-1.10.3/tests/
+      - relevant_cves.json
+      - all_cves.json
   - order: 13
     id: impl_p07_upstream_test_harness
     type: implement
@@ -245,19 +455,35 @@ phases:
     required_preexisting_inputs:
       - phase/impl_p06_pubkey_ecc_no_bridge
       - phase/impl_p07_upstream_test_harness
-      - safe/scripts/import-upstream-tests.sh
-      - safe/scripts/check-rust-toolchain.sh
       - safe/Cargo.toml
       - safe/Cargo.lock
-      - safe/scripts/run-upstream-tests.sh
+      - safe/.cargo/config.toml
+      - .cargo/config.toml
+      - rust-toolchain.toml
+      - safe/rust-toolchain.toml
+      - safe/scripts/check-rust-toolchain.sh
+      - safe/vendor/
       - safe/tests/upstream/
       - safe/tests/compat/
+      - safe/tests/original-build/
+      - safe/scripts/import-upstream-tests.sh
+      - safe/scripts/run-upstream-tests.sh
+      - original/libgcrypt20-1.10.3/tests/
+      - original/libgcrypt20-1.10.3/compat/
   - order: 15
     id: impl_p08_link_source_compat
     type: implement
     bounce_target: null
     required_preexisting_inputs:
       - phase/impl_p07_upstream_test_harness
+      - safe/Cargo.toml
+      - safe/Cargo.lock
+      - safe/.cargo/config.toml
+      - .cargo/config.toml
+      - rust-toolchain.toml
+      - safe/rust-toolchain.toml
+      - safe/scripts/check-rust-toolchain.sh
+      - safe/vendor/
       - safe/build.rs
       - safe/cabi/exports.c
       - safe/cabi/exports.h
@@ -273,6 +499,7 @@ phases:
       - safe/docs/abi-map.md
       - original/libgcrypt20-1.10.3/src/
       - original/libgcrypt20-1.10.3/tests/
+      - original/libgcrypt20-1.10.3/compat/
   - order: 16
     id: check_p08_link_source_compat
     type: check
@@ -280,24 +507,43 @@ phases:
     required_preexisting_inputs:
       - phase/impl_p07_upstream_test_harness
       - phase/impl_p08_link_source_compat
-      - safe/scripts/check-rust-toolchain.sh
       - safe/Cargo.toml
       - safe/Cargo.lock
+      - safe/.cargo/config.toml
+      - .cargo/config.toml
+      - rust-toolchain.toml
+      - safe/rust-toolchain.toml
+      - safe/scripts/check-rust-toolchain.sh
+      - safe/vendor/
+      - safe/build.rs
+      - safe/cabi/exports.c
+      - safe/cabi/exports.h
       - safe/scripts/check-abi.sh
       - safe/scripts/relink-original-objects.sh
       - safe/scripts/run-compat-smoke.sh
       - safe/scripts/check-no-upstream-bridge.sh
       - safe/tests/original-build/
       - safe/tests/compat/
+      - safe/abi/
+      - safe/docs/test-matrix.md
+      - safe/docs/abi-map.md
+      - original/libgcrypt20-1.10.3/src/
+      - original/libgcrypt20-1.10.3/tests/
+      - original/libgcrypt20-1.10.3/compat/
   - order: 17
     id: impl_p09_debian_dropin_package
     type: implement
     bounce_target: null
     required_preexisting_inputs:
       - phase/impl_p08_link_source_compat
+      - safe/Cargo.toml
+      - safe/Cargo.lock
+      - safe/.cargo/config.toml
+      - .cargo/config.toml
       - rust-toolchain.toml
       - safe/rust-toolchain.toml
       - safe/scripts/check-rust-toolchain.sh
+      - safe/vendor/
       - safe/build.rs
       - safe/cabi/exports.c
       - safe/cabi/exports.h
@@ -318,13 +564,27 @@ phases:
     required_preexisting_inputs:
       - phase/impl_p08_link_source_compat
       - phase/impl_p09_debian_dropin_package
+      - safe/Cargo.toml
+      - safe/Cargo.lock
+      - safe/.cargo/config.toml
+      - .cargo/config.toml
+      - rust-toolchain.toml
+      - safe/rust-toolchain.toml
       - safe/scripts/check-rust-toolchain.sh
+      - safe/vendor/
+      - safe/build.rs
+      - safe/cabi/exports.c
+      - safe/cabi/exports.h
+      - safe/abi/
+      - safe/debian/
       - safe/scripts/build-debs.sh
       - safe/scripts/check-deb-metadata.sh
       - safe/scripts/check-installed-tools.sh
       - safe/scripts/check-no-upstream-bridge.sh
-      - safe/debian/
-      - safe/abi/
+      - safe/src/bin/dumpsexp.rs
+      - safe/src/bin/hmac256.rs
+      - safe/src/bin/mpicalc.rs
+      - original/libgcrypt20-1.10.3/debian/
   - order: 19
     id: impl_p10_dependent_image_matrix
     type: implement
@@ -333,16 +593,21 @@ phases:
       - phase/impl_p09_debian_dropin_package
       - dependents.json
       - test-original.sh
-      - safe/tests/compat/tool-fixtures/
-      - safe/scripts/check-no-upstream-bridge.sh
-      - safe/docs/test-matrix.md
-      - safe/debian/
+      - safe/Cargo.toml
+      - safe/Cargo.lock
+      - safe/.cargo/config.toml
+      - .cargo/config.toml
+      - rust-toolchain.toml
+      - safe/rust-toolchain.toml
       - safe/scripts/check-rust-toolchain.sh
+      - safe/vendor/
+      - safe/debian/
       - safe/scripts/build-debs.sh
       - safe/scripts/check-deb-metadata.sh
       - safe/scripts/check-installed-tools.sh
-      - safe/dist/safe-debs.manifest.json
-      - Ubuntu 24.04 package metadata for producing committed locks
+      - safe/scripts/check-no-upstream-bridge.sh
+      - safe/tests/compat/tool-fixtures/
+      - safe/docs/test-matrix.md
   - order: 20
     id: check_p10_dependent_matrix_tester
     type: check
@@ -352,6 +617,100 @@ phases:
       - phase/impl_p10_dependent_image_matrix
       - dependents.json
       - test-original.sh
+      - safe/Cargo.toml
+      - safe/Cargo.lock
+      - safe/.cargo/config.toml
+      - .cargo/config.toml
+      - rust-toolchain.toml
+      - safe/rust-toolchain.toml
+      - safe/vendor/
+      - safe/debian/
+      - safe/scripts/check-rust-toolchain.sh
+      - safe/scripts/build-debs.sh
+      - safe/scripts/check-deb-metadata.sh
+      - safe/scripts/check-installed-tools.sh
+      - safe/scripts/check-no-upstream-bridge.sh
+      - safe/scripts/check-dependent-metadata.sh
+      - safe/scripts/build-dependent-image.sh
+      - safe/scripts/run-dependent-image-tests.sh
+      - safe/tests/compat/tool-fixtures/
+      - safe/tests/dependents/metadata/matrix-manifest.json
+      - safe/tests/dependents/metadata/package-evidence.noble.json
+      - safe/tests/dependents/metadata/base-image.noble.digest
+      - safe/tests/dependents/metadata/ubuntu-snapshot.noble.sources
+      - safe/tests/dependents/metadata/install-packages.noble.lock
+      - safe/tests/dependents/metadata/safe-debs.noble.lock
+      - safe/tests/dependents/fixtures/gpgv/
+      - safe/tests/dependents/fixtures/gpgsm/
+      - safe/tests/dependents/fixtures/seccure/
+      - safe/tests/dependents/fixtures/pdfgrep/
+      - safe/tests/dependents/fixtures/rngtest/
+      - safe/tests/dependents/fixtures/otr/
+      - safe/tests/dependents/fixtures/tcplay/
+      - safe/tests/dependents/probes/apt-hashes-test.cpp
+      - safe/tests/dependents/probes/libssh-test.c
+      - safe/tests/dependents/probes/xmlsec-gcrypt-verify-rsa.c
+      - safe/tests/dependents/scenarios/
+      - safe/docs/test-matrix.md
+  - order: 21
+    id: check_p10_dependent_matrix_senior
+    type: check
+    bounce_target: impl_p10_dependent_image_matrix
+    required_preexisting_inputs:
+      - phase/impl_p09_debian_dropin_package
+      - phase/impl_p10_dependent_image_matrix
+      - dependents.json
+      - test-original.sh
+      - safe/Cargo.toml
+      - safe/Cargo.lock
+      - safe/.cargo/config.toml
+      - .cargo/config.toml
+      - rust-toolchain.toml
+      - safe/rust-toolchain.toml
+      - safe/vendor/
+      - safe/debian/
+      - safe/scripts/check-rust-toolchain.sh
+      - safe/scripts/build-debs.sh
+      - safe/scripts/check-deb-metadata.sh
+      - safe/scripts/check-installed-tools.sh
+      - safe/scripts/check-no-upstream-bridge.sh
+      - safe/scripts/check-dependent-metadata.sh
+      - safe/scripts/build-dependent-image.sh
+      - safe/scripts/run-dependent-image-tests.sh
+      - safe/tests/compat/tool-fixtures/
+      - safe/tests/dependents/metadata/matrix-manifest.json
+      - safe/tests/dependents/metadata/package-evidence.noble.json
+      - safe/tests/dependents/metadata/base-image.noble.digest
+      - safe/tests/dependents/metadata/ubuntu-snapshot.noble.sources
+      - safe/tests/dependents/metadata/install-packages.noble.lock
+      - safe/tests/dependents/metadata/safe-debs.noble.lock
+      - safe/tests/dependents/fixtures/gpgv/
+      - safe/tests/dependents/fixtures/gpgsm/
+      - safe/tests/dependents/fixtures/seccure/
+      - safe/tests/dependents/fixtures/pdfgrep/
+      - safe/tests/dependents/fixtures/rngtest/
+      - safe/tests/dependents/fixtures/otr/
+      - safe/tests/dependents/fixtures/tcplay/
+      - safe/tests/dependents/probes/apt-hashes-test.cpp
+      - safe/tests/dependents/probes/libssh-test.c
+      - safe/tests/dependents/probes/xmlsec-gcrypt-verify-rsa.c
+      - safe/tests/dependents/scenarios/
+      - safe/docs/test-matrix.md
+  - order: 22
+    id: impl_p11_dependent_regression_fixups
+    type: implement
+    bounce_target: null
+    required_preexisting_inputs:
+      - phase/impl_p10_dependent_image_matrix
+      - safe/Cargo.toml
+      - safe/Cargo.lock
+      - safe/.cargo/config.toml
+      - .cargo/config.toml
+      - rust-toolchain.toml
+      - safe/rust-toolchain.toml
+      - safe/scripts/check-rust-toolchain.sh
+      - safe/src/
+      - safe/cabi/
       - safe/tests/dependents/metadata/matrix-manifest.json
       - safe/tests/dependents/metadata/package-evidence.noble.json
       - safe/tests/dependents/metadata/base-image.noble.digest
@@ -361,43 +720,6 @@ phases:
       - safe/tests/dependents/fixtures/
       - safe/tests/dependents/probes/
       - safe/tests/dependents/scenarios/
-      - safe/scripts/check-dependent-metadata.sh
-      - safe/scripts/build-dependent-image.sh
-      - safe/scripts/run-dependent-image-tests.sh
-      - safe/scripts/check-rust-toolchain.sh
-      - safe/scripts/build-debs.sh
-      - safe/dist/safe-debs.manifest.json
-  - order: 21
-    id: check_p10_dependent_matrix_senior
-    type: check
-    bounce_target: impl_p10_dependent_image_matrix
-    required_preexisting_inputs:
-      - phase/impl_p09_debian_dropin_package
-      - phase/impl_p10_dependent_image_matrix
-      - dependents.json
-      - safe/tests/dependents/metadata/matrix-manifest.json
-      - safe/tests/dependents/metadata/base-image.noble.digest
-      - safe/tests/dependents/metadata/ubuntu-snapshot.noble.sources
-      - safe/tests/dependents/metadata/install-packages.noble.lock
-      - safe/tests/dependents/metadata/safe-debs.noble.lock
-      - safe/tests/dependents/probes/
-      - safe/tests/dependents/scenarios/
-      - safe/scripts/check-dependent-metadata.sh
-      - safe/scripts/check-no-upstream-bridge.sh
-      - safe/scripts/build-dependent-image.sh
-      - safe/scripts/run-dependent-image-tests.sh
-      - safe/scripts/check-rust-toolchain.sh
-      - safe/scripts/build-debs.sh
-      - safe/dist/safe-debs.manifest.json
-  - order: 22
-    id: impl_p11_dependent_regression_fixups
-    type: implement
-    bounce_target: null
-    required_preexisting_inputs:
-      - phase/impl_p10_dependent_image_matrix
-      - safe/src/
-      - safe/cabi/
-      - safe/tests/dependents/
       - safe/scripts/check-no-upstream-bridge.sh
       - safe/scripts/check-abi.sh
       - safe/scripts/run-upstream-tests.sh
@@ -412,6 +734,8 @@ phases:
       - safe/docs/cve-matrix.md
       - safe/docs/test-matrix.md
       - dependents.json
+      - relevant_cves.json
+      - all_cves.json
   - order: 23
     id: check_p11_regression_tester
     type: check
@@ -419,18 +743,37 @@ phases:
     required_preexisting_inputs:
       - phase/impl_p10_dependent_image_matrix
       - phase/impl_p11_dependent_regression_fixups
-      - safe/scripts/check-rust-toolchain.sh
       - safe/Cargo.toml
       - safe/Cargo.lock
+      - safe/.cargo/config.toml
+      - .cargo/config.toml
+      - rust-toolchain.toml
+      - safe/rust-toolchain.toml
+      - safe/scripts/check-rust-toolchain.sh
+      - safe/vendor/
+      - safe/src/
+      - safe/cabi/
       - safe/scripts/run-regression-tests.sh
       - safe/tests/regressions/manifest.json
+      - safe/tests/regressions/
       - safe/scripts/check-no-upstream-bridge.sh
       - safe/scripts/run-upstream-tests.sh
       - safe/scripts/relink-original-objects.sh
       - safe/scripts/build-debs.sh
       - safe/scripts/build-dependent-image.sh
       - safe/scripts/run-dependent-image-tests.sh
-      - safe/tests/dependents/
+      - safe/tests/upstream/
+      - safe/tests/compat/
+      - safe/tests/dependents/metadata/matrix-manifest.json
+      - safe/tests/dependents/metadata/package-evidence.noble.json
+      - safe/tests/dependents/metadata/base-image.noble.digest
+      - safe/tests/dependents/metadata/ubuntu-snapshot.noble.sources
+      - safe/tests/dependents/metadata/install-packages.noble.lock
+      - safe/tests/dependents/metadata/safe-debs.noble.lock
+      - safe/tests/dependents/fixtures/
+      - safe/tests/dependents/probes/
+      - safe/tests/dependents/scenarios/
+      - dependents.json
   - order: 24
     id: check_p11_senior_tester
     type: check
@@ -440,6 +783,7 @@ phases:
       - phase/impl_p11_dependent_regression_fixups
       - safe/scripts/run-regression-tests.sh
       - safe/tests/regressions/manifest.json
+      - safe/tests/regressions/
       - safe/scripts/check-no-upstream-bridge.sh
       - safe/scripts/check-abi.sh
       - safe/scripts/check-dependent-metadata.sh
@@ -447,20 +791,52 @@ phases:
       - safe/scripts/run-dependent-image-tests.sh
       - safe/scripts/check-rust-toolchain.sh
       - safe/scripts/build-debs.sh
-      - safe/tests/dependents/
+      - safe/abi/
+      - safe/src/
+      - safe/cabi/
+      - safe/tests/dependents/metadata/matrix-manifest.json
+      - safe/tests/dependents/metadata/package-evidence.noble.json
+      - safe/tests/dependents/metadata/base-image.noble.digest
+      - safe/tests/dependents/metadata/ubuntu-snapshot.noble.sources
+      - safe/tests/dependents/metadata/install-packages.noble.lock
+      - safe/tests/dependents/metadata/safe-debs.noble.lock
+      - safe/tests/dependents/fixtures/
+      - safe/tests/dependents/probes/
+      - safe/tests/dependents/scenarios/
+      - dependents.json
   - order: 25
     id: impl_p12_final_sweep
     type: implement
     bounce_target: null
     required_preexisting_inputs:
       - phase/impl_p11_dependent_regression_fixups
+      - safe/Cargo.toml
+      - safe/Cargo.lock
+      - safe/.cargo/config.toml
+      - .cargo/config.toml
+      - rust-toolchain.toml
+      - safe/rust-toolchain.toml
+      - safe/build.rs
+      - safe/src/
+      - safe/cabi/
+      - safe/abi/
+      - safe/debian/
+      - safe/scripts/
+      - safe/tests/original-build/
+      - safe/tests/upstream/
+      - safe/tests/compat/
       - safe/tests/dependents/
       - safe/tests/regressions/
       - safe/scripts/run-regression-tests.sh
+      - test-original.sh
+      - dependents.json
+      - relevant_cves.json
+      - all_cves.json
       - safe/docs/abi-map.md
       - safe/docs/cve-matrix.md
       - safe/docs/test-matrix.md
       - safe/docs/bridge-inventory.md
+      - .plan/plan.md
       - .plan/phases/
       - .plan/workflow-structure.yaml
   - order: 26
@@ -470,9 +846,19 @@ phases:
     required_preexisting_inputs:
       - phase/impl_p11_dependent_regression_fixups
       - phase/impl_p12_final_sweep
-      - safe/scripts/check-rust-toolchain.sh
       - safe/Cargo.toml
       - safe/Cargo.lock
+      - safe/.cargo/config.toml
+      - .cargo/config.toml
+      - rust-toolchain.toml
+      - safe/rust-toolchain.toml
+      - safe/vendor/
+      - safe/build.rs
+      - safe/src/
+      - safe/cabi/
+      - safe/abi/
+      - safe/debian/
+      - safe/scripts/check-rust-toolchain.sh
       - safe/scripts/check-no-upstream-bridge.sh
       - safe/scripts/check-abi.sh
       - safe/scripts/import-upstream-tests.sh
@@ -487,9 +873,22 @@ phases:
       - safe/scripts/check-dependent-metadata.sh
       - safe/scripts/build-dependent-image.sh
       - safe/scripts/run-dependent-image-tests.sh
-      - test-original.sh
-      - safe/tests/dependents/
+      - safe/tests/original-build/
+      - safe/tests/upstream/
+      - safe/tests/compat/
+      - safe/tests/dependents/metadata/matrix-manifest.json
+      - safe/tests/dependents/metadata/package-evidence.noble.json
+      - safe/tests/dependents/metadata/base-image.noble.digest
+      - safe/tests/dependents/metadata/ubuntu-snapshot.noble.sources
+      - safe/tests/dependents/metadata/install-packages.noble.lock
+      - safe/tests/dependents/metadata/safe-debs.noble.lock
+      - safe/tests/dependents/fixtures/
+      - safe/tests/dependents/probes/
+      - safe/tests/dependents/scenarios/
+      - safe/tests/regressions/manifest.json
       - safe/tests/regressions/
+      - test-original.sh
+      - dependents.json
   - order: 27
     id: check_p12_final_safety_packaging
     type: check
@@ -500,13 +899,28 @@ phases:
       - rust-toolchain.toml
       - safe/rust-toolchain.toml
       - safe/scripts/check-rust-toolchain.sh
+      - safe/src/
+      - safe/cabi/
+      - safe/build.rs
+      - safe/scripts/
+      - safe/tests/compat/
+      - safe/tests/dependents/
+      - safe/tests/regressions/
+      - safe/debian/
+      - test-original.sh
+      - relevant_cves.json
+      - all_cves.json
       - safe/docs/cve-matrix.md
       - safe/docs/abi-map.md
       - safe/docs/test-matrix.md
       - dependents.json
       - safe/tests/dependents/metadata/matrix-manifest.json
+      - safe/tests/dependents/metadata/package-evidence.noble.json
       - safe/tests/dependents/metadata/base-image.noble.digest
       - safe/tests/dependents/metadata/ubuntu-snapshot.noble.sources
       - safe/tests/dependents/metadata/install-packages.noble.lock
       - safe/tests/dependents/metadata/safe-debs.noble.lock
       - safe/tests/regressions/manifest.json
+      - .plan/plan.md
+      - .plan/phases/
+      - .plan/workflow-structure.yaml

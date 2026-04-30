@@ -39,6 +39,8 @@ fi
 export CARGO_NET_OFFLINE=true
 version="$(dpkg-parsechangelog -l"${SAFE_DIR}/debian/changelog" -SVersion)"
 
+"${SCRIPT_DIR}/check-rust-toolchain.sh"
+
 rm -rf "${DIST_DIR}"
 mkdir -p "${DIST_DIR}"
 rm -f "${REPO_DIR}"/libgcrypt20_"${version}"_*.deb

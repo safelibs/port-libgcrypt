@@ -21,6 +21,7 @@ RUST_SHARED_LIB := $(CARGO_TARGET_DIR)/release/libgcrypt.so
 
 override_dh_auto_clean:
 	rm -rf debian/cargo-home debian/tmp
+	./scripts/check-rust-toolchain.sh
 	cargo clean --manifest-path Cargo.toml
 
 override_dh_auto_build:
@@ -28,6 +29,7 @@ override_dh_auto_build:
 	test -f Cargo.lock
 	rm -rf "$(CARGO_HOME)"
 	mkdir -p "$(CARGO_HOME)"
+	./scripts/check-rust-toolchain.sh
 	cargo build --manifest-path Cargo.toml --release --locked --offline --bins --lib
 	rm -f "$(RUST_SHARED_LIB).tmp"
 	$(CC) $(LDFLAGS) -shared -o "$(RUST_SHARED_LIB).tmp" \

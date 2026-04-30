@@ -46,6 +46,7 @@ Public-key, ECC, contexts, and bridge removal
 - `original/libgcrypt20-1.10.3/mpi/ec*.c`
 - Public-key and ECC upstream tests under `original/libgcrypt20-1.10.3/tests/`.
 - `relevant_cves.json`
+- `all_cves.json`
 
 # New Outputs
 
@@ -84,7 +85,7 @@ Public-key, ECC, contexts, and bridge removal
 - Preserve exact S-expression shapes, algorithm aliases, keygrip bytes, error codes, padding behavior, and opaque MPI handling expected by upstream tests and GnuPG dependents.
 - Keep unsafe limited to C ABI pointers and explicit memory ownership transfers. This unsafe-memory boundary is part of the phase contract and should not expand into bridge loading, hidden mutable globals, or algorithm shortcuts.
 - Remove `find_system_libgcrypt` from `safe/build.rs`, remove `-ldl` from build/package/link scripts, and make `safe/scripts/check-no-upstream-bridge.sh` a required passing check.
-- Preserve the consume-existing-artifacts contract by updating the existing public-key, ECC, bridge scan, package-rule, test, and documentation artifacts in place.
+- Preserve the consume-existing-artifacts contract by updating the existing public-key, ECC, bridge scan, package-rule, test, and documentation artifacts in place, consuming both `relevant_cves.json` and `all_cves.json` rather than rediscovering security metadata.
 
 # Verification Phases
 

@@ -23,7 +23,7 @@ fn random_odd_with_bits(bits: usize) -> Mpz {
     let mut bytes = vec![0u8; nbytes.max(1)];
     os_rng::fill_random(&mut bytes);
     if let Some(first) = bytes.first_mut() {
-        let top_mask = if bits.is_multiple_of(8) {
+        let top_mask = if bits % 8 == 0 {
             0xff
         } else {
             ((1u16 << (bits % 8)) - 1) as u8

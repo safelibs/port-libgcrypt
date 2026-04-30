@@ -259,7 +259,9 @@ main() {
     shift
   done
 
-  cargo build --manifest-path "${SAFE_DIR}/Cargo.toml" --release --offline
+  "${SCRIPT_DIR}/check-rust-toolchain.sh"
+  cargo build --manifest-path "${SAFE_DIR}/Cargo.toml" --release --locked --offline
+  "${SCRIPT_DIR}/build-release-lib.sh"
   stage_install_tree
   prepare_harness_tree
   compile_compat_object

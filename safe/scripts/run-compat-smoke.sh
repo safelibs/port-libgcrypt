@@ -180,7 +180,9 @@ main() {
     shift
   done
 
-  cargo build --manifest-path "${SAFE_DIR}/Cargo.toml" --release --offline
+  "${SCRIPT_DIR}/check-rust-toolchain.sh"
+  cargo build --manifest-path "${SAFE_DIR}/Cargo.toml" --release --locked --offline
+  "${SCRIPT_DIR}/build-release-lib.sh"
   mkdir -p "${HARNESS_ROOT}"
   stage_install_tree
 
