@@ -12,7 +12,7 @@ while IFS= read -r path; do
   scan_files+=("${path}")
 done < <(
   cd "${REPO_DIR}" &&
-    git ls-files -- safe/src safe/scripts safe/tests/compat safe/tests/dependents safe/build.rs safe/debian test-original.sh
+    git ls-files -- safe/src safe/scripts safe/tests/compat safe/tests/dependents safe/tests/regressions safe/build.rs safe/debian test-original.sh
 )
 
 [[ "${#scan_files[@]}" -gt 0 ]] || {

@@ -1,0 +1,18 @@
+{
+  "manifest_version": 1,
+  "phase_id": "impl_p11_dependent_regression_fixups",
+  "regressions": [
+    {
+      "id": "dependent-image-current-phase-tag",
+      "kind": "shell",
+      "path": "safe/tests/regressions/dependent-image-current-phase-tag.sh",
+      "description": "Dependent-image builds must bind package manifests and image metadata to the current phase tag, not the phase 10 tag."
+    },
+    {
+      "id": "dependent-image-apt-snapshot-retry",
+      "kind": "shell",
+      "path": "safe/tests/regressions/dependent-image-apt-snapshot-retry.sh",
+      "description": "Dependent-image Docker apt setup must use bounded retries against the pinned Noble snapshot, treat partial snapshot indexes as errors, prove the pinned ca-certificates and requested dependent package versions are visible, and avoid live-mirror, Launchpad, local .deb, or generated-package fallbacks that mask the committed package closure."
+    }
+  ]
+}
