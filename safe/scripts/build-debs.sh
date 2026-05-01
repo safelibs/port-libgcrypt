@@ -109,6 +109,14 @@ if len(debs) != 2:
 source_package = run(
     ["dpkg-parsechangelog", f"-l{safe_dir / 'debian' / 'changelog'}", "-SSource"]
 ).strip()
+source_version = run(
+    ["dpkg-parsechangelog", f"-l{safe_dir / 'debian' / 'changelog'}", "-SVersion"]
+).strip()
+phase_tags = sorted(
+    tag
+    for tag in run(["git", "-C", str(repo_dir), "tag", "--points-at", "HEAD"]).splitlines()
+    if tag.startswith("phase/")
+)
 
 packages = []
 for deb in debs:
@@ -116,6 +124,7 @@ for deb in debs:
         {
             "package_name": deb_field(deb, "Package"),
             "source_package_name": source_package,
+            "source_version": source_version,
             "architecture": deb_field(deb, "Architecture"),
             "version": deb_field(deb, "Version"),
             "filename": deb.name,
@@ -126,7 +135,9 @@ for deb in debs:
 manifest = {
     "manifest_version": 1,
     "phase_commit": run(["git", "-C", str(repo_dir), "rev-parse", "HEAD"]).strip(),
+    "phase_tag": phase_tags[0] if phase_tags else None,
     "source_package_name": source_package,
+    "source_version": source_version,
     "toolchain": {
         "rustc_vv": run(["rustc", "-Vv"]),
         "cargo_vv": run(["cargo", "-Vv"]),

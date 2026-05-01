@@ -1,0 +1,253 @@
+{
+  "base_image_digest_file": "safe/tests/dependents/metadata/base-image.noble.digest",
+  "distribution": {
+    "codename": "noble",
+    "name": "Ubuntu",
+    "release": "24.04"
+  },
+  "executable_application_packages": [
+    "gpg",
+    "gnome-keyring",
+    "munge",
+    "aircrack-ng",
+    "wireshark-common",
+    "gpgv",
+    "gpgsm",
+    "seccure",
+    "pdfgrep",
+    "rng-tools5",
+    "libotr5-bin",
+    "tcplay"
+  ],
+  "install_lock": "safe/tests/dependents/metadata/install-packages.noble.lock",
+  "library_exception_packages": [
+    "libapt-pkg6.0t64",
+    "libssh-gcrypt-4",
+    "libxmlsec1t64-gcrypt"
+  ],
+  "manifest_version": 1,
+  "phase_id": "impl_p10_dependent_image_matrix",
+  "rows": [
+    {
+      "binary_package": "libapt-pkg6.0t64",
+      "compile_probe": {
+        "compiler": "c++",
+        "output": "/tmp/apt-hashes-test",
+        "pkg_config": "apt-pkg",
+        "source": "safe/tests/dependents/probes/apt-hashes-test.cpp"
+      },
+      "kind": "library_exception",
+      "loader_check": {
+        "binary": "/tmp/apt-hashes-test"
+      },
+      "name": "APT / libapt-pkg",
+      "source_package": "apt"
+    },
+    {
+      "binary_package": "gpg",
+      "fixtures": [
+        "safe/tests/compat/tool-fixtures/gpg-test-secret.asc"
+      ],
+      "kind": "executable_application",
+      "loader_check": {
+        "binary": "/usr/bin/gpg"
+      },
+      "name": "GNU Privacy Guard",
+      "scenario": "safe/tests/dependents/scenarios/gpg.sh",
+      "source_package": "gnupg2"
+    },
+    {
+      "binary_package": "gnome-keyring",
+      "kind": "executable_application",
+      "loader_check": {
+        "binary": "/usr/bin/gnome-keyring-daemon"
+      },
+      "name": "GNOME Keyring",
+      "scenario": "safe/tests/dependents/scenarios/gnome-keyring.sh",
+      "source_package": "gnome-keyring"
+    },
+    {
+      "binary_package": "libssh-gcrypt-4",
+      "compile_probe": {
+        "compiler": "cc",
+        "output": "/tmp/libssh-test",
+        "pkg_config": "libssh",
+        "source": "safe/tests/dependents/probes/libssh-test.c"
+      },
+      "kind": "library_exception",
+      "loader_check": {
+        "binary": "/tmp/libssh-test"
+      },
+      "name": "libssh gcrypt flavor",
+      "source_package": "libssh"
+    },
+    {
+      "binary_package": "libxmlsec1t64-gcrypt",
+      "compile_probe": {
+        "compiler": "cc",
+        "output": "/tmp/xmlsec-gcrypt-verify-rsa",
+        "pkg_config": "xmlsec1-gcrypt",
+        "source": "safe/tests/dependents/probes/xmlsec-gcrypt-verify-rsa.c"
+      },
+      "fixtures": [
+        "safe/tests/dependents/fixtures/xmlsec1/signature-enveloping-rsa.xml"
+      ],
+      "kind": "library_exception",
+      "loader_check": {
+        "binary": "/tmp/xmlsec-gcrypt-verify-rsa"
+      },
+      "name": "xmlsec1 gcrypt backend",
+      "source_package": "xmlsec1"
+    },
+    {
+      "binary_package": "munge",
+      "kind": "executable_application",
+      "loader_check": {
+        "binary": "/usr/sbin/munged"
+      },
+      "name": "MUNGE",
+      "scenario": "safe/tests/dependents/scenarios/munge.sh",
+      "source_package": "munge"
+    },
+    {
+      "binary_package": "aircrack-ng",
+      "fixtures": [
+        "safe/tests/dependents/fixtures/aircrack-ng/password.lst",
+        "safe/tests/dependents/fixtures/aircrack-ng/wpa2-psk-linksys.cap"
+      ],
+      "kind": "executable_application",
+      "loader_check": {
+        "binary": "/usr/bin/aircrack-ng"
+      },
+      "name": "Aircrack-ng",
+      "scenario": "safe/tests/dependents/scenarios/aircrack-ng.sh",
+      "source_package": "aircrack-ng"
+    },
+    {
+      "binary_package": "wireshark-common",
+      "fixtures": [
+        "safe/tests/dependents/fixtures/wireshark/80211_keys",
+        "safe/tests/dependents/fixtures/wireshark/wpa-test-decode.pcap.gz"
+      ],
+      "kind": "executable_application",
+      "loader_check": {
+        "binary": "/usr/bin/tshark"
+      },
+      "name": "Wireshark",
+      "scenario": "safe/tests/dependents/scenarios/wireshark.sh",
+      "source_package": "wireshark"
+    },
+    {
+      "binary_package": "gpgv",
+      "fixtures": [
+        "safe/tests/dependents/fixtures/gpgv/message.txt",
+        "safe/tests/dependents/fixtures/gpgv/message.txt.asc",
+        "safe/tests/dependents/fixtures/gpgv/trustedkeys.gpg",
+        "safe/tests/dependents/fixtures/gpgv/trusted-public-key.asc"
+      ],
+      "kind": "executable_application",
+      "loader_check": {
+        "binary": "/usr/bin/gpgv"
+      },
+      "name": "GnuPG signature verifier",
+      "scenario": "safe/tests/dependents/scenarios/gpgv.sh",
+      "source_package": "gnupg2"
+    },
+    {
+      "binary_package": "gpgsm",
+      "fixtures": [
+        "safe/tests/dependents/fixtures/gpgsm/cert.pem",
+        "safe/tests/dependents/fixtures/gpgsm/identity.p12",
+        "safe/tests/dependents/fixtures/gpgsm/message.txt"
+      ],
+      "helpers": [
+        "safe/tests/dependents/helpers/gpgsm-gcrypt-oid-compat.c"
+      ],
+      "kind": "executable_application",
+      "loader_check": {
+        "binary": "/usr/bin/gpgsm"
+      },
+      "name": "GnuPG S/MIME",
+      "scenario": "safe/tests/dependents/scenarios/gpgsm.sh",
+      "source_package": "gnupg2"
+    },
+    {
+      "binary_package": "seccure",
+      "fixtures": [
+        "safe/tests/dependents/fixtures/seccure/passphrase.txt",
+        "safe/tests/dependents/fixtures/seccure/message.txt",
+        "safe/tests/dependents/fixtures/seccure/public-key.txt"
+      ],
+      "kind": "executable_application",
+      "loader_check": {
+        "binary": "/usr/bin/seccure-key"
+      },
+      "name": "SECCURE",
+      "scenario": "safe/tests/dependents/scenarios/seccure.sh",
+      "source_package": "seccure"
+    },
+    {
+      "binary_package": "pdfgrep",
+      "fixtures": [
+        "safe/tests/dependents/fixtures/pdfgrep/password-protected.pdf",
+        "safe/tests/dependents/fixtures/pdfgrep/password.txt",
+        "safe/tests/dependents/fixtures/pdfgrep/needle.txt"
+      ],
+      "kind": "executable_application",
+      "loader_check": {
+        "binary": "/usr/bin/pdfgrep"
+      },
+      "name": "pdfgrep",
+      "scenario": "safe/tests/dependents/scenarios/pdfgrep.sh",
+      "source_package": "pdfgrep"
+    },
+    {
+      "binary_package": "rng-tools5",
+      "fixtures": [
+        "safe/tests/dependents/fixtures/rngtest/known-good-random.bin",
+        "safe/tests/dependents/fixtures/rngtest/expected-statistics.txt"
+      ],
+      "kind": "executable_application",
+      "loader_check": {
+        "binary": "/usr/sbin/rngd"
+      },
+      "name": "rng-tools5",
+      "scenario": "safe/tests/dependents/scenarios/rng-tools5.sh",
+      "source_package": "rng-tools5"
+    },
+    {
+      "binary_package": "libotr5-bin",
+      "fixtures": [
+        "safe/tests/dependents/fixtures/otr/aes-key.txt",
+        "safe/tests/dependents/fixtures/otr/expected-mackey.txt",
+        "safe/tests/dependents/fixtures/otr/our-privkey.txt",
+        "safe/tests/dependents/fixtures/otr/their-pubkey.txt",
+        "safe/tests/dependents/fixtures/otr/expected-sesskeys.txt"
+      ],
+      "kind": "executable_application",
+      "loader_check": {
+        "binary": "/usr/bin/otr_mackey"
+      },
+      "name": "Off-the-Record toolkit",
+      "scenario": "safe/tests/dependents/scenarios/libotr5-bin.sh",
+      "source_package": "libotr"
+    },
+    {
+      "binary_package": "tcplay",
+      "fixtures": [
+        "safe/tests/dependents/fixtures/tcplay/phase10.tc",
+        "safe/tests/dependents/fixtures/tcplay/passphrase.txt",
+        "safe/tests/dependents/fixtures/tcplay/expected-info.txt"
+      ],
+      "kind": "executable_application",
+      "loader_check": {
+        "binary": "/usr/sbin/tcplay"
+      },
+      "name": "tcplay",
+      "scenario": "safe/tests/dependents/scenarios/tcplay.sh",
+      "source_package": "tcplay"
+    }
+  ],
+  "safe_debs_lock": "safe/tests/dependents/metadata/safe-debs.noble.lock",
+  "snapshot_sources_file": "safe/tests/dependents/metadata/ubuntu-snapshot.noble.sources"
+}

@@ -1,0 +1,2 @@
+FIPS 140-2 successes: 1
+FIPS 140-2 failures: 0

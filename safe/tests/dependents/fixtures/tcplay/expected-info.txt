@@ -1,0 +1,9 @@
+PBKDF2 PRF:		RIPEMD160
+PBKDF2 iterations:	2000
+Cipher:			AES-256-XTS
+Key Length:		512 bits
+CRC Key Data:		0x5c20689a
+Sector size:		512
+Volume size:		7680 sectors
+IV offset:		256 sectors
+Block offset:		256 sectors

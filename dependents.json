@@ -5,8 +5,8 @@
     "release": "24.04",
     "codename": "noble"
   },
-  "generated_at_utc": "2026-04-09T09:59:29Z",
-  "selection_note": "Representative direct Noble dependents chosen to span different kinds of software. Each entry records the package metadata proving compile-time and runtime dependence plus the runtime feature that actually exercises libgcrypt.",
+  "generated_at_utc": "2026-04-30T00:00:00Z",
+  "selection_note": "Representative direct Noble dependents chosen to span library integration and executable applications. Phase 10 extends the matrix to 15 binary packages: 3 library-flavored compile probes plus 12 executable scenarios backed by committed fixtures and pinned package/image metadata.",
   "dependents": [
     {
       "name": "APT / libapt-pkg",
@@ -182,6 +182,160 @@
       "runtime_evidence": [
         "epan/crypt/dot11decrypt.c, dot11decrypt_ccmp.c, and dot11decrypt_gcmp.c use gcry_md_*, gcry_mac_*, and gcry_cipher_* to derive wireless keys, verify MICs, and decrypt CCMP/GCMP traffic.",
         "editcap.c and capinfos.c also use libgcrypt digest APIs for packet and capture hashing tasks."
+      ]
+    },
+    {
+      "name": "GnuPG signature verifier",
+      "category": "OpenPGP verification",
+      "repository_component": "main",
+      "source_package": "gnupg2",
+      "source_version": "2.4.4-2ubuntu17.4",
+      "binary_package": "gpgv",
+      "binary_version": "2.4.4-2ubuntu17.4",
+      "dependency_types": [
+        "compile_time",
+        "runtime"
+      ],
+      "dependency_evidence": {
+        "compile_time": "gnupg2 2.4.4-2ubuntu17.4 Build-Depends includes libgcrypt20-dev (>= 1.9.1)",
+        "runtime": "gpgv 2.4.4-2ubuntu17.4 Depends includes libgcrypt20 (>= 1.10.0)"
+      },
+      "runtime_functionality": "Detached OpenPGP signature verification uses libgcrypt digest and public-key verification primitives through the GnuPG verification path.",
+      "runtime_evidence": [
+        "gpgv is the GnuPG signature verification binary and links directly to libgcrypt20 in Noble.",
+        "The committed scenario verifies a detached signature using a committed trusted keyring and asserts gpgv loads the selected libgcrypt.so.20."
+      ]
+    },
+    {
+      "name": "GnuPG S/MIME",
+      "category": "S/MIME and X.509",
+      "repository_component": "main",
+      "source_package": "gnupg2",
+      "source_version": "2.4.4-2ubuntu17.4",
+      "binary_package": "gpgsm",
+      "binary_version": "2.4.4-2ubuntu17.4",
+      "dependency_types": [
+        "compile_time",
+        "runtime"
+      ],
+      "dependency_evidence": {
+        "compile_time": "gnupg2 2.4.4-2ubuntu17.4 Build-Depends includes libgcrypt20-dev (>= 1.9.1)",
+        "runtime": "gpgsm 2.4.4-2ubuntu17.4 Depends includes libgcrypt20 (>= 1.10.3)"
+      },
+      "runtime_functionality": "S/MIME signing, verification, encryption, and decryption use libgcrypt public-key, digest, and cipher primitives underneath GnuPG's X.509 implementation.",
+      "runtime_evidence": [
+        "gpgsm is the GnuPG S/MIME binary and links directly to libgcrypt20 in Noble.",
+        "The committed scenario imports committed X.509 material, signs, verifies, encrypts, decrypts, and checks gpgsm loads the selected libgcrypt.so.20."
+      ]
+    },
+    {
+      "name": "SECCURE",
+      "category": "elliptic-curve command-line crypto",
+      "repository_component": "universe",
+      "source_package": "seccure",
+      "source_version": "0.5-2",
+      "binary_package": "seccure",
+      "binary_version": "0.5-2",
+      "dependency_types": [
+        "compile_time",
+        "runtime"
+      ],
+      "dependency_evidence": {
+        "compile_time": "seccure 0.5-2 Build-Depends includes libgcrypt-dev",
+        "runtime": "seccure 0.5-2 Depends includes libgcrypt20 (>= 1.8.0)"
+      },
+      "runtime_functionality": "The seccure tool suite uses libgcrypt for ECC key derivation, ECIES-style encryption, ECDSA-style signatures, digests, and AES/HMAC operations.",
+      "runtime_evidence": [
+        "seccure-key, seccure-encrypt, seccure-decrypt, seccure-sign, and seccure-verify link to libgcrypt20 in Noble.",
+        "The committed scenario runs those five commands using committed passphrase and message fixtures."
+      ]
+    },
+    {
+      "name": "pdfgrep",
+      "category": "PDF text search",
+      "repository_component": "universe",
+      "source_package": "pdfgrep",
+      "source_version": "2.2.0-0.1",
+      "binary_package": "pdfgrep",
+      "binary_version": "2.2.0-0.1",
+      "dependency_types": [
+        "compile_time",
+        "runtime"
+      ],
+      "dependency_evidence": {
+        "compile_time": "pdfgrep 2.2.0-0.1 Build-Depends includes libgcrypt20-dev",
+        "runtime": "pdfgrep 2.2.0-0.1 Depends includes libgcrypt20 (>= 1.10.0)"
+      },
+      "runtime_functionality": "Searching password-protected PDFs exercises pdfgrep's libgcrypt-linked password and encrypted-document handling path.",
+      "runtime_evidence": [
+        "The Noble pdfgrep binary links directly to libgcrypt20.",
+        "The committed scenario searches a committed password-protected PDF with pdfgrep --password and asserts the selected libgcrypt.so.20 is loaded."
+      ]
+    },
+    {
+      "name": "rng-tools5",
+      "category": "randomness testing and RNG service",
+      "repository_component": "universe",
+      "source_package": "rng-tools5",
+      "source_version": "5-4.1",
+      "binary_package": "rng-tools5",
+      "binary_version": "5-4.1",
+      "dependency_types": [
+        "compile_time",
+        "runtime"
+      ],
+      "dependency_evidence": {
+        "compile_time": "rng-tools5 5-4.1 Build-Depends includes libgcrypt20-dev",
+        "runtime": "rng-tools5 5-4.1 Depends includes libgcrypt20 (>= 1.10.0)"
+      },
+      "runtime_functionality": "The package's rngd binary links to libgcrypt while rngtest validates FIPS statistics over supplied entropy samples.",
+      "runtime_evidence": [
+        "rng-tools5 ships rngd and rngtest; rngd links directly to libgcrypt20 in Noble.",
+        "The committed scenario asserts rngd loads the selected libgcrypt.so.20 and runs rngtest -c against a committed known-good random fixture."
+      ]
+    },
+    {
+      "name": "Off-the-Record toolkit",
+      "category": "secure messaging toolkit",
+      "repository_component": "universe",
+      "source_package": "libotr",
+      "source_version": "4.1.1-5.1build1",
+      "binary_package": "libotr5-bin",
+      "binary_version": "4.1.1-5.1build1",
+      "dependency_types": [
+        "compile_time",
+        "runtime"
+      ],
+      "dependency_evidence": {
+        "compile_time": "libotr 4.1.1-5.1build1 Build-Depends includes libgcrypt20-dev",
+        "runtime": "libotr5-bin 4.1.1-5.1build1 Depends includes libgcrypt20 (>= 1.10.0)"
+      },
+      "runtime_functionality": "The OTR toolkit uses libgcrypt-backed hash, MAC, AES, and Diffie-Hellman helpers for message key derivation and transcript tooling.",
+      "runtime_evidence": [
+        "libotr5-bin toolkit commands link directly to libgcrypt20 in Noble.",
+        "The committed scenario runs otr_mackey and otr_sesskeys against committed derivation vectors."
+      ]
+    },
+    {
+      "name": "tcplay",
+      "category": "TrueCrypt-compatible volume tooling",
+      "repository_component": "universe",
+      "source_package": "tcplay",
+      "source_version": "1.1-6",
+      "binary_package": "tcplay",
+      "binary_version": "1.1-6",
+      "dependency_types": [
+        "compile_time",
+        "runtime"
+      ],
+      "dependency_evidence": {
+        "compile_time": "tcplay 1.1-6 Build-Depends includes libgcrypt20-dev",
+        "runtime": "tcplay 1.1-6 Depends includes libgcrypt20 (>= 1.8.0)"
+      },
+      "runtime_functionality": "tcplay uses libgcrypt for TrueCrypt-compatible PBKDF and cipher metadata handling when reading encrypted volume headers.",
+      "runtime_evidence": [
+        "The Noble tcplay binary links directly to libgcrypt20.",
+        "The committed scenario runs tcplay --info against a committed small volume fixture and validates PBKDF and cipher metadata without mapping the volume."
       ]
     }
   ]

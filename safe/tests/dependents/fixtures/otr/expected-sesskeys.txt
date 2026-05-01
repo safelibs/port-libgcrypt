@@ -1,0 +1,11 @@
+
+We are the high end of this key exchange.
+
+Our public key: 20
+
+Session id: a8305ab74af6c6fd89097d7c5e7e48182b1abb57
+
+Sending   AES key: 8b775f7fa7df21592c240eb131db6350
+Sending   MAC key: f1c94b3025fa6e7386a5c2bf933fb1bc1d57cff8
+Receiving AES key: 27f6c8906223d82ab2cb319fa2447d9b
+Receiving MAC key: ab53e3dad4b964c27bc2cb3e5fdc0159c595783a

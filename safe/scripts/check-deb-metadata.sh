@@ -128,14 +128,29 @@ if toolchain.get("cargo_vv") != cargo_vv:
 source_package = run(
     ["dpkg-parsechangelog", f"-l{safe_dir / 'debian' / 'changelog'}", "-SSource"]
 ).strip()
+source_version = run(
+    ["dpkg-parsechangelog", f"-l{safe_dir / 'debian' / 'changelog'}", "-SVersion"]
+).strip()
 if manifest.get("source_package_name") != source_package:
     fail("manifest source_package_name does not match debian/changelog")
+if manifest.get("source_version") != source_version:
+    fail("manifest source_version does not match debian/changelog")
+
+phase_tags = sorted(
+    tag
+    for tag in run(["git", "-C", str(repo_dir), "tag", "--points-at", "HEAD"]).splitlines()
+    if tag.startswith("phase/")
+)
+expected_phase_tag = phase_tags[0] if phase_tags else None
+if manifest.get("phase_tag") != expected_phase_tag:
+    fail("manifest phase_tag does not match tag pointing at HEAD")
 
 debs = sorted(dist_dir.glob("*.deb"), key=lambda path: path.name)
 expected_packages = [
     {
         "package_name": deb_field(deb, "Package"),
         "source_package_name": source_package,
+        "source_version": source_version,
         "architecture": deb_field(deb, "Architecture"),
         "version": deb_field(deb, "Version"),
         "filename": deb.name,

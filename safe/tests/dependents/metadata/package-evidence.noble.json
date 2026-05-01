@@ -1,0 +1,268 @@
+{
+  "dependents": [
+    {
+      "binary_package": "libapt-pkg6.0t64",
+      "binary_version": "2.8.3",
+      "build_dependency_evidence": "apt 2.8.3 Build-Depends includes libgcrypt20-dev",
+      "lock_entry": {
+        "architecture": "amd64",
+        "origin": "base-image",
+        "source_package": "apt",
+        "source_version": "2.8.3",
+        "version": "2.8.3"
+      },
+      "repository_component": "main",
+      "runtime_dependency_evidence": "libapt-pkg6.0t64 2.8.3 Depends includes libgcrypt20 (>= 1.10.0)",
+      "runtime_fixture_or_probe": "safe/tests/dependents/metadata/matrix-manifest.json",
+      "source_package": "apt",
+      "source_version": "2.8.3"
+    },
+    {
+      "binary_package": "gpg",
+      "binary_version": "2.4.4-2ubuntu17.4",
+      "build_dependency_evidence": "gnupg2 2.4.4-2ubuntu17.4 Build-Depends includes libgcrypt20-dev (>= 1.9.1)",
+      "lock_entry": {
+        "architecture": "amd64",
+        "origin": "ubuntu-snapshot",
+        "source_package": "gnupg2",
+        "source_version": "2.4.4-2ubuntu17.4",
+        "version": "2.4.4-2ubuntu17.4"
+      },
+      "repository_component": "main",
+      "runtime_dependency_evidence": "gpg 2.4.4-2ubuntu17.4 Depends includes libgcrypt20 (>= 1.10.3)",
+      "runtime_fixture_or_probe": "safe/tests/dependents/metadata/matrix-manifest.json",
+      "source_package": "gnupg2",
+      "source_version": "2.4.4-2ubuntu17.4"
+    },
+    {
+      "binary_package": "gnome-keyring",
+      "binary_version": "46.1-2ubuntu0.2",
+      "build_dependency_evidence": "gnome-keyring 46.1-2ubuntu0.2 Build-Depends includes libgcrypt20-dev (>= 1.2.2)",
+      "lock_entry": {
+        "architecture": "amd64",
+        "origin": "ubuntu-snapshot",
+        "source_package": "gnome-keyring",
+        "source_version": "46.1-2ubuntu0.2",
+        "version": "46.1-2ubuntu0.2"
+      },
+      "repository_component": "main",
+      "runtime_dependency_evidence": "gnome-keyring 46.1-2ubuntu0.2 Depends includes libgcrypt20 (>= 1.10.0)",
+      "runtime_fixture_or_probe": "safe/tests/dependents/metadata/matrix-manifest.json",
+      "source_package": "gnome-keyring",
+      "source_version": "46.1-2ubuntu0.2"
+    },
+    {
+      "binary_package": "libssh-gcrypt-4",
+      "binary_version": "0.10.6-2ubuntu0.4",
+      "build_dependency_evidence": "libssh 0.10.6-2ubuntu0.4 Build-Depends includes libgcrypt-dev",
+      "lock_entry": {
+        "architecture": "amd64",
+        "origin": "ubuntu-snapshot",
+        "source_package": "libssh",
+        "source_version": "0.10.6-2ubuntu0.4",
+        "version": "0.10.6-2ubuntu0.4"
+      },
+      "repository_component": "main",
+      "runtime_dependency_evidence": "libssh-gcrypt-4 0.10.6-2ubuntu0.4 Depends includes libgcrypt20 (>= 1.10.0)",
+      "runtime_fixture_or_probe": "safe/tests/dependents/metadata/matrix-manifest.json",
+      "source_package": "libssh",
+      "source_version": "0.10.6-2ubuntu0.4"
+    },
+    {
+      "binary_package": "libxmlsec1t64-gcrypt",
+      "binary_version": "1.2.39-5build2",
+      "build_dependency_evidence": "xmlsec1 1.2.39-5build2 Build-Depends includes libgcrypt20-dev",
+      "lock_entry": {
+        "architecture": "amd64",
+        "origin": "ubuntu-snapshot",
+        "source_package": "xmlsec1",
+        "source_version": "1.2.39-5build2",
+        "version": "1.2.39-5build2"
+      },
+      "repository_component": "main",
+      "runtime_dependency_evidence": "libxmlsec1t64-gcrypt 1.2.39-5build2 Depends includes libgcrypt20 (>= 1.10.0)",
+      "runtime_fixture_or_probe": "safe/tests/dependents/metadata/matrix-manifest.json",
+      "source_package": "xmlsec1",
+      "source_version": "1.2.39-5build2"
+    },
+    {
+      "binary_package": "munge",
+      "binary_version": "0.5.15-4ubuntu0.1",
+      "build_dependency_evidence": "munge 0.5.15-4ubuntu0.1 Build-Depends includes libgcrypt20-dev",
+      "lock_entry": {
+        "architecture": "amd64",
+        "origin": "ubuntu-snapshot",
+        "source_package": "munge",
+        "source_version": "0.5.15-4ubuntu0.1",
+        "version": "0.5.15-4ubuntu0.1"
+      },
+      "repository_component": "universe",
+      "runtime_dependency_evidence": "munge 0.5.15-4ubuntu0.1 Depends includes libgcrypt20 (>= 1.10.0)",
+      "runtime_fixture_or_probe": "safe/tests/dependents/metadata/matrix-manifest.json",
+      "source_package": "munge",
+      "source_version": "0.5.15-4ubuntu0.1"
+    },
+    {
+      "binary_package": "aircrack-ng",
+      "binary_version": "1:1.7+git20230807.4bf83f1a-1build2",
+      "build_dependency_evidence": "aircrack-ng 1:1.7+git20230807.4bf83f1a-1build2 Build-Depends includes libgcrypt-dev | libgcrypt20-dev | libgcrypt11-dev",
+      "lock_entry": {
+        "architecture": "amd64",
+        "origin": "ubuntu-snapshot",
+        "source_package": "aircrack-ng",
+        "source_version": "1:1.7+git20230807.4bf83f1a-1build2",
+        "version": "1:1.7+git20230807.4bf83f1a-1build2"
+      },
+      "repository_component": "universe",
+      "runtime_dependency_evidence": "aircrack-ng 1:1.7+git20230807.4bf83f1a-1build2 Depends includes libgcrypt20 (>= 1.10.0)",
+      "runtime_fixture_or_probe": "safe/tests/dependents/metadata/matrix-manifest.json",
+      "source_package": "aircrack-ng",
+      "source_version": "1:1.7+git20230807.4bf83f1a-1build2"
+    },
+    {
+      "binary_package": "wireshark-common",
+      "binary_version": "4.2.2-1.1build3",
+      "build_dependency_evidence": "wireshark 4.2.2-1.1build3 Build-Depends includes libgcrypt-dev",
+      "lock_entry": {
+        "architecture": "amd64",
+        "origin": "ubuntu-snapshot",
+        "source_package": "wireshark",
+        "source_version": "4.2.2-1.1build3",
+        "version": "4.2.2-1.1build3"
+      },
+      "repository_component": "universe",
+      "runtime_dependency_evidence": "wireshark-common 4.2.2-1.1build3 Depends includes libgcrypt20 (>= 1.10.0)",
+      "runtime_fixture_or_probe": "safe/tests/dependents/metadata/matrix-manifest.json",
+      "source_package": "wireshark",
+      "source_version": "4.2.2-1.1build3"
+    },
+    {
+      "binary_package": "gpgv",
+      "binary_version": "2.4.4-2ubuntu17.4",
+      "build_dependency_evidence": "gnupg2 2.4.4-2ubuntu17.4 Build-Depends includes libgcrypt20-dev (>= 1.9.1)",
+      "lock_entry": {
+        "architecture": "amd64",
+        "origin": "base-image",
+        "source_package": "gnupg2",
+        "source_version": "2.4.4-2ubuntu17.4",
+        "version": "2.4.4-2ubuntu17.4"
+      },
+      "repository_component": "main",
+      "runtime_dependency_evidence": "gpgv 2.4.4-2ubuntu17.4 Depends includes libgcrypt20 (>= 1.10.0)",
+      "runtime_fixture_or_probe": "safe/tests/dependents/metadata/matrix-manifest.json",
+      "source_package": "gnupg2",
+      "source_version": "2.4.4-2ubuntu17.4"
+    },
+    {
+      "binary_package": "gpgsm",
+      "binary_version": "2.4.4-2ubuntu17.4",
+      "build_dependency_evidence": "gnupg2 2.4.4-2ubuntu17.4 Build-Depends includes libgcrypt20-dev (>= 1.9.1)",
+      "lock_entry": {
+        "architecture": "amd64",
+        "origin": "ubuntu-snapshot",
+        "source_package": "gnupg2",
+        "source_version": "2.4.4-2ubuntu17.4",
+        "version": "2.4.4-2ubuntu17.4"
+      },
+      "repository_component": "main",
+      "runtime_dependency_evidence": "gpgsm 2.4.4-2ubuntu17.4 Depends includes libgcrypt20 (>= 1.10.3)",
+      "runtime_fixture_or_probe": "safe/tests/dependents/metadata/matrix-manifest.json",
+      "source_package": "gnupg2",
+      "source_version": "2.4.4-2ubuntu17.4"
+    },
+    {
+      "binary_package": "seccure",
+      "binary_version": "0.5-2",
+      "build_dependency_evidence": "seccure 0.5-2 Build-Depends includes libgcrypt-dev",
+      "lock_entry": {
+        "architecture": "amd64",
+        "origin": "ubuntu-snapshot",
+        "source_package": "seccure",
+        "source_version": "0.5-2",
+        "version": "0.5-2"
+      },
+      "repository_component": "universe",
+      "runtime_dependency_evidence": "seccure 0.5-2 Depends includes libgcrypt20 (>= 1.8.0)",
+      "runtime_fixture_or_probe": "safe/tests/dependents/metadata/matrix-manifest.json",
+      "source_package": "seccure",
+      "source_version": "0.5-2"
+    },
+    {
+      "binary_package": "pdfgrep",
+      "binary_version": "2.2.0-0.1",
+      "build_dependency_evidence": "pdfgrep 2.2.0-0.1 Build-Depends includes libgcrypt20-dev",
+      "lock_entry": {
+        "architecture": "amd64",
+        "origin": "ubuntu-snapshot",
+        "source_package": "pdfgrep",
+        "source_version": "2.2.0-0.1",
+        "version": "2.2.0-0.1"
+      },
+      "repository_component": "universe",
+      "runtime_dependency_evidence": "pdfgrep 2.2.0-0.1 Depends includes libgcrypt20 (>= 1.10.0)",
+      "runtime_fixture_or_probe": "safe/tests/dependents/metadata/matrix-manifest.json",
+      "source_package": "pdfgrep",
+      "source_version": "2.2.0-0.1"
+    },
+    {
+      "binary_package": "rng-tools5",
+      "binary_version": "5-4.1",
+      "build_dependency_evidence": "rng-tools5 5-4.1 Build-Depends includes libgcrypt20-dev",
+      "lock_entry": {
+        "architecture": "amd64",
+        "origin": "ubuntu-snapshot",
+        "source_package": "rng-tools5",
+        "source_version": "5-4.1",
+        "version": "5-4.1"
+      },
+      "repository_component": "universe",
+      "runtime_dependency_evidence": "rng-tools5 5-4.1 Depends includes libgcrypt20 (>= 1.10.0)",
+      "runtime_fixture_or_probe": "safe/tests/dependents/metadata/matrix-manifest.json",
+      "source_package": "rng-tools5",
+      "source_version": "5-4.1"
+    },
+    {
+      "binary_package": "libotr5-bin",
+      "binary_version": "4.1.1-5.1build1",
+      "build_dependency_evidence": "libotr 4.1.1-5.1build1 Build-Depends includes libgcrypt20-dev",
+      "lock_entry": {
+        "architecture": "amd64",
+        "origin": "ubuntu-snapshot",
+        "source_package": "libotr",
+        "source_version": "4.1.1-5.1build1",
+        "version": "4.1.1-5.1build1"
+      },
+      "repository_component": "universe",
+      "runtime_dependency_evidence": "libotr5-bin 4.1.1-5.1build1 Depends includes libgcrypt20 (>= 1.10.0)",
+      "runtime_fixture_or_probe": "safe/tests/dependents/metadata/matrix-manifest.json",
+      "source_package": "libotr",
+      "source_version": "4.1.1-5.1build1"
+    },
+    {
+      "binary_package": "tcplay",
+      "binary_version": "1.1-6",
+      "build_dependency_evidence": "tcplay 1.1-6 Build-Depends includes libgcrypt20-dev",
+      "lock_entry": {
+        "architecture": "amd64",
+        "origin": "ubuntu-snapshot",
+        "source_package": "tcplay",
+        "source_version": "1.1-6",
+        "version": "1.1-6"
+      },
+      "repository_component": "universe",
+      "runtime_dependency_evidence": "tcplay 1.1-6 Depends includes libgcrypt20 (>= 1.8.0)",
+      "runtime_fixture_or_probe": "safe/tests/dependents/metadata/matrix-manifest.json",
+      "source_package": "tcplay",
+      "source_version": "1.1-6"
+    }
+  ],
+  "distribution": {
+    "codename": "noble",
+    "name": "Ubuntu",
+    "release": "24.04"
+  },
+  "evidence_version": 1,
+  "note": "Phase 10 package evidence is derived from the committed dependents matrix and the pinned Noble install lock; later phases consume this file instead of querying Ubuntu metadata.",
+  "snapshot_id": "20260409T000000Z",
+  "snapshot_source_file": "safe/tests/dependents/metadata/ubuntu-snapshot.noble.sources"
+}

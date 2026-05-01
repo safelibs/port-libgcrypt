@@ -1,0 +1,57 @@
+{
+  "architecture": "amd64",
+  "distribution": {
+    "codename": "noble",
+    "name": "Ubuntu",
+    "release": "24.04"
+  },
+  "lock_version": 1,
+  "packages": [
+    {
+      "architecture": "amd64",
+      "file_glob": "safe/dist/libgcrypt20_1.10.3+safe1_*.deb",
+      "implementation": "safe",
+      "manifest_required_fields": [
+        "filename",
+        "sha256",
+        "package_name",
+        "architecture",
+        "version",
+        "source_package_name",
+        "source_version",
+        "phase_commit",
+        "phase_tag",
+        "toolchain.rustc_vv",
+        "toolchain.cargo_vv"
+      ],
+      "origin": "local-safe-deb",
+      "package_name": "libgcrypt20",
+      "source_package": "libgcrypt20",
+      "source_version": "1.10.3+safe1",
+      "version": "1.10.3+safe1"
+    },
+    {
+      "architecture": "amd64",
+      "file_glob": "safe/dist/libgcrypt20-dev_1.10.3+safe1_*.deb",
+      "implementation": "safe",
+      "manifest_required_fields": [
+        "filename",
+        "sha256",
+        "package_name",
+        "architecture",
+        "version",
+        "source_package_name",
+        "source_version",
+        "phase_commit",
+        "phase_tag",
+        "toolchain.rustc_vv",
+        "toolchain.cargo_vv"
+      ],
+      "origin": "local-safe-deb",
+      "package_name": "libgcrypt20-dev",
+      "source_package": "libgcrypt20",
+      "source_version": "1.10.3+safe1",
+      "version": "1.10.3+safe1"
+    }
+  ]
+}
