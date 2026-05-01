@@ -27,33 +27,141 @@ struct CurveListEntry {
 }
 
 const CURVE_LIST: &[CurveListEntry] = &[
-    CurveListEntry { name: "NIST P-192", c_name: b"NIST P-192\0", bits: 192 },
-    CurveListEntry { name: "NIST P-224", c_name: b"NIST P-224\0", bits: 224 },
-    CurveListEntry { name: "NIST P-256", c_name: b"NIST P-256\0", bits: 256 },
-    CurveListEntry { name: "NIST P-384", c_name: b"NIST P-384\0", bits: 384 },
-    CurveListEntry { name: "NIST P-521", c_name: b"NIST P-521\0", bits: 521 },
-    CurveListEntry { name: "brainpoolP160r1", c_name: b"brainpoolP160r1\0", bits: 160 },
-    CurveListEntry { name: "brainpoolP192r1", c_name: b"brainpoolP192r1\0", bits: 192 },
-    CurveListEntry { name: "brainpoolP224r1", c_name: b"brainpoolP224r1\0", bits: 224 },
-    CurveListEntry { name: "brainpoolP256r1", c_name: b"brainpoolP256r1\0", bits: 256 },
-    CurveListEntry { name: "brainpoolP320r1", c_name: b"brainpoolP320r1\0", bits: 320 },
-    CurveListEntry { name: "brainpoolP384r1", c_name: b"brainpoolP384r1\0", bits: 384 },
-    CurveListEntry { name: "brainpoolP512r1", c_name: b"brainpoolP512r1\0", bits: 512 },
-    CurveListEntry { name: "GOST2001-test", c_name: b"GOST2001-test\0", bits: 256 },
-    CurveListEntry { name: "GOST2001-CryptoPro-A", c_name: b"GOST2001-CryptoPro-A\0", bits: 256 },
-    CurveListEntry { name: "GOST2001-CryptoPro-B", c_name: b"GOST2001-CryptoPro-B\0", bits: 256 },
-    CurveListEntry { name: "GOST2001-CryptoPro-C", c_name: b"GOST2001-CryptoPro-C\0", bits: 256 },
-    CurveListEntry { name: "GOST2012-256-A", c_name: b"GOST2012-256-A\0", bits: 256 },
-    CurveListEntry { name: "GOST2012-512-test", c_name: b"GOST2012-512-test\0", bits: 512 },
-    CurveListEntry { name: "GOST2012-512-tc26-A", c_name: b"GOST2012-512-tc26-A\0", bits: 512 },
-    CurveListEntry { name: "GOST2012-512-tc26-B", c_name: b"GOST2012-512-tc26-B\0", bits: 512 },
-    CurveListEntry { name: "GOST2012-512-tc26-C", c_name: b"GOST2012-512-tc26-C\0", bits: 512 },
-    CurveListEntry { name: "secp256k1", c_name: b"secp256k1\0", bits: 256 },
-    CurveListEntry { name: "sm2p256v1", c_name: b"sm2p256v1\0", bits: 256 },
-    CurveListEntry { name: "Curve25519", c_name: b"Curve25519\0", bits: 255 },
-    CurveListEntry { name: "Ed25519", c_name: b"Ed25519\0", bits: 255 },
-    CurveListEntry { name: "X448", c_name: b"X448\0", bits: 448 },
-    CurveListEntry { name: "Ed448", c_name: b"Ed448\0", bits: 448 },
+    CurveListEntry {
+        name: "NIST P-192",
+        c_name: b"NIST P-192\0",
+        bits: 192,
+    },
+    CurveListEntry {
+        name: "NIST P-224",
+        c_name: b"NIST P-224\0",
+        bits: 224,
+    },
+    CurveListEntry {
+        name: "NIST P-256",
+        c_name: b"NIST P-256\0",
+        bits: 256,
+    },
+    CurveListEntry {
+        name: "NIST P-384",
+        c_name: b"NIST P-384\0",
+        bits: 384,
+    },
+    CurveListEntry {
+        name: "NIST P-521",
+        c_name: b"NIST P-521\0",
+        bits: 521,
+    },
+    CurveListEntry {
+        name: "brainpoolP160r1",
+        c_name: b"brainpoolP160r1\0",
+        bits: 160,
+    },
+    CurveListEntry {
+        name: "brainpoolP192r1",
+        c_name: b"brainpoolP192r1\0",
+        bits: 192,
+    },
+    CurveListEntry {
+        name: "brainpoolP224r1",
+        c_name: b"brainpoolP224r1\0",
+        bits: 224,
+    },
+    CurveListEntry {
+        name: "brainpoolP256r1",
+        c_name: b"brainpoolP256r1\0",
+        bits: 256,
+    },
+    CurveListEntry {
+        name: "brainpoolP320r1",
+        c_name: b"brainpoolP320r1\0",
+        bits: 320,
+    },
+    CurveListEntry {
+        name: "brainpoolP384r1",
+        c_name: b"brainpoolP384r1\0",
+        bits: 384,
+    },
+    CurveListEntry {
+        name: "brainpoolP512r1",
+        c_name: b"brainpoolP512r1\0",
+        bits: 512,
+    },
+    CurveListEntry {
+        name: "GOST2001-test",
+        c_name: b"GOST2001-test\0",
+        bits: 256,
+    },
+    CurveListEntry {
+        name: "GOST2001-CryptoPro-A",
+        c_name: b"GOST2001-CryptoPro-A\0",
+        bits: 256,
+    },
+    CurveListEntry {
+        name: "GOST2001-CryptoPro-B",
+        c_name: b"GOST2001-CryptoPro-B\0",
+        bits: 256,
+    },
+    CurveListEntry {
+        name: "GOST2001-CryptoPro-C",
+        c_name: b"GOST2001-CryptoPro-C\0",
+        bits: 256,
+    },
+    CurveListEntry {
+        name: "GOST2012-256-A",
+        c_name: b"GOST2012-256-A\0",
+        bits: 256,
+    },
+    CurveListEntry {
+        name: "GOST2012-512-test",
+        c_name: b"GOST2012-512-test\0",
+        bits: 512,
+    },
+    CurveListEntry {
+        name: "GOST2012-512-tc26-A",
+        c_name: b"GOST2012-512-tc26-A\0",
+        bits: 512,
+    },
+    CurveListEntry {
+        name: "GOST2012-512-tc26-B",
+        c_name: b"GOST2012-512-tc26-B\0",
+        bits: 512,
+    },
+    CurveListEntry {
+        name: "GOST2012-512-tc26-C",
+        c_name: b"GOST2012-512-tc26-C\0",
+        bits: 512,
+    },
+    CurveListEntry {
+        name: "secp256k1",
+        c_name: b"secp256k1\0",
+        bits: 256,
+    },
+    CurveListEntry {
+        name: "sm2p256v1",
+        c_name: b"sm2p256v1\0",
+        bits: 256,
+    },
+    CurveListEntry {
+        name: "Curve25519",
+        c_name: b"Curve25519\0",
+        bits: 255,
+    },
+    CurveListEntry {
+        name: "Ed25519",
+        c_name: b"Ed25519\0",
+        bits: 255,
+    },
+    CurveListEntry {
+        name: "X448",
+        c_name: b"X448\0",
+        bits: 448,
+    },
+    CurveListEntry {
+        name: "Ed448",
+        c_name: b"Ed448\0",
+        bits: 448,
+    },
 ];
 
 fn canonical_curve_name(name: &str) -> Option<&'static str> {
@@ -80,10 +188,14 @@ fn canonical_curve_name(name: &str) -> Option<&'static str> {
         "gost2001-cryptopro-a" | "1.2.643.2.2.35.1" | "1.2.643.7.1.2.1.1.2" => {
             "GOST2001-CryptoPro-A"
         }
-        "gost2001-cryptopro-b" | "1.2.643.2.2.35.2" | "gost2012-256-tc26-b" | "1.2.643.7.1.2.1.1.3" => {
-            "GOST2001-CryptoPro-B"
-        }
-        "gost2001-cryptopro-c" | "1.2.643.2.2.35.3" | "gost2012-256-tc26-c" | "1.2.643.7.1.2.1.1.4"
+        "gost2001-cryptopro-b"
+        | "1.2.643.2.2.35.2"
+        | "gost2012-256-tc26-b"
+        | "1.2.643.7.1.2.1.1.3" => "GOST2001-CryptoPro-B",
+        "gost2001-cryptopro-c"
+        | "1.2.643.2.2.35.3"
+        | "gost2012-256-tc26-c"
+        | "1.2.643.7.1.2.1.1.4"
         | "gost2012-256-tc26-d" => "GOST2001-CryptoPro-C",
         "gost2001-cryptopro-xcha" | "1.2.643.2.2.36.0" => "GOST2001-CryptoPro-A",
         "gost2001-cryptopro-xchb" | "1.2.643.2.2.36.1" => "GOST2001-CryptoPro-C",
@@ -118,7 +230,10 @@ pub extern "C" fn gcry_pk_get_curve(
         .and_then(|name| canonical_curve_name(&name).map(str::to_string))
         .or_else(|| {
             let p = encoding::token_mpz(key, "p")?;
-            if p.cmp(&Mpz::from_hex("FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF")) == 0 {
+            if p.cmp(&Mpz::from_hex(
+                "FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF",
+            )) == 0
+            {
                 Some("NIST P-256".to_string())
             } else if p.cmp(&Mpz::from_hex("E95E4A5F737059DC60DFC7AD95B3D8139515620F")) == 0 {
                 Some("brainpoolP160r1".to_string())
@@ -381,11 +496,8 @@ pub(crate) fn testkey(key: *mut sexp::gcry_sexp) -> u32 {
     } else {
         d.clone()
     };
-    let expected = mpi::ec::scalar_mul_secret(
-        &parsed.curve,
-        &scalar,
-        &mpi::ec::base_point(&parsed.curve),
-    );
+    let expected =
+        mpi::ec::scalar_mul_secret(&parsed.curve, &scalar, &mpi::ec::base_point(&parsed.curve));
     if point_matches(q, &expected) {
         0
     } else {
@@ -524,8 +636,8 @@ fn ed25519_verify(
     if s.cmp(order) >= 0 {
         return encoding::err(error::GPG_ERR_BAD_SIGNATURE);
     }
-    let public = ed25519_public_bytes(pkey, &key.curve)
-        .unwrap_or_else(|| mpi::ec::encode_eddsa(q, 32));
+    let public =
+        ed25519_public_bytes(pkey, &key.curve).unwrap_or_else(|| mpi::ec::encode_eddsa(q, 32));
     let message = ed25519_message(data);
     let mut k_input = Vec::with_capacity(64 + public.len() + message.len());
     k_input.extend_from_slice(&r_bytes);
@@ -597,7 +709,11 @@ fn ed448_dom(data: *mut sexp::gcry_sexp) -> Option<Vec<u8>> {
     }
     let mut dom = Vec::with_capacity(10 + ctx.len());
     dom.extend_from_slice(b"SigEd448");
-    dom.push(if encoding::has_flag(data, "prehash") { 1 } else { 0 });
+    dom.push(if encoding::has_flag(data, "prehash") {
+        1
+    } else {
+        0
+    });
     dom.push(ctx.len() as u8);
     dom.extend_from_slice(&ctx);
     Some(dom)
@@ -703,8 +819,8 @@ fn ed448_verify(
     let Some(message) = ed448_message(data) else {
         return encoding::err(error::GPG_ERR_DIGEST_ALGO);
     };
-    let public = ed448_public_bytes(pkey, &key.curve)
-        .unwrap_or_else(|| mpi::ec::encode_eddsa(q, 57));
+    let public =
+        ed448_public_bytes(pkey, &key.curve).unwrap_or_else(|| mpi::ec::encode_eddsa(q, 57));
     let mut k_input = Vec::with_capacity(dom.len() + 114 + message.len());
     k_input.extend_from_slice(&dom);
     k_input.extend_from_slice(&r_bytes);

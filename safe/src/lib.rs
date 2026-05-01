@@ -66,8 +66,3 @@ pub use config::*;
 pub use error::*;
 pub use global::*;
 pub use log::*;
-
-#[unsafe(no_mangle)]
-pub extern "C" fn safe_gcry_stub_zero() -> usize {
-    0
-}

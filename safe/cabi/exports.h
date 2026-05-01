@@ -63,7 +63,6 @@ gpg_error_t safe_gcry_sexp_extract_param_dispatch(gcry_sexp_t sexp,
                                                   size_t argc);
 void safe_gcry_log_debug_dispatch(const char *message);
 void safe_gcry_log_debughex(const char *text, const void *buffer, size_t length);
-uintptr_t safe_gcry_stub_zero(void);
 void safe_cabi_set_log_handler(gcry_handler_log_t handler, void *opaque);
 void safe_cabi_dispatch_log_message(int level, const char *message);
 

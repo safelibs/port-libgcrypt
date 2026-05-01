@@ -1653,6 +1653,33 @@ pub extern "C" fn gcry_sexp_dump(a: *const gcry_sexp) {
     log::emit_message(log::GCRY_LOG_INFO, &String::from_utf8_lossy(&rendered));
 }
 
+#[unsafe(export_name = "gcry_log_debugsxp")]
+pub extern "C" fn gcry_log_debugsxp(text: *const c_char, sexp: *mut gcry_sexp) {
+    // SAFETY: public ABI callers pass either NULL or an owned gcry_sexp pointer from this crate.
+    let rendered = if let Some(value) = unsafe { gcry_sexp::as_ref(sexp) } {
+        let mut out = Vec::new();
+        sprint_advanced_top(&value.root, value.top_level_fragment, &mut out);
+        String::from_utf8_lossy(&out).into_owned()
+    } else {
+        "[null]".to_string()
+    };
+
+    let message = if text.is_null() {
+        rendered
+    } else {
+        // SAFETY: libgcrypt's debug ABI supplies a NUL-terminated label pointer when non-NULL.
+        let label = unsafe { CStr::from_ptr(text) }.to_string_lossy();
+        if label.is_empty() {
+            format!("{rendered}\n")
+        } else if label.contains('\n') {
+            format!("{label}{rendered}")
+        } else {
+            format!("{label}: {rendered}")
+        }
+    };
+    log::emit_message(log::GCRY_LOG_DEBUG, &message);
+}
+
 #[unsafe(export_name = "gcry_sexp_cons")]
 pub extern "C" fn gcry_sexp_cons(a: *const gcry_sexp, b: *const gcry_sexp) -> *mut gcry_sexp {
     let Some(left) = (unsafe { gcry_sexp::as_ref(a) }) else {

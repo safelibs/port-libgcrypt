@@ -292,7 +292,14 @@ impl Mpz {
     pub(crate) fn div_rem(&self, divisor: &Self) -> (Self, Self) {
         let mut q = Self::new(self.bits());
         let mut r = Self::new(divisor.bits());
-        unsafe { __gmpz_tdiv_qr(q.as_mut_ptr(), r.as_mut_ptr(), self.as_ptr(), divisor.as_ptr()) };
+        unsafe {
+            __gmpz_tdiv_qr(
+                q.as_mut_ptr(),
+                r.as_mut_ptr(),
+                self.as_ptr(),
+                divisor.as_ptr(),
+            )
+        };
         (q, r)
     }
 

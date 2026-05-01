@@ -88,6 +88,7 @@ Later final-sweep phases re-run the Phase 7 imported harness checks together wit
 | Installed helper CLI surface | Phase 10 | package-image smoke | `safe/scripts/check-installed-tools.sh --dist safe/dist` runs `dumpsexp`, `hmac256`, `mpicalc`, `libgcrypt-config`, and `pkg-config` from the extracted package image rather than cargo-built binaries |
 | Downstream dependent matrix | Phase 10 | packaged runtime compatibility | `safe/scripts/build-dependent-image.sh --implementation original|safe --tag ...` plus `safe/scripts/run-dependent-image-tests.sh --compile-probes|--all` validates the 15-row committed matrix using the pinned Noble base image, fixed snapshot source file, package locks, local safe package manifest, compile probes, and executable fixtures under `safe/tests/dependents/` |
 | Phase 11 regression manifest | Phase 11 | dependent-regression guard | `safe/scripts/run-regression-tests.sh --all` reads `safe/tests/regressions/manifest.json` and runs every listed regression artifact before the upstream and dependent matrix checks |
+| Final public-export ownership sweep | Phase 12 | ABI and source-scan guard | `safe/scripts/check-abi.sh --all`, `safe/scripts/check-no-upstream-bridge.sh`, and the phase 12 safety scan prove all `GCRYPT_1.6` symbols are locally owned and that no generated fallback, bridge loader, or unimplemented public API marker remains in the final scan set |
 
 ## Downstream Dependent Matrix
 

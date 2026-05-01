@@ -4,6 +4,7 @@ use std::ptr::null_mut;
 use crate::context;
 use crate::digest::algorithms;
 use crate::error;
+use crate::log;
 use crate::pubkey::encoding;
 use crate::sexp;
 
@@ -124,12 +125,24 @@ fn curve_defs() -> Vec<Curve> {
             name: "NIST P-384",
             aliases: &["secp384r1", "nistp384", "1.3.132.0.34"],
             kind: CurveKind::Weierstrass,
-            p: hex("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFF0000000000000000FFFFFFFF"),
-            a: hex("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFF0000000000000000FFFFFFFC"),
-            b: hex("B3312FA7E23EE7E4988E056BE3F82D19181D9C6EFE8141120314088F5013875AC656398D8A2ED19D2A85C8EDD3EC2AEF"),
-            n: hex("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFC7634D81F4372DDF581A0DB248B0A77AECEC196ACCC52973"),
-            gx: hex("AA87CA22BE8B05378EB1C71EF320AD746E1D3B628BA79B9859F741E082542A385502F25DBF55296C3A545E3872760AB7"),
-            gy: hex("3617DE4A96262C6F5D9E98BF9292DC29F8F41DBD289A147CE9DA3113B5F0B8C00A60B1CE1D7E819D7A431D7C90EA0E5F"),
+            p: hex(
+                "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFF0000000000000000FFFFFFFF",
+            ),
+            a: hex(
+                "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFF0000000000000000FFFFFFFC",
+            ),
+            b: hex(
+                "B3312FA7E23EE7E4988E056BE3F82D19181D9C6EFE8141120314088F5013875AC656398D8A2ED19D2A85C8EDD3EC2AEF",
+            ),
+            n: hex(
+                "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFC7634D81F4372DDF581A0DB248B0A77AECEC196ACCC52973",
+            ),
+            gx: hex(
+                "AA87CA22BE8B05378EB1C71EF320AD746E1D3B628BA79B9859F741E082542A385502F25DBF55296C3A545E3872760AB7",
+            ),
+            gy: hex(
+                "3617DE4A96262C6F5D9E98BF9292DC29F8F41DBD289A147CE9DA3113B5F0B8C00A60B1CE1D7E819D7A431D7C90EA0E5F",
+            ),
             h: Mpz::from_ui(1),
             field_bytes: 48,
         },
@@ -137,12 +150,24 @@ fn curve_defs() -> Vec<Curve> {
             name: "NIST P-521",
             aliases: &["secp521r1", "nistp521", "1.3.132.0.35"],
             kind: CurveKind::Weierstrass,
-            p: hex("01FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"),
-            a: hex("01FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFC"),
-            b: hex("0051953EB9618E1C9A1F929A21A0B68540EEA2DA725B99B315F3B8B489918EF109E156193951EC7E937B1652C0BD3BB1BF073573DF883D2C34F1EF451FD46B503F00"),
-            n: hex("01FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFA51868783BF2F966B7FCC0148F709A5D03BB5C9B8899C47AEBB6FB71E91386409"),
-            gx: hex("00C6858E06B70404E9CD9E3ECB662395B4429C648139053FB521F828AF606B4D3DBAA14B5E77EFE75928FE1DC127A2FFA8DE3348B3C1856A429BF97E7E31C2E5BD66"),
-            gy: hex("011839296A789A3BC0045C8A5FB42C7D1BD998F54449579B446817AFBD17273E662C97EE72995EF42640C550B9013FAD0761353C7086A272C24088BE94769FD16650"),
+            p: hex(
+                "01FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+            ),
+            a: hex(
+                "01FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFC",
+            ),
+            b: hex(
+                "0051953EB9618E1C9A1F929A21A0B68540EEA2DA725B99B315F3B8B489918EF109E156193951EC7E937B1652C0BD3BB1BF073573DF883D2C34F1EF451FD46B503F00",
+            ),
+            n: hex(
+                "01FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFA51868783BF2F966B7FCC0148F709A5D03BB5C9B8899C47AEBB6FB71E91386409",
+            ),
+            gx: hex(
+                "00C6858E06B70404E9CD9E3ECB662395B4429C648139053FB521F828AF606B4D3DBAA14B5E77EFE75928FE1DC127A2FFA8DE3348B3C1856A429BF97E7E31C2E5BD66",
+            ),
+            gy: hex(
+                "011839296A789A3BC0045C8A5FB42C7D1BD998F54449579B446817AFBD17273E662C97EE72995EF42640C550B9013FAD0761353C7086A272C24088BE94769FD16650",
+            ),
             h: Mpz::from_ui(1),
             field_bytes: 66,
         },
@@ -312,7 +337,10 @@ fn curve_defs() -> Vec<Curve> {
         Curve {
             name: "Curve25519",
             aliases: &["X25519", "1.3.6.1.4.1.3029.1.5.1", "1.3.101.110"],
-            kind: CurveKind::Montgomery { bits: 255, a24: 121665 },
+            kind: CurveKind::Montgomery {
+                bits: 255,
+                a24: 121665,
+            },
             p: hex("7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFED"),
             a: Mpz::from_ui(486662),
             b: Mpz::from_ui(1),
@@ -325,11 +353,18 @@ fn curve_defs() -> Vec<Curve> {
         Curve {
             name: "X448",
             aliases: &["1.3.101.111"],
-            kind: CurveKind::Montgomery { bits: 448, a24: 39081 },
-            p: hex("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"),
+            kind: CurveKind::Montgomery {
+                bits: 448,
+                a24: 39081,
+            },
+            p: hex(
+                "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+            ),
             a: Mpz::from_ui(156326),
             b: Mpz::from_ui(1),
-            n: hex("3FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF7CCA23E9C44EDB49AED63690216CC2728DC58F552378C292AB5844F3"),
+            n: hex(
+                "3FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF7CCA23E9C44EDB49AED63690216CC2728DC58F552378C292AB5844F3",
+            ),
             gx: Mpz::from_ui(5),
             gy: Mpz::from_ui(0),
             h: Mpz::from_ui(4),
@@ -576,6 +611,50 @@ fn point_from_raw_mut(point: *mut c_void) -> Option<&'static mut EcPoint> {
     unsafe { point.cast::<EcPoint>().as_mut() }
 }
 
+fn mpz_debug_hex(value: Option<&Mpz>) -> String {
+    let Some(value) = value else {
+        return "none".to_string();
+    };
+    let bytes = super::export_unsigned(value.as_ptr());
+    if bytes.is_empty() {
+        return "00".to_string();
+    }
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        out.push(b"0123456789ABCDEF"[(byte >> 4) as usize] as char);
+        out.push(b"0123456789ABCDEF"[(byte & 0x0f) as usize] as char);
+    }
+    out
+}
+
+#[unsafe(export_name = "gcry_log_debugpnt")]
+pub extern "C" fn gcry_log_debugpnt(text: *const c_char, point: *mut c_void, _ctx: *mut c_void) {
+    let label = if text.is_null() {
+        "point".to_string()
+    } else {
+        // SAFETY: libgcrypt's debug ABI supplies a NUL-terminated label pointer when non-NULL.
+        unsafe { CStr::from_ptr(text) }
+            .to_string_lossy()
+            .into_owned()
+    };
+    let body = if let Some(point) = point_from_raw(point) {
+        if point.is_infinity() {
+            "infinity".to_string()
+        } else if point.y.is_some() {
+            format!(
+                "({},{})",
+                mpz_debug_hex(point.x.as_ref()),
+                mpz_debug_hex(point.y.as_ref())
+            )
+        } else {
+            format!("({})", mpz_debug_hex(point.x.as_ref()))
+        }
+    } else {
+        "[null]".to_string()
+    };
+    log::emit_message(log::GCRY_LOG_DEBUG, &format!("{label}: {body}"));
+}
+
 fn fixed_len_be(value: &Mpz, len: usize) -> Vec<u8> {
     let mut bytes = value.to_be();
     if bytes.len() > len {
@@ -690,7 +769,11 @@ fn point_add(curve: &Curve, left: &EcPoint, right: &EcPoint) -> EcPoint {
 
 pub(crate) fn scalar_mul(curve: &Curve, scalar: &Mpz, point: &EcPoint) -> EcPoint {
     if matches!(curve.kind, CurveKind::Montgomery { .. }) {
-        let x = point.x.as_ref().cloned().unwrap_or_else(|| curve.gx.clone());
+        let x = point
+            .x
+            .as_ref()
+            .cloned()
+            .unwrap_or_else(|| curve.gx.clone());
         return EcPoint::montgomery(montgomery_mul(curve, scalar, &x));
     }
     let mut acc = if curve.kind == CurveKind::Edwards {
@@ -709,7 +792,11 @@ pub(crate) fn scalar_mul(curve: &Curve, scalar: &Mpz, point: &EcPoint) -> EcPoin
 
 pub(crate) fn scalar_mul_secret(curve: &Curve, scalar: &Mpz, point: &EcPoint) -> EcPoint {
     if matches!(curve.kind, CurveKind::Montgomery { .. }) {
-        let x = point.x.as_ref().cloned().unwrap_or_else(|| curve.gx.clone());
+        let x = point
+            .x
+            .as_ref()
+            .cloned()
+            .unwrap_or_else(|| curve.gx.clone());
         return EcPoint::montgomery(montgomery_mul(curve, scalar, &x));
     }
     let mut acc = if curve.kind == CurveKind::Edwards {
@@ -912,19 +999,37 @@ fn curve_point(curve: &Curve, point: &EcPoint) -> bool {
         return false;
     }
     if curve.kind == CurveKind::Edwards {
-        let lhs = curve.a.mod_mul(&x.mod_square(p), p).mod_add(&y.mod_square(p), p);
-        let rhs = Mpz::from_ui(1).mod_add(&curve.b.mod_mul(&x.mod_square(p), p).mod_mul(&y.mod_square(p), p), p);
+        let lhs = curve
+            .a
+            .mod_mul(&x.mod_square(p), p)
+            .mod_add(&y.mod_square(p), p);
+        let rhs = Mpz::from_ui(1).mod_add(
+            &curve
+                .b
+                .mod_mul(&x.mod_square(p), p)
+                .mod_mul(&y.mod_square(p), p),
+            p,
+        );
         lhs.cmp(&rhs) == 0
     } else {
         let lhs = y.mod_square(p);
-        let rhs = x.mod_square(p).mod_mul(x, p).mod_add(&curve.a.mod_mul(x, p), p).mod_add(&curve.b, p);
+        let rhs = x
+            .mod_square(p)
+            .mod_mul(x, p)
+            .mod_add(&curve.a.mod_mul(x, p), p)
+            .mod_add(&curve.b, p);
         lhs.cmp(&rhs) == 0
     }
 }
 
-fn context_from_key(keyparam: *mut sexp::gcry_sexp, curvename: *const c_char) -> Result<EcContext, u32> {
+fn context_from_key(
+    keyparam: *mut sexp::gcry_sexp,
+    curvename: *const c_char,
+) -> Result<EcContext, u32> {
     let name = if !curvename.is_null() {
-        unsafe { CStr::from_ptr(curvename) }.to_string_lossy().into_owned()
+        unsafe { CStr::from_ptr(curvename) }
+            .to_string_lossy()
+            .into_owned()
     } else if let Some(p) = encoding::token_mpz(keyparam, "p") {
         let Some(a) = encoding::token_mpz(keyparam, "a") else {
             return Err(error::GPG_ERR_EINVAL);
@@ -954,11 +1059,17 @@ fn context_from_key(keyparam: *mut sexp::gcry_sexp, curvename: *const c_char) ->
         encoding::token_string(keyparam, "curve").ok_or(error::GPG_ERR_EINVAL)?
     };
     let curve = curve_by_name(&name).ok_or(error::GPG_ERR_INV_NAME)?;
-    let q = encoding::token_bytes_from_mpi(keyparam, "q").and_then(|bytes| decode_point(&curve, &bytes));
+    let q = encoding::token_bytes_from_mpi(keyparam, "q")
+        .and_then(|bytes| decode_point(&curve, &bytes));
     let d = encoding::token_mpz(keyparam, "d");
     let q = q.or_else(|| {
-        d.as_ref()
-            .map(|d| scalar_mul_secret(&curve, &private_scalar_for_curve(&curve, d), &base_point(&curve)))
+        d.as_ref().map(|d| {
+            scalar_mul_secret(
+                &curve,
+                &private_scalar_for_curve(&curve, d),
+                &base_point(&curve),
+            )
+        })
     });
     Ok(EcContext { curve, q, d })
 }
@@ -1033,11 +1144,7 @@ pub extern "C" fn gcry_mpi_point_set(
         let x = mpi_to_mpz(x).unwrap_or_else(|| Mpz::from_ui(0));
         let y = mpi_to_mpz(y);
         let z = mpi_to_mpz(z);
-        EcPoint {
-            x: Some(x),
-            y,
-            z,
-        }
+        EcPoint { x: Some(x), y, z }
     };
     target
 }
@@ -1098,8 +1205,14 @@ pub extern "C" fn gcry_mpi_ec_get_mpi(
         "g.x" => Some(ctx.curve.gx.clone()),
         "g.y" => Some(ctx.curve.gy.clone()),
         "d" => ctx.d.clone(),
-        "q" => ctx.q.as_ref().map(|q| Mpz::from_be(&encode_point(&ctx.curve, q))),
-        "q@eddsa" => ctx.q.as_ref().map(|q| Mpz::from_be(&encode_eddsa(q, ctx.curve.field_bytes))),
+        "q" => ctx
+            .q
+            .as_ref()
+            .map(|q| Mpz::from_be(&encode_point(&ctx.curve, q))),
+        "q@eddsa" => ctx
+            .q
+            .as_ref()
+            .map(|q| Mpz::from_be(&encode_eddsa(q, ctx.curve.field_bytes))),
         _ => None,
     };
     value
@@ -1156,10 +1269,13 @@ pub extern "C" fn gcry_mpi_ec_set_mpi(
             return 0;
         }
         ctx.d = mpi_to_mpz(newvalue);
-        ctx.q = ctx
-            .d
-            .as_ref()
-            .map(|d| scalar_mul_secret(&ctx.curve, &private_scalar_for_curve(&ctx.curve, d), &base_point(&ctx.curve)));
+        ctx.q = ctx.d.as_ref().map(|d| {
+            scalar_mul_secret(
+                &ctx.curve,
+                &private_scalar_for_curve(&ctx.curve, d),
+                &base_point(&ctx.curve),
+            )
+        });
         return 0;
     }
     if name.eq_ignore_ascii_case("q") {
@@ -1175,7 +1291,11 @@ pub extern "C" fn gcry_mpi_ec_set_mpi(
             })
             .unwrap_or_default();
         ctx.q = decode_point(&ctx.curve, &bytes);
-        return if ctx.q.is_some() { 0 } else { encoding::err(error::GPG_ERR_INV_OBJ) };
+        return if ctx.q.is_some() {
+            0
+        } else {
+            encoding::err(error::GPG_ERR_INV_OBJ)
+        };
     }
     encoding::err(error::GPG_ERR_INV_NAME)
 }
