@@ -1,0 +1,138 @@
+name: ci-release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: ci-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-build-release:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Print tool versions
+        run: |
+          set -euo pipefail
+          bash --version
+          git --version
+          python3 --version
+          dpkg --version
+          dpkg-deb --version
+
+      - name: Cache rustup toolchains
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: |
+            ~/.rustup/toolchains
+            ~/.rustup/update-hashes
+            ~/.rustup/settings.toml
+          key: rustup-${{ runner.os }}-${{ hashFiles('safe/rust-toolchain.toml', 'scripts/install-build-deps.sh') }}
+          restore-keys: |
+            rustup-${{ runner.os }}-
+
+      - name: Install build dependencies
+        run: bash scripts/install-build-deps.sh
+
+      - name: Check repository layout
+        run: bash scripts/check-layout.sh
+
+      - name: Smoke-test scripts/lib
+        if: hashFiles('tests/test_build_port_lock.py') != ''
+        run: python3 -m unittest tests.test_build_port_lock
+
+      - name: Build .deb artifacts
+        env:
+          SAFELIBS_COMMIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          rm -rf build dist
+          bash scripts/build-debs.sh
+
+      - name: Run upstream tests
+        env:
+          SAFELIBS_COMMIT_SHA: ${{ github.sha }}
+        run: bash scripts/run-upstream-tests.sh
+
+      - name: Run port tests
+        env:
+          SAFELIBS_COMMIT_SHA: ${{ github.sha }}
+        run: bash scripts/run-port-tests.sh
+
+      - name: Run validation tests
+        timeout-minutes: 30
+        env:
+          SAFELIBS_COMMIT_SHA: ${{ github.sha }}
+        run: bash scripts/run-validation-tests.sh
+
+      - name: Collect built artifacts
+        id: artifact
+        run: |
+          set -euo pipefail
+          mapfile -t debs < <(find dist -type f -name '*.deb' -print | sort)
+          if (( ${#debs[@]} == 0 )); then
+            printf 'No .deb files were produced under dist/.\n' >&2
+            exit 1
+          fi
+          mapfile -t all_files < <(find dist -type f -print | sort)
+          {
+            printf 'count=%d\n' "${#all_files[@]}"
+            printf 'paths<<EOF\n'
+            printf '%s\n' "${all_files[@]}"
+            printf 'EOF\n'
+          } >> "$GITHUB_OUTPUT"
+          printf 'Built %d artifact(s) (%d .deb):\n' "${#all_files[@]}" "${#debs[@]}"
+          printf '  %s\n' "${all_files[@]}"
+
+      - name: Upload Debian artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: debs-${{ github.run_id }}
+          path: dist/*
+          if-no-files-found: error
+
+      - name: Publish build release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_PATHS: ${{ steps.artifact.outputs.paths }}
+        run: |
+          set -euo pipefail
+
+          short_sha="${GITHUB_SHA:0:12}"
+          tag="build-${short_sha}"
+
+          mapfile -t artifact_files <<< "$ARTIFACT_PATHS"
+
+          notes_file="$(mktemp)"
+          {
+            printf 'Commit SHA: %s\n\n' "$GITHUB_SHA"
+            printf 'Attached binary (.deb) and source (.dsc, .tar.*, .changes, .buildinfo) artifacts were produced by `scripts/build-debs.sh`.\n'
+          } > "$notes_file"
+
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" "${artifact_files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$tag" "${artifact_files[@]}" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "Safe library build for ${short_sha}" \
+              --notes-file "$notes_file"
+          fi
+
+          rm -f "$notes_file"
