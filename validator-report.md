@@ -312,3 +312,30 @@ Port override installation evidence: complete for the focused phase 3 reruns.
 - Any future source or usage compatibility failures with complete override
   installation evidence remain outside the `packaging-install` bucket and are
   assigned to phase 4 or later buckets.
+
+## Phase 4: Source API Compatibility Gate
+
+- Implement phase: `impl_p04_fix_source_api_failures`
+- Phase tag: `phase/impl_p04_fix_source_api_failures`
+- Safe port identity: implement phase and phase tag above. Package inputs are
+  rebuilt from the phase tag before final focused source validator execution;
+  the report uses that tag identity instead of embedding the final report commit
+  hash.
+- Focused source artifact root: `validator-artifacts/p04-port-source/`
+
+`source-api`: clean. Phase 2 recorded 0 failures in this bucket, so no safe
+source code, C ABI, header, or regression test changes were required in phase 4.
+
+Focused source validator result: passed. The run covers all five source-facing
+libgcrypt validator cases: `aes-ctr-roundtrip`, `digest-sha256-smoke`,
+`hmac-sha256-smoke`, `mpi-arithmetic`, and `nonce-generation`.
+
+Port override installation evidence: complete for the focused phase 4 source
+rerun.
+
+- `python3 safe/scripts/check-validator-port-evidence.py --port-lock validator-local/proof/local-port-debs-lock.json --override-root validator-local/override-debs --artifact-root validator-artifacts/p04-port-source`
+  passed.
+- The clean source bucket is recorded by
+  `impl_p04_fix_source_api_failures` and
+  `phase/impl_p04_fix_source_api_failures`; there were no fixed source
+  validator failures requiring per-case safe-side regressions.
