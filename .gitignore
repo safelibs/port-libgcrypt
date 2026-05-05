@@ -6,9 +6,6 @@
 /build/
 /dist/
 /release-artifacts/
-/validator/
-/validator-artifacts/
-/validator-local/
 *.deb
 *.ddeb
 *.dsc
@@ -23,3 +20,8 @@
 *~
 __pycache__/
 *.pyc
+
+# port-specific
+/validator/
+/validator-artifacts/
+/validator-local/
