@@ -1050,18 +1050,21 @@ def self_test_timeout() -> int:
         fake_docker, state = make_fake_docker(tempdir)
         status_parent = tempdir / "status"
         artifact_root = tempdir / "artifacts"
-        script_path = tempdir / "synthetic-timeout.sh"
-        script_path.write_text("#!/usr/bin/env bash\n# @testcase: synthetic-timeout\n", encoding="utf-8")
-        case = Case(
-            id="synthetic-timeout",
-            title="synthetic timeout",
-            description="synthetic timeout",
-            timeout=1,
-            tags=("self-test",),
-            kind="source",
-            script_path=script_path,
-            container_path="/validator/tests/libgcrypt/tests/cases/source/synthetic-timeout.sh",
+        script_path = tempdir / "tests" / LIBRARY / "tests" / "cases" / "source" / "synthetic-timeout.sh"
+        script_path.parent.mkdir(parents=True, exist_ok=True)
+        script_path.write_text(
+            """#!/usr/bin/env bash
+# @testcase: synthetic-timeout
+# @title: synthetic timeout
+# @description: synthetic timeout
+# @timeout: 1
+# @tags: self-test
+sleep 5
+""",
+            encoding="utf-8",
         )
+        script_path.chmod(0o755)
+        case = parse_header(script_path, kind="source", validator_dir=tempdir)
         env = os.environ.copy()
         env["FAKE_DOCKER_STATE"] = str(state)
         result = execute_case(
