@@ -274,3 +274,41 @@ rejecting `libgcrypt`, which forced the direct Docker fallback.
   `validator-artifacts/p02-original/results/libgcrypt/summary.json` and
   `validator-artifacts/p02-port/port/results/libgcrypt/summary.json`, together
   with the fixed count lines above.
+
+## Phase 3: Packaging And Installation Gate
+
+- Implement phase: `impl_p03_fix_packaging_install`
+- Phase tag: `phase/impl_p03_fix_packaging_install`
+- Safe port identity: implement phase and phase tag above. Package inputs are
+  rebuilt from the phase tag before final focused validator execution; the
+  report uses that tag identity instead of embedding the final report commit
+  hash.
+- Package/development probe artifact root:
+  `validator-artifacts/p03-package-dev-probe/`
+- Focused source artifact root: `validator-artifacts/p03-port-source/`
+- Focused usage-smoke artifact root:
+  `validator-artifacts/p03-port-usage-smoke/`
+
+`packaging-install`: clean. Phase 2 recorded 0 failures in this bucket, so no
+safe package payload or regression test changes were required in phase 3.
+
+Package/development probe: passed. The probe installs the locked local
+`libgcrypt20` and `libgcrypt20-dev` `.deb` files from
+`validator-local/override-debs/libgcrypt/` into a clean `ubuntu:24.04`
+container, verifies package name, version, architecture, filename, size, and
+SHA256 against `validator-local/proof/local-port-debs-lock.json`, and compiles
+and runs the reduced `gcry_check_version(NULL)` package-surface probe through
+direct linker inputs, `pkg-config --cflags --libs libgcrypt`, and
+`libgcrypt-config --cflags --libs`.
+
+Port override installation evidence: complete for the focused phase 3 reruns.
+
+- `python3 safe/scripts/check-validator-port-evidence.py --port-lock validator-local/proof/local-port-debs-lock.json --override-root validator-local/override-debs --artifact-root validator-artifacts/p03-port-source --artifact-root validator-artifacts/p03-port-usage-smoke`
+  passed.
+- The focused source run covers the source-facing libgcrypt validator cases
+  under `validator-artifacts/p03-port-source/`.
+- The focused usage smoke run covers `usage-gpg-print-md` under
+  `validator-artifacts/p03-port-usage-smoke/`.
+- Any future source or usage compatibility failures with complete override
+  installation evidence remain outside the `packaging-install` bucket and are
+  assigned to phase 4 or later buckets.
