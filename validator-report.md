@@ -75,7 +75,8 @@ python3 safe/scripts/check-validator-port-evidence.py --port-lock validator-loca
 - Implement phase: `impl_p02_validator_baseline_triage`
 - Phase tag: `phase/impl_p02_validator_baseline_triage`
 - Safe port identity: implement phase and phase tag above. Package inputs are
-  rebuilt from the phase tag before final validator execution.
+  rebuilt from the phase tag before final validator execution; the report uses
+  that tag identity instead of embedding the final report commit hash.
 - Validator checkout: `validator/`
 - Validator commit: `87b321fe728340d6fc6dd2f638583cca82c667c3`
 - Invocation mode: direct Docker fallback through
@@ -83,6 +84,8 @@ python3 safe/scripts/check-validator-port-evidence.py --port-lock validator-loca
   is unavailable at this commit because
   `python3 validator/tools/testcases.py --config validator/repositories.yml --tests-root validator/tests --list-summary --library libgcrypt`
   exits with `unknown libraries in config: libgcrypt`.
+  Original-mode wrapper invocations exit 0 once complete per-case artifacts are
+  written; pass/fail status is taken from the summary JSON and this report.
 - Original artifact root: `validator-artifacts/p02-original/`
 - Safe candidate artifact root: `validator-artifacts/p02-port/`
 

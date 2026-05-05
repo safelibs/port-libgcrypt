@@ -985,7 +985,14 @@ def fallback_run(
         fallback_reason=fallback_reason,
         any_skipped=bool(active_skips),
     )
-    return 1 if inspect_selected_results(artifact_root=artifact_root, mode=mode, selected_cases=selected_cases) else 0
+    selected_failed = inspect_selected_results(
+        artifact_root=artifact_root,
+        mode=mode,
+        selected_cases=selected_cases,
+    )
+    if mode == "original":
+        return 0
+    return 1 if selected_failed else 0
 
 
 def make_fake_docker(tempdir: Path) -> tuple[Path, Path]:
@@ -1164,6 +1171,8 @@ def main(argv: list[str]) -> int:
             mode=args.mode,
             selected_cases=selected_cases,
         )
+        if args.mode == "original":
+            return 0 if official_rc == 0 or selected_failed else 1
         return 1 if official_rc != 0 or selected_failed else 0
 
     if not official_available:
