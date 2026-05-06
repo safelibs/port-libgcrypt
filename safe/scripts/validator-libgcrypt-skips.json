@@ -1,5 +1,34 @@
 {
   "schema_version": 1,
-  "skips": [],
+  "skips": [
+    {
+      "validator_commit": "87b321fe728340d6fc6dd2f638583cca82c667c3",
+      "mode": "port",
+      "testcase_id": "usage-gpg-symmetric-cipher-camellia128",
+      "reason": "Validator testcase fails against original libgcrypt at this commit: it invokes gpg --list-packets on symmetric ciphertext without the loopback passphrase path and exits before the cipher assertion.",
+      "report_section": "Phase 5 usage-symmetric-digest-random"
+    },
+    {
+      "validator_commit": "87b321fe728340d6fc6dd2f638583cca82c667c3",
+      "mode": "port",
+      "testcase_id": "usage-gpg-symmetric-compress-z9-decrypt",
+      "reason": "Validator testcase fails against original libgcrypt at this commit: yes | head -c runs under set -o pipefail and exits 141 from yes receiving SIGPIPE before any crypto operation.",
+      "report_section": "Phase 5 usage-symmetric-digest-random"
+    },
+    {
+      "validator_commit": "87b321fe728340d6fc6dd2f638583cca82c667c3",
+      "mode": "port",
+      "testcase_id": "usage-gpg-symmetric-list-packets-s2k-sha256",
+      "reason": "Validator testcase fails against original libgcrypt at this commit: it invokes gpg --list-packets on symmetric ciphertext without the loopback passphrase path and exits before the S2K digest assertion.",
+      "report_section": "Phase 5 usage-symmetric-digest-random"
+    },
+    {
+      "validator_commit": "87b321fe728340d6fc6dd2f638583cca82c667c3",
+      "mode": "port",
+      "testcase_id": "usage-gpg-symmetric-s2k-mode1-salted",
+      "reason": "Validator testcase fails against original libgcrypt at this commit: it invokes gpg --list-packets on symmetric ciphertext without the loopback passphrase path and exits before the mode-1 S2K assertion.",
+      "report_section": "Phase 5 usage-symmetric-digest-random"
+    }
+  ],
   "validator_commit": "87b321fe728340d6fc6dd2f638583cca82c667c3"
 }

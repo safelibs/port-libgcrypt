@@ -417,18 +417,46 @@ pub(crate) fn encrypt(
     if curve.name == "Curve25519" {
         scalar.reverse();
     }
-    let q = mpi::ec::scalar_mul_secret(
-        &curve,
-        &Mpz::from_le(&scalar),
-        &mpi::ec::EcPoint::montgomery(peer),
+    let scalar_value = Mpz::from_le(&scalar);
+    let q = mpi::ec::scalar_mul_secret(&curve, &scalar_value, &mpi::ec::EcPoint::montgomery(peer));
+    let e = mpi::ec::scalar_mul_secret(&curve, &scalar_value, &mpi::ec::base_point(&curve));
+    let secret = mpi::ec::encode_point(&curve, &q);
+    let ephemeral = mpi::ec::encode_point(&curve, &e);
+    let text = format!(
+        "(enc-val (ecdh (s {})(e {})))",
+        encoding::hex_atom(&secret),
+        encoding::hex_atom(&ephemeral)
     );
-    let mut secret = q.x.as_ref().unwrap().to_le_padded(curve.field_bytes);
-    if curve.name == "Curve25519" {
-        let mut with_prefix = vec![0x40];
-        with_prefix.extend_from_slice(&secret);
-        secret = with_prefix;
+    match encoding::build_sexp(&text) {
+        Ok(sexp) => unsafe {
+            *result = sexp;
+            0
+        },
+        Err(err) => err,
     }
-    let text = format!("(enc-val (ecdh (s {})))", encoding::hex_atom(&secret));
+}
+
+pub(crate) fn decrypt(
+    result: *mut *mut sexp::gcry_sexp,
+    data: *mut sexp::gcry_sexp,
+    skey: *mut sexp::gcry_sexp,
+) -> u32 {
+    let parsed = match parse_key(skey) {
+        Ok(key) => key,
+        Err(err) => return encoding::err(err),
+    };
+    let Some(d) = parsed.d.as_ref() else {
+        return encoding::err(error::GPG_ERR_NO_SECKEY);
+    };
+    let Some(e_bytes) = encoding::token_bytes_from_mpi(data, "e") else {
+        return encoding::err(error::GPG_ERR_NO_OBJ);
+    };
+    let Some(e) = mpi::ec::decode_point(&parsed.curve, &e_bytes) else {
+        return encoding::err(error::GPG_ERR_INV_DATA);
+    };
+    let q = mpi::ec::scalar_mul_secret(&parsed.curve, d, &e);
+    let secret = mpi::ec::encode_point(&parsed.curve, &q);
+    let text = format!("(value {})", encoding::hex_atom(&secret));
     match encoding::build_sexp(&text) {
         Ok(sexp) => unsafe {
             *result = sexp;
@@ -979,11 +1007,91 @@ fn random_scalar(curve: &mpi::ec::Curve) -> Mpz {
     }
 }
 
+fn random_bytes(len: usize) -> Vec<u8> {
+    let mut bytes = vec![0u8; len];
+    os_rng::fill_random(&mut bytes);
+    bytes
+}
+
+fn prefixed_eddsa_public_bytes(point: &mpi::ec::EcPoint, bytes: usize) -> Vec<u8> {
+    let mut out = Vec::with_capacity(bytes + 1);
+    out.push(0x40);
+    out.extend_from_slice(&mpi::ec::encode_eddsa(point, bytes));
+    out
+}
+
 pub(crate) fn genkey(result: *mut *mut sexp::gcry_sexp, spec: *mut sexp::gcry_sexp) -> u32 {
     let curve_name = encoding::token_string(spec, "curve").unwrap_or_else(|| "NIST P-256".into());
     let Some(curve) = mpi::ec::curve_by_name(&curve_name) else {
         return encoding::err(error::GPG_ERR_INV_NAME);
     };
+    if curve.name == "Ed25519" && encoding::has_flag(spec, "eddsa") {
+        let seed = random_bytes(32);
+        let Some((scalar, _)) = ed25519_expanded(&seed) else {
+            return encoding::err(error::GPG_ERR_DIGEST_ALGO);
+        };
+        let q = mpi::ec::scalar_mul_secret(&curve, &scalar, &mpi::ec::base_point(&curve));
+        let q_bytes = prefixed_eddsa_public_bytes(&q, 32);
+        let text = format!(
+            "(key-data (public-key (ecc (curve {})(flags eddsa)(q {}))) (private-key (ecc (curve {})(flags eddsa)(q {})(d {}))))",
+            encoding::string_atom(curve.name),
+            encoding::hex_atom(&q_bytes),
+            encoding::string_atom(curve.name),
+            encoding::hex_atom(&q_bytes),
+            encoding::hex_atom(&seed)
+        );
+        return match encoding::build_sexp(&text) {
+            Ok(sexp) => unsafe {
+                *result = sexp;
+                0
+            },
+            Err(err) => err,
+        };
+    }
+    if curve.name == "Ed448" && encoding::has_flag(spec, "eddsa") {
+        let seed = random_bytes(57);
+        let Some((scalar, _)) = ed448_expanded(&seed) else {
+            return encoding::err(error::GPG_ERR_DIGEST_ALGO);
+        };
+        let q = mpi::ec::scalar_mul_secret(&curve, &scalar, &mpi::ec::base_point(&curve));
+        let q_bytes = prefixed_eddsa_public_bytes(&q, 57);
+        let text = format!(
+            "(key-data (public-key (ecc (curve {})(flags eddsa)(q {}))) (private-key (ecc (curve {})(flags eddsa)(q {})(d {}))))",
+            encoding::string_atom(curve.name),
+            encoding::hex_atom(&q_bytes),
+            encoding::string_atom(curve.name),
+            encoding::hex_atom(&q_bytes),
+            encoding::hex_atom(&seed)
+        );
+        return match encoding::build_sexp(&text) {
+            Ok(sexp) => unsafe {
+                *result = sexp;
+                0
+            },
+            Err(err) => err,
+        };
+    }
+    if curve.name == "Curve25519" && encoding::has_flag(spec, "djb-tweak") {
+        let secret = random_bytes(32);
+        let d = Mpz::from_be(&secret);
+        let q = mpi::ec::scalar_mul_secret(&curve, &d, &mpi::ec::base_point(&curve));
+        let q_bytes = mpi::ec::encode_point(&curve, &q);
+        let text = format!(
+            "(key-data (public-key (ecc (curve {})(flags djb-tweak)(q {}))) (private-key (ecc (curve {})(flags djb-tweak)(q {})(d {}))))",
+            encoding::string_atom(curve.name),
+            encoding::hex_atom(&q_bytes),
+            encoding::string_atom(curve.name),
+            encoding::hex_atom(&q_bytes),
+            encoding::hex_atom(&secret)
+        );
+        return match encoding::build_sexp(&text) {
+            Ok(sexp) => unsafe {
+                *result = sexp;
+                0
+            },
+            Err(err) => err,
+        };
+    }
     let d = random_scalar(&curve);
     let q = mpi::ec::scalar_mul_secret(&curve, &d, &mpi::ec::base_point(&curve));
     let q_bytes = if encoding::has_flag(spec, "eddsa") || curve.name == "Ed448" {

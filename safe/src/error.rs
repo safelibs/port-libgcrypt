@@ -34,6 +34,7 @@ pub(crate) const GPG_ERR_NOT_IMPLEMENTED: u32 = 69;
 pub(crate) const GPG_ERR_CONFLICT: u32 = 70;
 pub(crate) const GPG_ERR_INV_CIPHER_MODE: u32 = 71;
 pub(crate) const GPG_ERR_INV_FLAG: u32 = 72;
+pub(crate) const GPG_ERR_INV_DATA: u32 = 79;
 pub(crate) const GPG_ERR_INV_NAME: u32 = 88;
 pub(crate) const GPG_ERR_BAD_DATA: u32 = 89;
 pub(crate) const GPG_ERR_MISSING_VALUE: u32 = 128;

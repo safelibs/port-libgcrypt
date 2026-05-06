@@ -13,6 +13,24 @@
       "kind": "shell",
       "path": "safe/tests/regressions/dependent-image-apt-snapshot-retry.sh",
       "description": "Dependent-image Docker apt setup must use bounded retries against the pinned Noble snapshot, treat partial snapshot indexes as errors, prove the pinned ca-certificates and requested dependent package versions are visible, and avoid live-mirror, Launchpad, local .deb, or generated-package fallbacks that mask the committed package closure."
+    },
+    {
+      "id": "gpg-ed25519-eddsa-genkey-sign",
+      "kind": "shell",
+      "path": "safe/tests/regressions/gpg-ed25519-eddsa-genkey-sign.sh",
+      "description": "Ed25519 key generation for GPG must preserve the EdDSA flag, emit a prefixed public point and seed-style private value, and support the SHA512 EdDSA signing path used by GPG agent self-signatures and digest preference cases."
+    },
+    {
+      "id": "gpg-curve25519-ecdh-encrypt-ephemeral",
+      "kind": "shell",
+      "path": "safe/tests/regressions/gpg-curve25519-ecdh-encrypt-ephemeral.sh",
+      "description": "Curve25519 ECDH generation for GPG must preserve the djb-tweak flag, encryption must return both shared secret s and ephemeral public key e atoms with libgcrypt's prefixed Montgomery point encoding, and ECC decryption must recover the shared secret from e."
+    },
+    {
+      "id": "gpg-phase5-usage-bucket",
+      "kind": "shell",
+      "path": "safe/tests/regressions/gpg-phase5-usage-bucket.sh",
+      "description": "Runs the fixed phase-5 GPG usage scenarios against the built safe libgcrypt: SHA384 detached signatures, SHA512 personal digest preferences, SHA1 weak-digest rejection, and AES256 personal cipher preferences."
     }
   ]
 }

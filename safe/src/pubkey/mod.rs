@@ -327,6 +327,11 @@ pub extern "C" fn gcry_pk_decrypt(
             return err;
         }
         elgamal::decrypt(result, data, skey)
+    } else if key_has(skey, "ecc") || key_has(skey, "ecdh") {
+        if let Some(err) = disabled_error(GCRY_PK_ECC) {
+            return err;
+        }
+        ecc::decrypt(result, data, skey)
     } else {
         encoding::err(error::GPG_ERR_NOT_SUPPORTED)
     }

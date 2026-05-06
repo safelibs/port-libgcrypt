@@ -339,3 +339,103 @@ rerun.
   `impl_p04_fix_source_api_failures` and
   `phase/impl_p04_fix_source_api_failures`; there were no fixed source
   validator failures requiring per-case safe-side regressions.
+
+## Phase 5: GPG Symmetric, Digest, And Random Usage Gate
+
+- Implement phase: `impl_p05_fix_gpg_symmetric_digest_random`
+- Phase tag: `phase/impl_p05_fix_gpg_symmetric_digest_random`
+- Safe port identity: implement phase and phase tag above. Package inputs are
+  rebuilt from the phase tag before final focused validator execution; this
+  report uses that tag identity instead of embedding the final report commit
+  hash.
+- Validator checkout: `validator/`
+- Validator commit: `87b321fe728340d6fc6dd2f638583cca82c667c3`
+- Focused artifact roots:
+  `validator-artifacts/p05-port-print-md/`,
+  `validator-artifacts/p05-port-print-md-base/`,
+  `validator-artifacts/p05-port-print-mds/`,
+  `validator-artifacts/p05-port-random/`,
+  `validator-artifacts/p05-port-symmetric/`,
+  `validator-artifacts/p05-port-list-config/`,
+  `validator-artifacts/p05-port-list-packets-base/`,
+  `validator-artifacts/p05-port-list-packets/`,
+  `validator-artifacts/p05-port-personal-prefs/`,
+  `validator-artifacts/p05-port-hash-algo-sha384-detached/`, and
+  `validator-artifacts/p05-port-weak-digest-sha1/`.
+
+`usage-symmetric-digest-random`: clean for safe-port regressions after this
+phase, with the scope note below.
+
+Scope note: the phase 2 bucket included GPG digest and preference cases whose
+observable failures occurred before the digest, random, KDF, or symmetric
+cipher modules were reached. GPG could not generate or use the temporary
+Ed25519/Curve25519 keys with the safe port because the generated key
+S-expressions missed libgcrypt's GPG-specific EdDSA and ECDH shape. The safe
+code changes for those bucket entries therefore touch `safe/src/pubkey/ecc.rs`
+and `safe/src/pubkey/mod.rs`; the GPG-level regression below maps those changes
+back to the exact phase 5 validator IDs so later pubkey phases do not need to
+rediscover these same setup blockers.
+
+Safe-side fixes:
+
+- `usage-gpg-hash-algo-sha384-detached` and
+  `usage-gpg-personal-digest-prefs-sha512`: fixed by
+  `safe/src/pubkey/ecc.rs`, which now emits GPG-compatible Ed25519 EdDSA
+  generated keys with `(flags eddsa)`, a `0x40`-prefixed public point, and a
+  seed-style 32-byte private value. Regression:
+  `gpg-ed25519-eddsa-genkey-sign`; validator-ID regression mapping:
+  `gpg-phase5-usage-bucket`.
+- `usage-gpg-personal-cipher-prefs-aes256`: fixed by
+  `safe/src/pubkey/ecc.rs`, `safe/src/pubkey/mod.rs`, and `safe/src/error.rs`.
+  Curve25519 generation now preserves `(flags djb-tweak)`, ECDH encryption
+  returns both `(s ...)` and `(e ...)` atoms, and `gcry_pk_decrypt` routes ECDH
+  private-key operations through the ECC implementation. Regression:
+  `gpg-curve25519-ecdh-encrypt-ephemeral`; validator-ID regression mapping:
+  `gpg-phase5-usage-bucket`.
+- `usage-gpg-weak-digest-sha1-rejects-verify`: rerun clean in port mode with
+  override evidence after the Ed25519 key-generation/signing fix. The direct
+  safe-side regression mapping is `gpg-phase5-usage-bucket`, which verifies the
+  strong SHA256 baseline and the expected `--weak-digest SHA1` rejection for a
+  SHA1 detached signature against the built safe library.
+
+Fixed validator ID to regression map:
+
+- `usage-gpg-hash-algo-sha384-detached`:
+  `gpg-phase5-usage-bucket` (`hash_algo_sha384_detached`) and the reduced C
+  probe `gpg-ed25519-eddsa-genkey-sign`.
+- `usage-gpg-personal-digest-prefs-sha512`:
+  `gpg-phase5-usage-bucket` (`personal_digest_prefs_sha512`) and the reduced C
+  probe `gpg-ed25519-eddsa-genkey-sign`.
+- `usage-gpg-personal-cipher-prefs-aes256`:
+  `gpg-phase5-usage-bucket` (`personal_cipher_prefs_aes256`) and the reduced C
+  probe `gpg-curve25519-ecdh-encrypt-ephemeral`.
+- `usage-gpg-weak-digest-sha1-rejects-verify`:
+  `gpg-phase5-usage-bucket` (`weak_digest_sha1_rejects_verify`).
+
+Validator-side skips:
+
+- `usage-gpg-symmetric-cipher-camellia128`,
+  `usage-gpg-symmetric-list-packets-s2k-sha256`, and
+  `usage-gpg-symmetric-s2k-mode1-salted` are exact port-mode skips for
+  validator commit `87b321fe728340d6fc6dd2f638583cca82c667c3`. Phase 2 original
+  evidence shows they fail against stock libgcrypt; the testcase invokes
+  `gpg --list-packets` on symmetric ciphertext without the loopback passphrase
+  path and exits before the intended assertion.
+- `usage-gpg-symmetric-compress-z9-decrypt` is an exact port-mode skip for the
+  same validator commit. Phase 2 original evidence shows it fails before crypto
+  validation because `yes | head -c 16384` runs under `set -o pipefail` and
+  exits 141 from `yes` receiving SIGPIPE.
+- The skip entries live in `safe/scripts/validator-libgcrypt-skips.json`; all
+  unaffected `usage-gpg-symmetric-*` cases still execute in the focused
+  symmetric run.
+
+Focused validator result:
+
+- Digest/print-md, random, list-config, list-packets, personal preference,
+  `usage-gpg-hash-algo-sha384-detached`, and
+  `usage-gpg-weak-digest-sha1-rejects-verify` focused port-mode runs passed.
+- `usage-gpg-symmetric-*` focused port-mode run passed with 27 executed cases
+  and the 4 validator-defect skips listed above.
+- Port override installation evidence is complete for all focused phase 5
+  artifact roots via
+  `python3 safe/scripts/check-validator-port-evidence.py --port-lock validator-local/proof/local-port-debs-lock.json --override-root validator-local/override-debs ...`.
