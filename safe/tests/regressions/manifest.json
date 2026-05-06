@@ -1,6 +1,6 @@
 {
   "manifest_version": 1,
-  "phase_id": "impl_p06_fix_gpg_pubkey_keyring",
+  "phase_id": "impl_p07_fix_remaining_validator_failures",
   "regressions": [
     {
       "id": "dependent-image-current-phase-tag",
@@ -61,6 +61,12 @@
       "kind": "shell",
       "path": "safe/tests/regressions/gpg-rsa-keyring-md-asnoid.sh",
       "description": "GPG RSA encryption key generation, recipient encryption, hidden recipient packets, always-trust encryption, and Ed25519 secret-key import must all work against the safe libgcrypt when SHA512 ASNOID metadata is needed."
+    },
+    {
+      "id": "gcry-x448-ecdh-raw-result",
+      "kind": "shell",
+      "path": "safe/tests/regressions/gcry-x448-ecdh-raw-result.sh",
+      "description": "X448 high-level ECDH encryption must return the raw 56-byte RFC 7748 shared secret, matching gcry_ecc_mul_point and libgcrypt's unprefixed X448 result encoding."
     }
   ]
 }

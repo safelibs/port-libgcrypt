@@ -394,6 +394,14 @@ pub extern "C" fn gcry_ecc_mul_point(
     0
 }
 
+fn ecdh_result_bytes(curve: &mpi::ec::Curve, point: &mpi::ec::EcPoint) -> Vec<u8> {
+    if curve.name == "X448" {
+        point.x.as_ref().unwrap().to_le_padded(curve.field_bytes)
+    } else {
+        mpi::ec::encode_point(curve, point)
+    }
+}
+
 pub(crate) fn encrypt(
     result: *mut *mut sexp::gcry_sexp,
     data: *mut sexp::gcry_sexp,
@@ -420,8 +428,8 @@ pub(crate) fn encrypt(
     let scalar_value = Mpz::from_le(&scalar);
     let q = mpi::ec::scalar_mul_secret(&curve, &scalar_value, &mpi::ec::EcPoint::montgomery(peer));
     let e = mpi::ec::scalar_mul_secret(&curve, &scalar_value, &mpi::ec::base_point(&curve));
-    let secret = mpi::ec::encode_point(&curve, &q);
-    let ephemeral = mpi::ec::encode_point(&curve, &e);
+    let secret = ecdh_result_bytes(&curve, &q);
+    let ephemeral = ecdh_result_bytes(&curve, &e);
     let text = format!(
         "(enc-val (ecdh (s {})(e {})))",
         encoding::hex_atom(&secret),
@@ -455,7 +463,7 @@ pub(crate) fn decrypt(
         return encoding::err(error::GPG_ERR_INV_DATA);
     };
     let q = mpi::ec::scalar_mul_secret(&parsed.curve, d, &e);
-    let secret = mpi::ec::encode_point(&parsed.curve, &q);
+    let secret = ecdh_result_bytes(&parsed.curve, &q);
     let text = format!("(value {})", encoding::hex_atom(&secret));
     match encoding::build_sexp(&text) {
         Ok(sexp) => unsafe {

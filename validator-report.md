@@ -541,3 +541,60 @@ Focused validator result:
 - Port override installation evidence is complete for all focused phase 6
   artifact roots via
   `python3 safe/scripts/check-validator-port-evidence.py --port-lock validator-local/proof/local-port-debs-lock.json --override-root validator-local/override-debs ...`.
+
+## Phase 7: Catch-All Remaining Validator Failures
+
+- Implement phase: `impl_p07_fix_remaining_validator_failures`
+- Phase tag: `phase/impl_p07_fix_remaining_validator_failures`
+- Safe port identity: implement phase and phase tag above. Package inputs are
+  rebuilt from the phase tag before final full validator execution; this report
+  uses that tag identity instead of embedding the final report commit hash.
+- Validator checkout: `validator/`
+- Validator commit: `87b321fe728340d6fc6dd2f638583cca82c667c3`
+- Full port artifact root: `validator-artifacts/p07-port-full/`
+
+Remaining safe-side validator failures: none.
+
+Safety review fix:
+
+- The required upstream harness exposed an X448 high-level ECDH compatibility
+  issue: `gcry_pk_encrypt` returned `0x40`-prefixed Montgomery points for
+  X448, while libgcrypt's X448 path returns raw 56-byte RFC 7748 values. This
+  was fixed in `safe/src/pubkey/ecc.rs` by preserving the existing prefixed
+  Curve25519 ECDH behavior but returning unprefixed X448 ECDH result bytes.
+  Regression: `gcry-x448-ecdh-raw-result`.
+
+Full safe validator result:
+
+- Results: 171 passed, 0 failed, 4 skipped, 175 total.
+- Source-facing cases: all 5 passed.
+- Usage cases: 166 passed, 0 failed, 4 skipped.
+- No additional validator safe-side compatibility, package metadata,
+  development metadata, ABI, or C ABI failures remained after phases 3 through
+  6. The X448 fix above came from the required upstream safety review, not from
+  a failing non-skipped validator testcase.
+
+Validator-side skips:
+
+- The only skipped testcase results are the four phase-5 exact port-mode skips
+  for validator commit `87b321fe728340d6fc6dd2f638583cca82c667c3`:
+  `usage-gpg-symmetric-cipher-camellia128`,
+  `usage-gpg-symmetric-compress-z9-decrypt`,
+  `usage-gpg-symmetric-list-packets-s2k-sha256`, and
+  `usage-gpg-symmetric-s2k-mode1-salted`.
+- These skips remain documented in
+  `safe/scripts/validator-libgcrypt-skips.json` and fail closed on any other
+  validator commit. No phase-7 validator defect skips were added.
+- The official validator matrix/proof path remains unavailable at this
+  validator commit because the checkout contains libgcrypt testcase assets but
+  the inventory rejects `--library libgcrypt`. The port-owned wrapper therefore
+  used the same direct Docker fallback as earlier phases.
+
+Port override installation evidence: complete.
+
+- `python3 safe/scripts/check-validator-port-evidence.py --port-lock validator-local/proof/local-port-debs-lock.json --override-root validator-local/override-debs --artifact-root validator-artifacts/p07-port-full`
+  passed.
+- Every non-skipped port result records `override_debs_installed: true` and
+  proves installation of the locked local `libgcrypt20` and `libgcrypt20-dev`
+  override packages.
+- The final report contains no unresolved safe-side validator failures.
