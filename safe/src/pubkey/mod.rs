@@ -540,10 +540,7 @@ pub extern "C" fn gcry_pk_map_name(name: *const c_char) -> c_int {
         "rsa" | "openpgp-rsa" => 1,
         "dsa" => 17,
         "elg" | "elgamal" => 20,
-        "ecc" | "gost" | "sm2" => 18,
-        "ecdsa" => 301,
-        "ecdh" => 302,
-        "eddsa" => 303,
+        "ecc" | "gost" | "sm2" | "ecdsa" | "ecdh" | "eddsa" => 18,
         _ => 0,
     };
     if algo == 0 || algo_disabled(algo) {

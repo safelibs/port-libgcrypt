@@ -439,3 +439,105 @@ Focused validator result:
 - Port override installation evidence is complete for all focused phase 5
   artifact roots via
   `python3 safe/scripts/check-validator-port-evidence.py --port-lock validator-local/proof/local-port-debs-lock.json --override-root validator-local/override-debs ...`.
+
+## Phase 6: GPG Public-Key And Keyring Usage Gate
+
+- Implement phase: `impl_p06_fix_gpg_pubkey_keyring`
+- Phase tag: `phase/impl_p06_fix_gpg_pubkey_keyring`
+- Safe port identity: implement phase and phase tag above. Package inputs are
+  rebuilt from the phase tag before final focused validator execution; this
+  report uses that tag identity instead of embedding the final report commit
+  hash.
+- Validator checkout: `validator/`
+- Validator commit: `87b321fe728340d6fc6dd2f638583cca82c667c3`
+- Focused artifact roots:
+  `validator-artifacts/p06-port-sign/`,
+  `validator-artifacts/p06-port-verify/`,
+  `validator-artifacts/p06-port-encrypt/`,
+  `validator-artifacts/p06-port-decrypt/`,
+  `validator-artifacts/p06-port-keys/`,
+  `validator-artifacts/p06-port-import/`,
+  `validator-artifacts/p06-port-export/`,
+  `validator-artifacts/p06-port-recipient/`,
+  `validator-artifacts/p06-port-hidden-recipient/`,
+  `validator-artifacts/p06-port-trust/`,
+  `validator-artifacts/p06-port-fingerprint/`,
+  `validator-artifacts/p06-port-revoke/`,
+  `validator-artifacts/p06-port-revuid/`,
+  `validator-artifacts/p06-port-list-secret/`,
+  `validator-artifacts/p06-port-list-keys/`,
+  `validator-artifacts/p06-port-quick-uid/`,
+  `validator-artifacts/p06-port-quick-expire/`,
+  `validator-artifacts/p06-port-hash-algo/`,
+  `validator-artifacts/p06-port-passwd/`,
+  `validator-artifacts/p06-port-use-agent/`, and
+  `validator-artifacts/p06-port-batch-list/`.
+
+`usage-pubkey-keyring`: clean for the focused phase 6 public-key and keyring
+coverage after this phase.
+
+Initial focused phase 6 probe against the phase 5 packages still had safe-port
+failures in RSA recipient encryption, hidden-recipient encryption, always-trust
+recipient encryption, and Ed25519 secret-key import. Sign, verify, export,
+fingerprint, revocation, revuid, list-secret, list-keys, quick UID/expiry,
+hash-algo, password, use-agent, and batch-list families were already clean in
+that focused probe.
+
+Safe-side fixes:
+
+- `safe/src/digest/algorithms.rs` now returns libgcrypt-compatible DER
+  DigestInfo prefixes from `gcry_md_get_asnoid` for MD5, SHA1, SHA224,
+  SHA256, SHA384, SHA512, SHA512/256, and SHA512/224. This fixes the SHA512
+  ASNOID lookup used by GPG RSA key self-signatures before recipient
+  encryption and trust decisions. Regression: `gcry-md-asnoid-sha-family`.
+- `safe/src/pubkey/rsa.rs` now emits generated RSA public and private key
+  MPIs with the positive-MPI leading zero when the high bit is set. This keeps
+  gpg-agent's private-key keygrip consistent with GPG public keys rebuilt
+  through `%m` formatting. Regression: `gcry-rsa-keygrip-leading-zero`.
+- `safe/src/pubkey/mod.rs` now maps the public-key aliases `ecdsa`, `ecdh`,
+  and `eddsa` to `GCRY_PK_ECC`, matching libgcrypt. GnuPG's OpenPGP-native
+  secret-key importer depends on that alias behavior before handing Ed25519
+  secret material to `gcry_pk_testkey`. Regression:
+  `gcry-pk-map-name-ecc-aliases`.
+- `safe/src/pubkey/ecc.rs` now accepts Ed25519 and Ed448 seed-form private
+  keys when the derived public point matches, then falls back to scalar-form
+  validation for generic ECC test keys. Regression:
+  `gcry-eddsa-testkey-import-seed`.
+- `gpg-rsa-keyring-md-asnoid` covers the combined GPG surfaces fixed in this
+  phase: RSA key generation for recipient encryption, hidden-recipient packet
+  metadata, always-trust encryption to an otherwise untrusted recipient, and
+  Ed25519 secret-key export/import.
+
+Fixed validator ID to regression map:
+
+- `usage-gpg-recipient-binary-encrypt`,
+  `usage-gpg-recipient-encrypt-armor`,
+  `usage-gpg-recipient-encrypt-cipher-aes128`,
+  `usage-gpg-recipient-encrypt-compress-bzip2`,
+  `usage-gpg-recipient-encrypt-compress-none`, and
+  `usage-gpg-recipient-encrypt`: `gpg-rsa-keyring-md-asnoid`,
+  `gcry-md-asnoid-sha-family`, and `gcry-rsa-keygrip-leading-zero`.
+- `usage-gpg-hidden-recipient-anonymous-keyid` and
+  `usage-gpg-hidden-recipient-encrypt-batch11`:
+  `gpg-rsa-keyring-md-asnoid`, `gcry-md-asnoid-sha-family`, and
+  `gcry-rsa-keygrip-leading-zero`.
+- `usage-gpg-always-trust-untrusted-recipient`:
+  `gpg-rsa-keyring-md-asnoid`, `gcry-md-asnoid-sha-family`, and
+  `gcry-rsa-keygrip-leading-zero`.
+- `usage-gpg-import-secret-key`: `gpg-rsa-keyring-md-asnoid`,
+  `gcry-pk-map-name-ecc-aliases`, and `gcry-eddsa-testkey-import-seed`.
+
+Focused validator result:
+
+- Sign, verify, encrypt, decrypt-only, keys, import/export, recipient,
+  hidden-recipient, trust/ownertrust/trustdb, fingerprint, revocation, revuid,
+  list-secret, list-keys, quick UID/expiry, hash-algo, password, use-agent,
+  and batch-list focused port-mode runs passed.
+- No phase-6 validator defect skips were added. The decrypt-focused glob still
+  includes the existing phase-5 exact skip for
+  `usage-gpg-symmetric-compress-z9-decrypt` at validator commit
+  `87b321fe728340d6fc6dd2f638583cca82c667c3`; all unaffected decrypt cases
+  executed.
+- Port override installation evidence is complete for all focused phase 6
+  artifact roots via
+  `python3 safe/scripts/check-validator-port-evidence.py --port-lock validator-local/proof/local-port-debs-lock.json --override-root validator-local/override-debs ...`.

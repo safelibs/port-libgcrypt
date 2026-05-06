@@ -99,6 +99,14 @@ fn left_pad(mut bytes: Vec<u8>, len: usize) -> Vec<u8> {
     out
 }
 
+fn positive_mpi_atom(value: &Mpz) -> String {
+    let mut bytes = value.to_be();
+    if bytes.is_empty() || bytes.first().is_some_and(|byte| byte & 0x80 != 0) {
+        bytes.insert(0, 0);
+    }
+    encoding::hex_atom(&bytes)
+}
+
 fn rsa_public(key: &RsaKey, em: &[u8]) -> Vec<u8> {
     Mpz::from_be(em)
         .powm(&key.e, &key.n)
@@ -797,14 +805,14 @@ pub(crate) fn genkey(result: *mut *mut sexp::gcry_sexp, spec: *mut sexp::gcry_se
         };
         let text = format!(
             "(key-data (public-key (rsa (n {})(e {}))) (private-key (rsa (n {})(e {})(d {})(p {})(q {})(u {}))){} )",
-            encoding::hex_atom(&key.n.to_be()),
-            encoding::hex_atom(&key.e.to_be()),
-            encoding::hex_atom(&key.n.to_be()),
-            encoding::hex_atom(&key.e.to_be()),
-            encoding::hex_atom(&key.d.as_ref().unwrap().to_be()),
-            encoding::hex_atom(&key.p.as_ref().unwrap().to_be()),
-            encoding::hex_atom(&key.q.as_ref().unwrap().to_be()),
-            encoding::hex_atom(&key.u.as_ref().unwrap().to_be()),
+            positive_mpi_atom(&key.n),
+            positive_mpi_atom(&key.e),
+            positive_mpi_atom(&key.n),
+            positive_mpi_atom(&key.e),
+            positive_mpi_atom(key.d.as_ref().unwrap()),
+            positive_mpi_atom(key.p.as_ref().unwrap()),
+            positive_mpi_atom(key.q.as_ref().unwrap()),
+            positive_mpi_atom(key.u.as_ref().unwrap()),
             misc
         );
         return match encoding::build_sexp(&text) {
@@ -848,14 +856,14 @@ pub(crate) fn genkey(result: *mut *mut sexp::gcry_sexp, spec: *mut sexp::gcry_se
     };
     let text = format!(
         "(key-data (public-key (rsa (n {})(e {}))) (private-key (rsa (n {})(e {})(d {})(p {})(q {})(u {}))))",
-        encoding::hex_atom(&key.n.to_be()),
-        encoding::hex_atom(&key.e.to_be()),
-        encoding::hex_atom(&key.n.to_be()),
-        encoding::hex_atom(&key.e.to_be()),
-        encoding::hex_atom(&key.d.as_ref().unwrap().to_be()),
-        encoding::hex_atom(&key.p.as_ref().unwrap().to_be()),
-        encoding::hex_atom(&key.q.as_ref().unwrap().to_be()),
-        encoding::hex_atom(&key.u.as_ref().unwrap().to_be())
+        positive_mpi_atom(&key.n),
+        positive_mpi_atom(&key.e),
+        positive_mpi_atom(&key.n),
+        positive_mpi_atom(&key.e),
+        positive_mpi_atom(key.d.as_ref().unwrap()),
+        positive_mpi_atom(key.p.as_ref().unwrap()),
+        positive_mpi_atom(key.q.as_ref().unwrap()),
+        positive_mpi_atom(key.u.as_ref().unwrap())
     );
     match encoding::build_sexp(&text) {
         Ok(sexp) => unsafe {

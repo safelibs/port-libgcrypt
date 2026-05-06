@@ -505,27 +505,33 @@ pub(crate) fn testkey(key: *mut sexp::gcry_sexp) -> u32 {
     let Some(q) = parsed.q.as_ref() else {
         return encoding::err(error::GPG_ERR_BAD_SECKEY);
     };
-    let scalar = if parsed.curve.name == "Ed25519" && encoding::has_flag(key, "eddsa") {
+    if parsed.curve.name == "Ed25519" {
         let Some(seed) = ed25519_secret_seed(key) else {
             return encoding::err(error::GPG_ERR_NO_SECKEY);
         };
         let Some((scalar, _)) = ed25519_expanded(&seed) else {
             return encoding::err(error::GPG_ERR_DIGEST_ALGO);
         };
-        scalar
-    } else if parsed.curve.name == "Ed448" && encoding::has_flag(key, "eddsa") {
+        let expected =
+            mpi::ec::scalar_mul_secret(&parsed.curve, &scalar, &mpi::ec::base_point(&parsed.curve));
+        if point_matches(q, &expected) {
+            return 0;
+        }
+    } else if parsed.curve.name == "Ed448" {
         let Some(seed) = ed448_secret_seed(key) else {
             return encoding::err(error::GPG_ERR_NO_SECKEY);
         };
         let Some((scalar, _)) = ed448_expanded(&seed) else {
             return encoding::err(error::GPG_ERR_DIGEST_ALGO);
         };
-        scalar
-    } else {
-        d.clone()
-    };
+        let expected =
+            mpi::ec::scalar_mul_secret(&parsed.curve, &scalar, &mpi::ec::base_point(&parsed.curve));
+        if point_matches(q, &expected) {
+            return 0;
+        }
+    }
     let expected =
-        mpi::ec::scalar_mul_secret(&parsed.curve, &scalar, &mpi::ec::base_point(&parsed.curve));
+        mpi::ec::scalar_mul_secret(&parsed.curve, d, &mpi::ec::base_point(&parsed.curve));
     if point_matches(q, &expected) {
         0
     } else {

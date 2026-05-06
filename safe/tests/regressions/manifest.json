@@ -1,6 +1,6 @@
 {
   "manifest_version": 1,
-  "phase_id": "impl_p11_dependent_regression_fixups",
+  "phase_id": "impl_p06_fix_gpg_pubkey_keyring",
   "regressions": [
     {
       "id": "dependent-image-current-phase-tag",
@@ -31,6 +31,36 @@
       "kind": "shell",
       "path": "safe/tests/regressions/gpg-phase5-usage-bucket.sh",
       "description": "Runs the fixed phase-5 GPG usage scenarios against the built safe libgcrypt: SHA384 detached signatures, SHA512 personal digest preferences, SHA1 weak-digest rejection, and AES256 personal cipher preferences."
+    },
+    {
+      "id": "gcry-md-asnoid-sha-family",
+      "kind": "shell",
+      "path": "safe/tests/regressions/gcry-md-asnoid-sha-family.sh",
+      "description": "The public gcry_md_get_asnoid API must return libgcrypt-compatible DER DigestInfo prefixes for MD5 and the SHA family, including SHA512 for GPG RSA key self-signatures."
+    },
+    {
+      "id": "gcry-rsa-keygrip-leading-zero",
+      "kind": "shell",
+      "path": "safe/tests/regressions/gcry-rsa-keygrip-leading-zero.sh",
+      "description": "Generated RSA key S-expressions must preserve positive-MPI sign bytes so GPG's %m-rebuilt public key view matches the private keygrip stored by gpg-agent."
+    },
+    {
+      "id": "gcry-eddsa-testkey-import-seed",
+      "kind": "shell",
+      "path": "safe/tests/regressions/gcry-eddsa-testkey-import-seed.sh",
+      "description": "Ed25519 secret-key validation must accept GPG import S-expressions that carry a seed and curve name without an explicit eddsa flag."
+    },
+    {
+      "id": "gcry-pk-map-name-ecc-aliases",
+      "kind": "shell",
+      "path": "safe/tests/regressions/gcry-pk-map-name-ecc-aliases.sh",
+      "description": "Public-key algorithm name mapping must match libgcrypt by resolving ecdsa, ecdh, and eddsa aliases to GCRY_PK_ECC for GnuPG OpenPGP-native secret-key import."
+    },
+    {
+      "id": "gpg-rsa-keyring-md-asnoid",
+      "kind": "shell",
+      "path": "safe/tests/regressions/gpg-rsa-keyring-md-asnoid.sh",
+      "description": "GPG RSA encryption key generation, recipient encryption, hidden recipient packets, always-trust encryption, and Ed25519 secret-key import must all work against the safe libgcrypt when SHA512 ASNOID metadata is needed."
     }
   ]
 }
