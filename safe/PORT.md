@@ -31,7 +31,7 @@ Directory map:
 
 # Where the unsafe Rust lives
 
-Current unsafe counts were regenerated with `rg -n '\bunsafe\b'` over the requested path sets. The implementation inventories contain 1533 matches: 780 source-owned matches in `safe/src`, `safe/build.rs`, and `safe/cabi`, plus 753 vendored matches under `safe/vendor`. After this document exists, the broader `safe/` scan that excludes `target`, `debian`, and `dist` reports 1810 matches because `safe/PORT.md` itself contributes 277 documentation matches; those are not implementation unsafe and are not included in the source or vendor inventories below. The inventory below includes all generated implementation `rg` matches, including vendored documentation or comment matches, so comment-only occurrences are explicitly categorized rather than silently excluded.
+Current unsafe counts were regenerated with `rg -n '\bunsafe\b'` over the requested path sets. The implementation inventories contain 1533 matches: 780 source-owned matches in `safe/src`, `safe/build.rs`, and `safe/cabi`, plus 753 vendored matches under `safe/vendor`. After this document exists, the broader `safe/` scan that excludes `target`, `debian`, and `dist` reports 1675 matches because `safe/PORT.md` itself contributes 142 documentation matches; those are not implementation unsafe and are not included in the source or vendor inventories below. The inventory below includes all generated implementation `rg` matches, including vendored documentation or comment matches, so comment-only occurrences are explicitly categorized rather than silently excluded.
 
 Source-owned unsafe falls into these purposes: export attributes and ABI shims, C callback and raw pointer handlers required by the libgcrypt ABI, allocator and secure-memory integration, OS/libc/libgpg-error/GMP FFI, pointer-to-slice conversions and C string reads, Box/raw ownership transfers for opaque handles, explicit `unsafe impl Send` wrappers for callback state, and helper-binary ABI self-calls. Unsafe not strictly required by the original libgcrypt ABI/API boundary includes GMP/libgpg-error/libc/OS calls, build-time C compilation, helper-binary extern declarations, and some internal pointer manipulation that can be narrowed or replaced by safer local wrappers over time.
 
@@ -820,17 +820,17 @@ Source-owned unsafe falls into these purposes: export attributes and ABI shims, 
 
 ## Vendored Unsafe Inventory
 
-- `safe/vendor/kisaseed/src/lib.rs:117` | vendored unsafe implementation detail.
+- `safe/vendor/kisaseed/src/lib.rs:117` | raw pointer block output writes for SEED round results.
 - `safe/vendor/rand_core/CHANGELOG.md:9` | vendored docs/comment match.
 - `safe/vendor/rand_core/CHANGELOG.md:36` | vendored docs/comment match.
 - `safe/vendor/rand_core/src/impls.rs:70` | raw pointer or byte/slice reinterpretation.
 - `safe/vendor/rand_core/src/impls.rs:81` | raw pointer or byte/slice reinterpretation.
 - `safe/vendor/md-5/src/compress/loongarch64_asm.rs:70` | architecture intrinsics or assembly path.
-- `safe/vendor/subtle/src/lib.rs:225` | vendored unsafe implementation detail.
+- `safe/vendor/subtle/src/lib.rs:225` | volatile read optimization barrier for constant-time black-boxing.
 - `safe/vendor/subtle/src/lib.rs:564` | raw pointer or byte/slice reinterpretation.
 - `safe/vendor/md-5/src/lib.rs:143` | raw pointer or byte/slice reinterpretation.
 - `safe/vendor/cipher/src/stream_wrapper.rs:56` | unchecked control-flow invariant.
-- `safe/vendor/cipher/src/stream_core.rs:206` | vendored unsafe implementation detail.
+- `safe/vendor/cipher/src/stream_core.rs:206` | generic-array chunk reinterpretation for stream-buffer splitting.
 - `safe/vendor/sha2/src/sha512/x86.rs:20` | architecture intrinsics or assembly path.
 - `safe/vendor/sha2/src/sha512/x86.rs:29` | architecture intrinsics or assembly path.
 - `safe/vendor/sha2/src/sha512/x86.rs:58` | architecture intrinsics or assembly path.
@@ -853,8 +853,8 @@ Source-owned unsafe falls into these purposes: export attributes and ABI shims, 
 - `safe/vendor/sha2/src/sha256/x86.rs:42` | architecture intrinsics or assembly path.
 - `safe/vendor/sha2/src/sha256/x86.rs:106` | architecture intrinsics or assembly path.
 - `safe/vendor/blake2/src/as_bytes.rs:12` | unsafe trait invariant.
-- `safe/vendor/blake2/src/as_bytes.rs:22` | vendored unsafe implementation detail.
-- `safe/vendor/blake2/src/as_bytes.rs:29` | vendored unsafe implementation detail.
+- `safe/vendor/blake2/src/as_bytes.rs:22` | byte/slice reinterpretation behind the AsBytes trait invariant.
+- `safe/vendor/blake2/src/as_bytes.rs:29` | byte/slice reinterpretation behind the AsBytes trait invariant.
 - `safe/vendor/blake2/src/as_bytes.rs:38` | unsafe trait invariant.
 - `safe/vendor/blake2/src/as_bytes.rs:39` | unsafe trait invariant.
 - `safe/vendor/blake2/src/as_bytes.rs:40` | unsafe trait invariant.
@@ -863,35 +863,35 @@ Source-owned unsafe falls into these purposes: export attributes and ABI shims, 
 - `safe/vendor/blake2/src/as_bytes.rs:43` | unsafe trait invariant.
 - `safe/vendor/blake2/src/as_bytes.rs:44` | unsafe trait invariant.
 - `safe/vendor/blake2/src/as_bytes.rs:45` | unsafe trait invariant.
-- `safe/vendor/inout/src/inout_buf.rs:103` | vendored unsafe implementation detail.
+- `safe/vendor/inout/src/inout_buf.rs:103` | inout raw input/output pointer arithmetic and buffer aliasing invariant.
 - `safe/vendor/inout/src/inout_buf.rs:115` | raw pointer or byte/slice reinterpretation.
 - `safe/vendor/inout/src/inout_buf.rs:121` | raw pointer or byte/slice reinterpretation.
 - `safe/vendor/inout/src/inout_buf.rs:127` | raw pointer or byte/slice reinterpretation.
 - `safe/vendor/inout/src/inout_buf.rs:168` | raw pointer or byte/slice reinterpretation.
 - `safe/vendor/inout/src/inout_buf.rs:193` | raw pointer or byte/slice reinterpretation.
-- `safe/vendor/inout/src/inout_buf.rs:221` | vendored unsafe implementation detail.
-- `safe/vendor/inout/src/inout_buf.rs:249` | vendored unsafe implementation detail.
-- `safe/vendor/inout/src/inout_buf.rs:293` | vendored unsafe implementation detail.
+- `safe/vendor/inout/src/inout_buf.rs:221` | inout raw input/output pointer arithmetic and buffer aliasing invariant.
+- `safe/vendor/inout/src/inout_buf.rs:249` | inout raw input/output pointer arithmetic and buffer aliasing invariant.
+- `safe/vendor/inout/src/inout_buf.rs:293` | inout raw input/output pointer arithmetic and buffer aliasing invariant.
 - `safe/vendor/sha2/src/sha256/aarch64.rs:17` | architecture intrinsics or assembly path.
 - `safe/vendor/sha2/src/sha256/aarch64.rs:24` | architecture intrinsics or assembly path.
 - `safe/vendor/sha2/src/sha256/aarch64.rs:110` | architecture intrinsics or assembly path.
 - `safe/vendor/sha2/src/sha256/aarch64.rs:124` | architecture intrinsics or assembly path.
 - `safe/vendor/sha2/src/sha256/aarch64.rs:138` | architecture intrinsics or assembly path.
 - `safe/vendor/sha2/src/sha256/aarch64.rs:148` | architecture intrinsics or assembly path.
-- `safe/vendor/inout/src/inout.rs:27` | vendored unsafe implementation detail.
-- `safe/vendor/inout/src/inout.rs:33` | vendored unsafe implementation detail.
+- `safe/vendor/inout/src/inout.rs:27` | inout raw pointer dereference or iterator ownership invariant.
+- `safe/vendor/inout/src/inout.rs:33` | inout raw pointer dereference or iterator ownership invariant.
 - `safe/vendor/inout/src/inout.rs:61` | raw pointer or byte/slice reinterpretation.
-- `safe/vendor/inout/src/inout.rs:74` | vendored unsafe implementation detail.
-- `safe/vendor/inout/src/inout.rs:109` | vendored unsafe implementation detail.
-- `safe/vendor/inout/src/inout.rs:139` | vendored unsafe implementation detail.
-- `safe/vendor/inout/src/inout.rs:163` | vendored unsafe implementation detail.
-- `safe/vendor/blake2/src/simd/simd_opt/u64x4.rs:115` | vendored unsafe implementation detail.
-- `safe/vendor/blake2/src/simd/simd_opt/u64x4.rs:128` | vendored unsafe implementation detail.
+- `safe/vendor/inout/src/inout.rs:74` | inout raw pointer dereference or iterator ownership invariant.
+- `safe/vendor/inout/src/inout.rs:109` | inout raw pointer dereference or iterator ownership invariant.
+- `safe/vendor/inout/src/inout.rs:139` | inout raw pointer dereference or iterator ownership invariant.
+- `safe/vendor/inout/src/inout.rs:163` | inout raw pointer dereference or iterator ownership invariant.
+- `safe/vendor/blake2/src/simd/simd_opt/u64x4.rs:115` | SIMD vector operation and intrinsic-dispatch wrapper.
+- `safe/vendor/blake2/src/simd/simd_opt/u64x4.rs:128` | SIMD vector operation and intrinsic-dispatch wrapper.
 - `safe/vendor/inout/src/reserved.rs:64` | raw pointer or byte/slice reinterpretation.
 - `safe/vendor/inout/src/reserved.rs:119` | raw pointer or byte/slice reinterpretation.
 - `safe/vendor/inout/src/reserved.rs:125` | raw pointer or byte/slice reinterpretation.
-- `safe/vendor/inout/src/reserved.rs:142` | vendored unsafe implementation detail.
-- `safe/vendor/inout/src/reserved.rs:164` | vendored unsafe implementation detail.
+- `safe/vendor/inout/src/reserved.rs:142` | inout block/tail raw-pointer split and padding-copy invariant.
+- `safe/vendor/inout/src/reserved.rs:164` | inout block/tail raw-pointer split and padding-copy invariant.
 - `safe/vendor/inout/src/reserved.rs:224` | raw pointer or byte/slice reinterpretation.
 - `safe/vendor/blake2/src/simd/simdty.rs:73` | unsafe trait invariant.
 - `safe/vendor/blake2/src/simd/simdty.rs:74` | unsafe trait invariant.
@@ -899,109 +899,109 @@ Source-owned unsafe falls into these purposes: export attributes and ABI shims, 
 - `safe/vendor/blake2/src/simd/simdty.rs:76` | unsafe trait invariant.
 - `safe/vendor/blake2/src/simd/simdty.rs:77` | unsafe trait invariant.
 - `safe/vendor/sha2/src/sha256.rs:41` | raw pointer or byte/slice reinterpretation.
-- `safe/vendor/blake2/src/simd/simd_opt.rs:12` | vendored unsafe implementation detail.
-- `safe/vendor/blake2/src/simd/simdop.rs:22` | vendored unsafe implementation detail.
-- `safe/vendor/blake2/src/simd/simdop.rs:43` | vendored unsafe implementation detail.
-- `safe/vendor/blake2/src/simd/simdop.rs:64` | vendored unsafe implementation detail.
-- `safe/vendor/blake2/src/simd/simdop.rs:85` | vendored unsafe implementation detail.
-- `safe/vendor/inout-0.2.2/src/inout_buf.rs:103` | vendored unsafe implementation detail.
+- `safe/vendor/blake2/src/simd/simd_opt.rs:12` | SIMD vector operation and intrinsic-dispatch wrapper.
+- `safe/vendor/blake2/src/simd/simdop.rs:22` | SIMD vector operation and intrinsic-dispatch wrapper.
+- `safe/vendor/blake2/src/simd/simdop.rs:43` | SIMD vector operation and intrinsic-dispatch wrapper.
+- `safe/vendor/blake2/src/simd/simdop.rs:64` | SIMD vector operation and intrinsic-dispatch wrapper.
+- `safe/vendor/blake2/src/simd/simdop.rs:85` | SIMD vector operation and intrinsic-dispatch wrapper.
+- `safe/vendor/inout-0.2.2/src/inout_buf.rs:103` | inout raw input/output pointer arithmetic and buffer aliasing invariant.
 - `safe/vendor/inout-0.2.2/src/inout_buf.rs:115` | raw pointer or byte/slice reinterpretation.
 - `safe/vendor/inout-0.2.2/src/inout_buf.rs:121` | raw pointer or byte/slice reinterpretation.
-- `safe/vendor/inout-0.2.2/src/inout_buf.rs:135` | vendored unsafe implementation detail.
+- `safe/vendor/inout-0.2.2/src/inout_buf.rs:135` | inout raw input/output pointer arithmetic and buffer aliasing invariant.
 - `safe/vendor/inout-0.2.2/src/inout_buf.rs:139` | raw pointer or byte/slice reinterpretation.
 - `safe/vendor/inout-0.2.2/src/inout_buf.rs:145` | raw pointer or byte/slice reinterpretation.
 - `safe/vendor/inout-0.2.2/src/inout_buf.rs:186` | raw pointer or byte/slice reinterpretation.
 - `safe/vendor/inout-0.2.2/src/inout_buf.rs:211` | raw pointer or byte/slice reinterpretation.
-- `safe/vendor/inout-0.2.2/src/inout_buf.rs:236` | vendored unsafe implementation detail.
-- `safe/vendor/inout-0.2.2/src/inout_buf.rs:264` | vendored unsafe implementation detail.
-- `safe/vendor/inout-0.2.2/src/inout_buf.rs:308` | vendored unsafe implementation detail.
+- `safe/vendor/inout-0.2.2/src/inout_buf.rs:236` | inout raw input/output pointer arithmetic and buffer aliasing invariant.
+- `safe/vendor/inout-0.2.2/src/inout_buf.rs:264` | inout raw input/output pointer arithmetic and buffer aliasing invariant.
+- `safe/vendor/inout-0.2.2/src/inout_buf.rs:308` | inout raw input/output pointer arithmetic and buffer aliasing invariant.
 - `safe/vendor/sha2/src/sha512.rs:43` | raw pointer or byte/slice reinterpretation.
 - `safe/vendor/inout-0.2.2/src/reserved.rs:64` | raw pointer or byte/slice reinterpretation.
-- `safe/vendor/inout-0.2.2/src/reserved.rs:107` | vendored unsafe implementation detail.
+- `safe/vendor/inout-0.2.2/src/reserved.rs:107` | inout block/tail raw-pointer split and padding-copy invariant.
 - `safe/vendor/inout-0.2.2/src/reserved.rs:136` | raw pointer or byte/slice reinterpretation.
 - `safe/vendor/inout-0.2.2/src/reserved.rs:142` | raw pointer or byte/slice reinterpretation.
 - `safe/vendor/inout-0.2.2/src/reserved.rs:148` | raw pointer or byte/slice reinterpretation.
-- `safe/vendor/inout-0.2.2/src/reserved.rs:176` | vendored unsafe implementation detail.
-- `safe/vendor/inout-0.2.2/src/reserved.rs:195` | vendored unsafe implementation detail.
+- `safe/vendor/inout-0.2.2/src/reserved.rs:176` | inout block/tail raw-pointer split and padding-copy invariant.
+- `safe/vendor/inout-0.2.2/src/reserved.rs:195` | inout block/tail raw-pointer split and padding-copy invariant.
 - `safe/vendor/inout-0.2.2/src/reserved.rs:246` | raw pointer or byte/slice reinterpretation.
-- `safe/vendor/blake2/src/simd.rs:101` | vendored unsafe implementation detail.
-- `safe/vendor/blake2/src/simd.rs:115` | vendored unsafe implementation detail.
-- `safe/vendor/blake2/src/simd.rs:129` | vendored unsafe implementation detail.
-- `safe/vendor/inout-0.2.2/src/inout.rs:27` | vendored unsafe implementation detail.
-- `safe/vendor/inout-0.2.2/src/inout.rs:33` | vendored unsafe implementation detail.
-- `safe/vendor/inout-0.2.2/src/inout.rs:47` | vendored unsafe implementation detail.
-- `safe/vendor/inout-0.2.2/src/inout.rs:51` | vendored unsafe implementation detail.
-- `safe/vendor/inout-0.2.2/src/inout.rs:57` | vendored unsafe implementation detail.
+- `safe/vendor/blake2/src/simd.rs:101` | SIMD vector operation and intrinsic-dispatch wrapper.
+- `safe/vendor/blake2/src/simd.rs:115` | SIMD vector operation and intrinsic-dispatch wrapper.
+- `safe/vendor/blake2/src/simd.rs:129` | SIMD vector operation and intrinsic-dispatch wrapper.
+- `safe/vendor/inout-0.2.2/src/inout.rs:27` | inout raw pointer dereference or iterator ownership invariant.
+- `safe/vendor/inout-0.2.2/src/inout.rs:33` | inout raw pointer dereference or iterator ownership invariant.
+- `safe/vendor/inout-0.2.2/src/inout.rs:47` | inout raw pointer dereference or iterator ownership invariant.
+- `safe/vendor/inout-0.2.2/src/inout.rs:51` | inout raw pointer dereference or iterator ownership invariant.
+- `safe/vendor/inout-0.2.2/src/inout.rs:57` | inout raw pointer dereference or iterator ownership invariant.
 - `safe/vendor/inout-0.2.2/src/inout.rs:85` | raw pointer or byte/slice reinterpretation.
-- `safe/vendor/inout-0.2.2/src/inout.rs:98` | vendored unsafe implementation detail.
-- `safe/vendor/inout-0.2.2/src/inout.rs:133` | vendored unsafe implementation detail.
-- `safe/vendor/inout-0.2.2/src/inout.rs:166` | vendored unsafe implementation detail.
-- `safe/vendor/inout-0.2.2/src/inout.rs:185` | vendored unsafe implementation detail.
-- `safe/vendor/inout-0.2.2/src/inout.rs:209` | vendored unsafe implementation detail.
+- `safe/vendor/inout-0.2.2/src/inout.rs:98` | inout raw pointer dereference or iterator ownership invariant.
+- `safe/vendor/inout-0.2.2/src/inout.rs:133` | inout raw pointer dereference or iterator ownership invariant.
+- `safe/vendor/inout-0.2.2/src/inout.rs:166` | inout raw pointer dereference or iterator ownership invariant.
+- `safe/vendor/inout-0.2.2/src/inout.rs:185` | inout raw pointer dereference or iterator ownership invariant.
+- `safe/vendor/inout-0.2.2/src/inout.rs:209` | inout raw pointer dereference or iterator ownership invariant.
 - `safe/vendor/byteorder/CHANGELOG.md:15` | vendored docs/comment match.
 - `safe/vendor/byteorder/CHANGELOG.md:21` | vendored docs/comment match.
 - `safe/vendor/byteorder/CHANGELOG.md:88` | vendored docs/comment match.
 - `safe/vendor/byteorder/CHANGELOG.md:97` | vendored docs/comment match.
-- `safe/vendor/block-buffer/src/sealed.rs:27` | vendored unsafe implementation detail.
-- `safe/vendor/block-buffer/src/sealed.rs:58` | vendored unsafe implementation detail.
-- `safe/vendor/block-buffer/src/lib.rs:200` | vendored unsafe implementation detail.
+- `safe/vendor/block-buffer/src/sealed.rs:27` | block-buffer raw slice/block split and padding-state invariant.
+- `safe/vendor/block-buffer/src/sealed.rs:58` | block-buffer raw slice/block split and padding-state invariant.
+- `safe/vendor/block-buffer/src/lib.rs:200` | block-buffer raw slice/block split and padding-state invariant.
 - `safe/vendor/block-buffer/src/lib.rs:348` | raw pointer or byte/slice reinterpretation.
-- `safe/vendor/byteorder/src/lib.rs:1091` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/lib.rs:1120` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/lib.rs:1149` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/lib.rs:1178` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/lib.rs:1208` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/lib.rs:1270` | vendored unsafe implementation detail.
+- `safe/vendor/byteorder/src/lib.rs:1091` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/lib.rs:1120` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/lib.rs:1149` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/lib.rs:1178` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/lib.rs:1208` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/lib.rs:1270` | endian read/write byte-slice reinterpretation for typed integer buffers.
 - `safe/vendor/byteorder/src/lib.rs:1406` | vendored docs/comment match.
-- `safe/vendor/byteorder/src/lib.rs:1429` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/lib.rs:1457` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/lib.rs:1485` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/lib.rs:1513` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/lib.rs:1541` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/lib.rs:1570` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/lib.rs:1599` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/lib.rs:1700` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/lib.rs:1725` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/lib.rs:1750` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/lib.rs:1775` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/lib.rs:2001` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/lib.rs:2015` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/lib.rs:2105` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/lib.rs:2117` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/lib.rs:2187` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/lib.rs:2197` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/lib.rs:2283` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/lib.rs:2295` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/lib.rs:3898` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/lib.rs:3919` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/lib.rs:3940` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/io.rs:564` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/io.rs:599` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/io.rs:637` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/io.rs:678` | vendored unsafe implementation detail.
+- `safe/vendor/byteorder/src/lib.rs:1429` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/lib.rs:1457` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/lib.rs:1485` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/lib.rs:1513` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/lib.rs:1541` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/lib.rs:1570` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/lib.rs:1599` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/lib.rs:1700` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/lib.rs:1725` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/lib.rs:1750` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/lib.rs:1775` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/lib.rs:2001` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/lib.rs:2015` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/lib.rs:2105` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/lib.rs:2117` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/lib.rs:2187` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/lib.rs:2197` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/lib.rs:2283` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/lib.rs:2295` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/lib.rs:3898` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/lib.rs:3919` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/lib.rs:3940` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/io.rs:564` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/io.rs:599` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/io.rs:637` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/io.rs:678` | endian read/write byte-slice reinterpretation for typed integer buffers.
 - `safe/vendor/byteorder/src/io.rs:693` | vendored docs/comment match.
-- `safe/vendor/byteorder/src/io.rs:717` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/io.rs:749` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/io.rs:784` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/io.rs:822` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/io.rs:863` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/io.rs:904` | vendored unsafe implementation detail.
-- `safe/vendor/byteorder/src/io.rs:989` | vendored unsafe implementation detail.
+- `safe/vendor/byteorder/src/io.rs:717` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/io.rs:749` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/io.rs:784` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/io.rs:822` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/io.rs:863` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/io.rs:904` | endian read/write byte-slice reinterpretation for typed integer buffers.
+- `safe/vendor/byteorder/src/io.rs:989` | endian read/write byte-slice reinterpretation for typed integer buffers.
 - `safe/vendor/byteorder/src/io.rs:1008` | vendored docs/comment match.
 - `safe/vendor/byteorder/src/io.rs:1584` | vendored docs/comment match.
-- `safe/vendor/byteorder/src/io.rs:1587` | vendored unsafe implementation detail.
+- `safe/vendor/byteorder/src/io.rs:1587` | endian read/write byte-slice reinterpretation for typed integer buffers.
 - `safe/vendor/hybrid-array/tests/mod.rs:468` | vendored test or benchmark code.
 - `safe/vendor/base64ct/src/encoding.rs:107` | vendored docs/comment match.
-- `safe/vendor/base64ct/src/encoding.rs:125` | vendored unsafe implementation detail.
-- `safe/vendor/base64ct/src/encoding.rs:155` | vendored unsafe implementation detail.
+- `safe/vendor/base64ct/src/encoding.rs:125` | raw pointer in-place base64 decode/copy with bounds-checked offsets.
+- `safe/vendor/base64ct/src/encoding.rs:155` | raw pointer in-place base64 decode/copy with bounds-checked offsets.
 - `safe/vendor/base64ct/src/encoding.rs:231` | unchecked UTF-8 or unchecked value invariant.
-- `safe/vendor/base64ct/src/encoding.rs:245` | vendored unsafe implementation detail.
+- `safe/vendor/base64ct/src/encoding.rs:245` | unchecked UTF-8 conversion after base64 alphabet validation.
 - `safe/vendor/hybrid-array/src/traits.rs:22` | unsafe trait invariant.
 - `safe/vendor/keccak/src/lib.rs:187` | architecture intrinsics or assembly path.
 - `safe/vendor/keccak/src/lib.rs:197` | architecture intrinsics or assembly path.
 - `safe/vendor/hybrid-array/src/flatten.rs:32` | raw pointer or byte/slice reinterpretation.
-- `safe/vendor/hybrid-array/src/flatten.rs:62` | vendored unsafe implementation detail.
-- `safe/vendor/hybrid-array/src/flatten.rs:83` | vendored unsafe implementation detail.
+- `safe/vendor/hybrid-array/src/flatten.rs:62` | hybrid-array layout, split, or MaybeUninit initialization invariant.
+- `safe/vendor/hybrid-array/src/flatten.rs:83` | hybrid-array layout, split, or MaybeUninit initialization invariant.
 - `safe/vendor/hybrid-array/src/sizes.rs:24` | vendored docs/comment match.
 - `safe/vendor/hybrid-array/src/sizes.rs:26` | unsafe trait invariant.
 - `safe/vendor/whirlpool/src/lib.rs:254` | raw pointer or byte/slice reinterpretation.
@@ -1017,13 +1017,13 @@ Source-owned unsafe falls into these purposes: export attributes and ABI shims, 
 - `safe/vendor/hybrid-array/src/lib.rs:180` | raw pointer or byte/slice reinterpretation.
 - `safe/vendor/hybrid-array/src/lib.rs:188` | raw pointer or byte/slice reinterpretation.
 - `safe/vendor/hybrid-array/src/lib.rs:239` | layout or initialization invariant.
-- `safe/vendor/hybrid-array/src/lib.rs:252` | vendored unsafe implementation detail.
-- `safe/vendor/hybrid-array/src/lib.rs:268` | vendored unsafe implementation detail.
-- `safe/vendor/hybrid-array/src/lib.rs:284` | vendored unsafe implementation detail.
+- `safe/vendor/hybrid-array/src/lib.rs:252` | hybrid-array layout, split, or MaybeUninit initialization invariant.
+- `safe/vendor/hybrid-array/src/lib.rs:268` | hybrid-array layout, split, or MaybeUninit initialization invariant.
+- `safe/vendor/hybrid-array/src/lib.rs:284` | hybrid-array layout, split, or MaybeUninit initialization invariant.
 - `safe/vendor/hybrid-array/src/lib.rs:302` | raw pointer or byte/slice reinterpretation.
 - `safe/vendor/hybrid-array/src/lib.rs:319` | raw pointer or byte/slice reinterpretation.
-- `safe/vendor/hybrid-array/src/lib.rs:340` | vendored unsafe implementation detail.
-- `safe/vendor/hybrid-array/src/lib.rs:363` | vendored unsafe implementation detail.
+- `safe/vendor/hybrid-array/src/lib.rs:340` | hybrid-array layout, split, or MaybeUninit initialization invariant.
+- `safe/vendor/hybrid-array/src/lib.rs:363` | hybrid-array layout, split, or MaybeUninit initialization invariant.
 - `safe/vendor/hybrid-array/src/lib.rs:384` | raw pointer or byte/slice reinterpretation.
 - `safe/vendor/hybrid-array/src/lib.rs:400` | raw pointer or byte/slice reinterpretation.
 - `safe/vendor/hybrid-array/src/lib.rs:495` | raw pointer or byte/slice reinterpretation.
@@ -1034,7 +1034,7 @@ Source-owned unsafe falls into these purposes: export attributes and ABI shims, 
 - `safe/vendor/hybrid-array/src/lib.rs:530` | raw pointer or byte/slice reinterpretation.
 - `safe/vendor/hybrid-array/src/lib.rs:550` | layout or initialization invariant.
 - `safe/vendor/hybrid-array/src/lib.rs:560` | layout or initialization invariant.
-- `safe/vendor/hybrid-array/src/lib.rs:561` | vendored unsafe implementation detail.
+- `safe/vendor/hybrid-array/src/lib.rs:561` | hybrid-array layout, split, or MaybeUninit initialization invariant.
 - `safe/vendor/hybrid-array/src/lib.rs:945` | unsafe trait invariant.
 - `safe/vendor/hybrid-array/src/lib.rs:949` | unsafe trait invariant.
 - `safe/vendor/hybrid-array/src/lib.rs:963` | raw pointer or byte/slice reinterpretation.
@@ -1042,10 +1042,10 @@ Source-owned unsafe falls into these purposes: export attributes and ABI shims, 
 - `safe/vendor/hybrid-array/src/lib.rs:1106` | unsafe trait invariant.
 - `safe/vendor/hybrid-array/src/lib.rs:1115` | unsafe trait invariant.
 - `safe/vendor/hybrid-array/src/from_fn.rs:32` | layout or initialization invariant.
-- `safe/vendor/hybrid-array/src/from_fn.rs:53` | vendored unsafe implementation detail.
-- `safe/vendor/hybrid-array/src/from_fn.rs:80` | vendored unsafe implementation detail.
-- `safe/vendor/hybrid-array/src/from_fn.rs:84` | vendored unsafe implementation detail.
-- `safe/vendor/hybrid-array/src/from_fn.rs:98` | vendored unsafe implementation detail.
+- `safe/vendor/hybrid-array/src/from_fn.rs:53` | hybrid-array layout, split, or MaybeUninit initialization invariant.
+- `safe/vendor/hybrid-array/src/from_fn.rs:80` | hybrid-array layout, split, or MaybeUninit initialization invariant.
+- `safe/vendor/hybrid-array/src/from_fn.rs:84` | hybrid-array layout, split, or MaybeUninit initialization invariant.
+- `safe/vendor/hybrid-array/src/from_fn.rs:98` | hybrid-array layout, split, or MaybeUninit initialization invariant.
 - `safe/vendor/hybrid-array/CHANGELOG.md:173` | vendored docs/comment match.
 - `safe/vendor/sha1/src/compress/loongarch64_asm.rs:110` | architecture intrinsics or assembly path.
 - `safe/vendor/sha1/src/compress/x86.rs:34` | architecture intrinsics or assembly path.
@@ -1061,27 +1061,27 @@ Source-owned unsafe falls into these purposes: export attributes and ABI shims, 
 - `safe/vendor/generic-array/src/functional.rs:85` | unsafe trait invariant.
 - `safe/vendor/generic-array/src/functional.rs:91` | unsafe trait invariant.
 - `safe/vendor/generic-array/src/sequence.rs:12` | unsafe trait invariant.
-- `safe/vendor/generic-array/src/sequence.rs:40` | vendored unsafe implementation detail.
+- `safe/vendor/generic-array/src/sequence.rs:40` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
 - `safe/vendor/generic-array/src/sequence.rs:75` | unsafe trait invariant.
 - `safe/vendor/generic-array/src/sequence.rs:91` | unsafe trait invariant.
 - `safe/vendor/generic-array/src/sequence.rs:111` | unsafe trait invariant.
 - `safe/vendor/generic-array/src/sequence.rs:152` | unsafe trait invariant.
 - `safe/vendor/generic-array/src/sequence.rs:190` | unsafe trait invariant.
-- `safe/vendor/generic-array/src/sequence.rs:205` | vendored unsafe implementation detail.
-- `safe/vendor/generic-array/src/sequence.rs:221` | vendored unsafe implementation detail.
+- `safe/vendor/generic-array/src/sequence.rs:205` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
+- `safe/vendor/generic-array/src/sequence.rs:221` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
 - `safe/vendor/generic-array/src/sequence.rs:232` | unsafe trait invariant.
-- `safe/vendor/generic-array/src/sequence.rs:244` | vendored unsafe implementation detail.
-- `safe/vendor/generic-array/src/sequence.rs:256` | vendored unsafe implementation detail.
+- `safe/vendor/generic-array/src/sequence.rs:244` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
+- `safe/vendor/generic-array/src/sequence.rs:256` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
 - `safe/vendor/generic-array/src/sequence.rs:266` | unsafe trait invariant.
 - `safe/vendor/generic-array/src/sequence.rs:279` | unsafe trait invariant.
-- `safe/vendor/generic-array/src/sequence.rs:290` | vendored unsafe implementation detail.
+- `safe/vendor/generic-array/src/sequence.rs:290` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
 - `safe/vendor/generic-array/src/sequence.rs:302` | unsafe trait invariant.
-- `safe/vendor/generic-array/src/sequence.rs:313` | vendored unsafe implementation detail.
+- `safe/vendor/generic-array/src/sequence.rs:313` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
 - `safe/vendor/generic-array/src/sequence.rs:322` | unsafe trait invariant.
-- `safe/vendor/generic-array/src/sequence.rs:333` | vendored unsafe implementation detail.
+- `safe/vendor/generic-array/src/sequence.rs:333` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
 - `safe/vendor/generic-array/src/sequence.rs:343` | unsafe trait invariant.
 - `safe/vendor/generic-array/src/sequence.rs:357` | unsafe trait invariant.
-- `safe/vendor/generic-array/src/sequence.rs:371` | vendored unsafe implementation detail.
+- `safe/vendor/generic-array/src/sequence.rs:371` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
 - `safe/vendor/argon2/CHANGELOG.md:174` | vendored docs/comment match.
 - `safe/vendor/generic-array/src/impls.rs:132` | layout or initialization invariant.
 - `safe/vendor/generic-array/src/impls.rs:140` | layout or initialization invariant.
@@ -1090,14 +1090,14 @@ Source-owned unsafe falls into these purposes: export attributes and ABI shims, 
 - `safe/vendor/generic-array/src/impls.rs:162` | layout or initialization invariant.
 - `safe/vendor/generic-array/src/impls.rs:169` | layout or initialization invariant.
 - `safe/vendor/generic-array/src/impls.rs:176` | layout or initialization invariant.
-- `safe/vendor/generic-array/src/iter.rs:84` | vendored unsafe implementation detail.
-- `safe/vendor/generic-array/src/iter.rs:101` | vendored unsafe implementation detail.
-- `safe/vendor/generic-array/src/iter.rs:105` | vendored unsafe implementation detail.
-- `safe/vendor/generic-array/src/iter.rs:126` | vendored unsafe implementation detail.
-- `safe/vendor/generic-array/src/iter.rs:140` | vendored unsafe implementation detail.
-- `safe/vendor/generic-array/src/iter.rs:182` | vendored unsafe implementation detail.
-- `safe/vendor/generic-array/src/iter.rs:205` | vendored unsafe implementation detail.
-- `safe/vendor/generic-array/src/iter.rs:215` | vendored unsafe implementation detail.
+- `safe/vendor/generic-array/src/iter.rs:84` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
+- `safe/vendor/generic-array/src/iter.rs:101` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
+- `safe/vendor/generic-array/src/iter.rs:105` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
+- `safe/vendor/generic-array/src/iter.rs:126` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
+- `safe/vendor/generic-array/src/iter.rs:140` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
+- `safe/vendor/generic-array/src/iter.rs:182` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
+- `safe/vendor/generic-array/src/iter.rs:205` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
+- `safe/vendor/generic-array/src/iter.rs:215` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
 - `safe/vendor/libc/CHANGELOG.md:686` | vendored docs/comment match.
 - `safe/vendor/libc/src/unix/mod.rs:619` | raw pointer or byte/slice reinterpretation.
 - `safe/vendor/libc/src/unix/mod.rs:626` | raw pointer or byte/slice reinterpretation.
@@ -1110,27 +1110,27 @@ Source-owned unsafe falls into these purposes: export attributes and ABI shims, 
 - `safe/vendor/generic-array/src/lib.rs:184` | unsafe trait invariant.
 - `safe/vendor/generic-array/src/lib.rs:194` | raw pointer or byte/slice reinterpretation.
 - `safe/vendor/generic-array/src/lib.rs:204` | raw pointer or byte/slice reinterpretation.
-- `safe/vendor/generic-array/src/lib.rs:222` | vendored unsafe implementation detail.
-- `safe/vendor/generic-array/src/lib.rs:235` | vendored unsafe implementation detail.
-- `safe/vendor/generic-array/src/lib.rs:243` | vendored unsafe implementation detail.
-- `safe/vendor/generic-array/src/lib.rs:255` | vendored unsafe implementation detail.
-- `safe/vendor/generic-array/src/lib.rs:277` | vendored unsafe implementation detail.
-- `safe/vendor/generic-array/src/lib.rs:290` | vendored unsafe implementation detail.
-- `safe/vendor/generic-array/src/lib.rs:299` | vendored unsafe implementation detail.
-- `safe/vendor/generic-array/src/lib.rs:339` | vendored unsafe implementation detail.
+- `safe/vendor/generic-array/src/lib.rs:222` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
+- `safe/vendor/generic-array/src/lib.rs:235` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
+- `safe/vendor/generic-array/src/lib.rs:243` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
+- `safe/vendor/generic-array/src/lib.rs:255` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
+- `safe/vendor/generic-array/src/lib.rs:277` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
+- `safe/vendor/generic-array/src/lib.rs:290` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
+- `safe/vendor/generic-array/src/lib.rs:299` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
+- `safe/vendor/generic-array/src/lib.rs:339` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
 - `safe/vendor/generic-array/src/lib.rs:372` | unsafe trait invariant.
-- `safe/vendor/generic-array/src/lib.rs:384` | vendored unsafe implementation detail.
-- `safe/vendor/generic-array/src/lib.rs:414` | vendored unsafe implementation detail.
-- `safe/vendor/generic-array/src/lib.rs:441` | vendored unsafe implementation detail.
+- `safe/vendor/generic-array/src/lib.rs:384` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
+- `safe/vendor/generic-array/src/lib.rs:414` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
+- `safe/vendor/generic-array/src/lib.rs:441` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
 - `safe/vendor/generic-array/src/lib.rs:461` | unsafe trait invariant.
 - `safe/vendor/generic-array/src/lib.rs:469` | unsafe trait invariant.
-- `safe/vendor/generic-array/src/lib.rs:480` | vendored unsafe implementation detail.
-- `safe/vendor/generic-array/src/lib.rs:511` | vendored unsafe implementation detail.
+- `safe/vendor/generic-array/src/lib.rs:480` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
+- `safe/vendor/generic-array/src/lib.rs:511` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
 - `safe/vendor/generic-array/src/lib.rs:574` | raw pointer or byte/slice reinterpretation.
 - `safe/vendor/generic-array/src/lib.rs:588` | raw pointer or byte/slice reinterpretation.
-- `safe/vendor/generic-array/src/lib.rs:621` | vendored unsafe implementation detail.
+- `safe/vendor/generic-array/src/lib.rs:621` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
 - `safe/vendor/generic-array/src/lib.rs:653` | layout or initialization invariant.
-- `safe/vendor/generic-array/src/lib.rs:670` | vendored unsafe implementation detail.
+- `safe/vendor/generic-array/src/lib.rs:670` | typenum generic-array trait, pointer-move, or MaybeUninit invariant.
 - `safe/vendor/generic-array/src/arr.rs:34` | layout or initialization invariant.
 - `safe/vendor/generic-array/src/arr.rs:60` | layout or initialization invariant.
 - `safe/vendor/generic-array/src/hex.rs:46` | unchecked UTF-8 or unchecked value invariant.
@@ -1680,7 +1680,7 @@ Rust dependency resolution is offline and vendored through `.cargo/config.toml`,
 | direct | `blake2` | `0.10.6` | `safe/vendor/blake2/Cargo.toml` | `none` | 26 | `safe/vendor/blake2/src/as_bytes.rs:12` | Accepted because it is vendored, locked, and exercised through the port test matrix; replacement path is an audited crate release with unsafe-code denial or a local safe implementation for the specific primitive. |
 | transitive | `block-buffer` | `0.10.4` | `safe/vendor/block-buffer/Cargo.toml` | `none` | 4 | `safe/vendor/block-buffer/src/sealed.rs:27` | Accepted because the unsafe use is narrow in vendored, locked code; replacement path is an audited dependency version that forbids unsafe or a local wrapper that removes this call site. |
 | direct | `blowfish` | `0.10.0` | `safe/vendor/blowfish/Cargo.toml` | `#![deny(unsafe_code)]` | 0 | `safe/vendor/blowfish/src/lib.rs:1` | Accepted because the unsafe use is narrow in vendored, locked code; replacement path is an audited dependency version that forbids unsafe or a local wrapper that removes this call site. |
-| transitive | `byteorder` | `1.5.0` | `safe/vendor/byteorder/Cargo.toml` | `none` | 43 | `safe/vendor/byteorder/CHANGELOG.md:15` | Accepted because it is vendored, locked, and exercised through the port test matrix; replacement path is an audited crate release with unsafe-code denial or a local safe implementation for the specific primitive. |
+| transitive | `byteorder` | `1.5.0` | `safe/vendor/byteorder/Cargo.toml` | `none` | 43 | `safe/vendor/byteorder/src/lib.rs:1091` | Accepted because it is vendored, locked, and exercised through the port test matrix; replacement path is an audited crate release with unsafe-code denial or a local safe implementation for the specific primitive. |
 | direct | `camellia` | `0.2.0` | `safe/vendor/camellia/Cargo.toml` | `#![deny(unsafe_code)]` | 0 | `safe/vendor/camellia/src/lib.rs:1` | Accepted because the unsafe use is narrow in vendored, locked code; replacement path is an audited dependency version that forbids unsafe or a local wrapper that removes this call site. |
 | direct | `cast5` | `0.12.0` | `safe/vendor/cast5/Cargo.toml` | `#![deny(unsafe_code)]` | 0 | `safe/vendor/cast5/src/lib.rs:1` | Accepted because the unsafe use is narrow in vendored, locked code; replacement path is an audited dependency version that forbids unsafe or a local wrapper that removes this call site. |
 | transitive | `cfg-if` | `1.0.4` | `safe/vendor/cfg-if/Cargo.toml` | `none` | 0 | `safe/vendor/cfg-if/src/lib.rs:1` | Accepted as locked transitive/direct code with no current source unsafe matches; replacement path is an upstream release with crate-root unsafe-code denial. |
@@ -1691,22 +1691,22 @@ Rust dependency resolution is offline and vendored through `.cargo/config.toml`,
 | transitive | `crypto-common` | `0.2.1` | `safe/vendor/crypto-common-0.2.1/Cargo.toml` | `#![forbid(unsafe_code)]` | 0 | `safe/vendor/crypto-common-0.2.1/src/lib.rs:1` | Accepted because the unsafe use is narrow in vendored, locked code; replacement path is an audited dependency version that forbids unsafe or a local wrapper that removes this call site. |
 | direct | `des` | `0.9.0` | `safe/vendor/des/Cargo.toml` | `#![deny(unsafe_code)]` | 0 | `safe/vendor/des/src/lib.rs:1` | Accepted because the unsafe use is narrow in vendored, locked code; replacement path is an audited dependency version that forbids unsafe or a local wrapper that removes this call site. |
 | direct | `digest` | `0.10.7` | `safe/vendor/digest/Cargo.toml` | `#![forbid(unsafe_code)]` | 0 | `safe/vendor/digest/src/lib.rs:1` | Accepted because the unsafe use is narrow in vendored, locked code; replacement path is an audited dependency version that forbids unsafe or a local wrapper that removes this call site. |
-| transitive | `generic-array` | `0.14.7` | `safe/vendor/generic-array/Cargo.toml` | `none` | 78 | `safe/vendor/generic-array/CHANGELOG.md:6` | Accepted because it is vendored, locked, and exercised through the port test matrix; replacement path is an audited crate release with unsafe-code denial or a local safe implementation for the specific primitive. |
-| direct | `gost-crypto` | `0.3.0` | `safe/vendor/gost-crypto/Cargo.toml` | `none` | 0 | `safe/vendor/gost-crypto/README.md:20` | Accepted as locked transitive/direct code with no current source unsafe matches; replacement path is an upstream release with crate-root unsafe-code denial. |
+| transitive | `generic-array` | `0.14.7` | `safe/vendor/generic-array/Cargo.toml` | `none` | 78 | `safe/vendor/generic-array/src/sequence.rs:12` | Accepted because it is vendored, locked, and exercised through the port test matrix; replacement path is an audited crate release with unsafe-code denial or a local safe implementation for the specific primitive. |
+| direct | `gost-crypto` | `0.3.0` | `safe/vendor/gost-crypto/Cargo.toml` | `none` | 0 | `safe/vendor/gost-crypto/src/lib.rs:1` | Accepted as locked transitive/direct code with no current source unsafe matches; replacement path is an upstream release with crate-root unsafe-code denial. |
 | direct | `gost94` | `0.10.4` | `safe/vendor/gost94/Cargo.toml` | `#![forbid(unsafe_code)]` | 0 | `safe/vendor/gost94/src/lib.rs:1` | Accepted because the unsafe use is narrow in vendored, locked code; replacement path is an audited dependency version that forbids unsafe or a local wrapper that removes this call site. |
 | direct | `hmac` | `0.12.1` | `safe/vendor/hmac/Cargo.toml` | `#![forbid(unsafe_code)]` | 0 | `safe/vendor/hmac/src/lib.rs:1` | Accepted because the unsafe use is narrow in vendored, locked code; replacement path is an audited dependency version that forbids unsafe or a local wrapper that removes this call site. |
-| transitive | `hybrid-array` | `0.4.11` | `safe/vendor/hybrid-array/Cargo.toml` | `none` | 38 | `safe/vendor/hybrid-array/tests/mod.rs:468` | Accepted because it is vendored, locked, and exercised through the port test matrix; replacement path is an audited crate release with unsafe-code denial or a local safe implementation for the specific primitive. |
+| transitive | `hybrid-array` | `0.4.11` | `safe/vendor/hybrid-array/Cargo.toml` | `none` | 38 | `safe/vendor/hybrid-array/src/lib.rs:252` | Accepted because it is vendored, locked, and exercised through the port test matrix; replacement path is an audited crate release with unsafe-code denial or a local safe implementation for the specific primitive. |
 | direct | `idea` | `0.6.0` | `safe/vendor/idea/Cargo.toml` | `#![deny(unsafe_code)]` | 0 | `safe/vendor/idea/src/lib.rs:1` | Accepted because the unsafe use is narrow in vendored, locked code; replacement path is an audited dependency version that forbids unsafe or a local wrapper that removes this call site. |
 | transitive | `inout` | `0.1.4` | `safe/vendor/inout/Cargo.toml` | `none` | 22 | `safe/vendor/inout/src/inout_buf.rs:103` | Accepted because it is vendored, locked, and exercised through the port test matrix; replacement path is an audited crate release with unsafe-code denial or a local safe implementation for the specific primitive. |
 | transitive | `inout` | `0.2.2` | `safe/vendor/inout-0.2.2/Cargo.toml` | `none` | 30 | `safe/vendor/inout-0.2.2/src/inout_buf.rs:103` | Accepted because it is vendored, locked, and exercised through the port test matrix; replacement path is an audited crate release with unsafe-code denial or a local safe implementation for the specific primitive. |
 | transitive | `keccak` | `0.1.6` | `safe/vendor/keccak/Cargo.toml` | `none` | 5 | `safe/vendor/keccak/src/lib.rs:187` | Accepted because the unsafe use is narrow in vendored, locked code; replacement path is an audited dependency version that forbids unsafe or a local wrapper that removes this call site. |
 | direct | `kisaseed` | `0.1.3` | `safe/vendor/kisaseed/Cargo.toml` | `none` | 1 | `safe/vendor/kisaseed/src/lib.rs:117` | Accepted because the unsafe use is narrow in vendored, locked code; replacement path is an audited dependency version that forbids unsafe or a local wrapper that removes this call site. |
-| transitive | `libc` | `0.2.186` | `safe/vendor/libc/Cargo.toml` | `none` | 429 | `safe/vendor/libc/CHANGELOG.md:686` | Accepted because it is vendored and locked for transitive platform bindings; replacement path is to remove consumers or move to narrower safe std/rustix wrappers. |
+| transitive | `libc` | `0.2.186` | `safe/vendor/libc/Cargo.toml` | `none` | 429 | `safe/vendor/libc/src/unix/mod.rs:619` | Accepted because it is vendored and locked for transitive platform bindings; replacement path is to remove consumers or move to narrower safe std/rustix wrappers. |
 | direct | `md-5` | `0.10.6` | `safe/vendor/md-5/Cargo.toml` | `none` | 2 | `safe/vendor/md-5/src/compress/loongarch64_asm.rs:70` | Accepted because the unsafe use is narrow in vendored, locked code; replacement path is an audited dependency version that forbids unsafe or a local wrapper that removes this call site. |
 | direct | `md4` | `0.10.2` | `safe/vendor/md4/Cargo.toml` | `#![forbid(unsafe_code)]` | 0 | `safe/vendor/md4/src/lib.rs:1` | Accepted because the unsafe use is narrow in vendored, locked code; replacement path is an audited dependency version that forbids unsafe or a local wrapper that removes this call site. |
 | transitive | `password-hash` | `0.5.0` | `safe/vendor/password-hash/Cargo.toml` | `#![forbid(unsafe_code)]` | 0 | `safe/vendor/password-hash/src/lib.rs:1` | Accepted because the unsafe use is narrow in vendored, locked code; replacement path is an audited dependency version that forbids unsafe or a local wrapper that removes this call site. |
 | direct | `pbkdf2` | `0.12.2` | `safe/vendor/pbkdf2/Cargo.toml` | `none` | 0 | `safe/vendor/pbkdf2/src/lib.rs:1` | Accepted as locked transitive/direct code with no current source unsafe matches; replacement path is an upstream release with crate-root unsafe-code denial. |
-| transitive | `rand_core` | `0.6.4` | `safe/vendor/rand_core/Cargo.toml` | `none` | 2 | `safe/vendor/rand_core/CHANGELOG.md:9` | Accepted because the unsafe use is narrow in vendored, locked code; replacement path is an audited dependency version that forbids unsafe or a local wrapper that removes this call site. |
+| transitive | `rand_core` | `0.6.4` | `safe/vendor/rand_core/Cargo.toml` | `none` | 2 | `safe/vendor/rand_core/src/impls.rs:70` | Accepted because the unsafe use is narrow in vendored, locked code; replacement path is an audited dependency version that forbids unsafe or a local wrapper that removes this call site. |
 | direct | `rc2` | `0.9.0` | `safe/vendor/rc2/Cargo.toml` | `#![deny(unsafe_code)]` | 0 | `safe/vendor/rc2/src/lib.rs:1` | Accepted because the unsafe use is narrow in vendored, locked code; replacement path is an audited dependency version that forbids unsafe or a local wrapper that removes this call site. |
 | direct | `ripemd` | `0.1.3` | `safe/vendor/ripemd/Cargo.toml` | `#![forbid(unsafe_code)]` | 0 | `safe/vendor/ripemd/src/lib.rs:1` | Accepted because the unsafe use is narrow in vendored, locked code; replacement path is an audited dependency version that forbids unsafe or a local wrapper that removes this call site. |
 | transitive | `salsa20` | `0.10.2` | `safe/vendor/salsa20/Cargo.toml` | `#![forbid(unsafe_code)]` | 0 | `safe/vendor/salsa20/src/lib.rs:1` | Accepted because the unsafe use is narrow in vendored, locked code; replacement path is an audited dependency version that forbids unsafe or a local wrapper that removes this call site. |
