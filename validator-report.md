@@ -598,3 +598,283 @@ Port override installation evidence: complete.
   proves installation of the locked local `libgcrypt20` and `libgcrypt20-dev`
   override packages.
 - The final report contains no unresolved safe-side validator failures.
+
+## Phase 8: Final Validator Report And Clean Run
+
+- Implement phase: `impl_p08_final_validator_report`
+- Phase tag: `phase/impl_p08_final_validator_report`
+- Safe port phase tag: `phase/impl_p08_final_validator_report`. Verifiers
+  resolve the exact safe port commit with
+  `git rev-parse phase/impl_p08_final_validator_report`; this tracked report
+  intentionally does not embed the literal final safe commit hash.
+- Validator URL: `https://github.com/safelibs/validator`
+- Validator checkout: `validator/`
+- Validator commit: `87b321fe728340d6fc6dd2f638583cca82c667c3`
+- Final package/development probe artifact root:
+  `validator-artifacts/p08-package-dev-probe/`
+- Final validator artifact root: `validator-artifacts/p08-final/`
+
+### Commands executed
+
+```bash
+test "$(git rev-parse HEAD)" = "$(git rev-parse phase/impl_p08_final_validator_report)"
+test "$(git rev-parse HEAD^)" = "$(git rev-parse phase/impl_p07_fix_remaining_validator_failures)"
+bash -c 'test -z "$(git status --short)"'
+bash -c 'git check-ignore -q validator/ && git check-ignore -q validator-local/ && git check-ignore -q validator-artifacts/'
+bash -c 'test -z "$(git ls-files -- validator validator-local validator-artifacts)"'
+git -C validator rev-parse HEAD
+safe/scripts/check-rust-toolchain.sh
+safe/scripts/check-dependent-metadata.sh
+safe/scripts/check-rust-toolchain.sh
+cargo fmt --manifest-path safe/Cargo.toml -- --check
+safe/scripts/check-rust-toolchain.sh
+cargo build --manifest-path safe/Cargo.toml --release --locked --offline
+safe/scripts/check-rust-toolchain.sh
+safe/scripts/build-release-lib.sh
+safe/scripts/check-no-upstream-bridge.sh
+safe/scripts/check-abi.sh --all
+safe/scripts/run-upstream-tests.sh --all
+safe/scripts/run-regression-tests.sh --all
+safe/scripts/run-compat-smoke.sh --all
+safe/scripts/check-rust-toolchain.sh
+safe/scripts/build-debs.sh
+safe/scripts/check-deb-metadata.sh --dist safe/dist
+python3 safe/scripts/prepare-validator-local-port.py --validator-dir validator --dist safe/dist --output-root validator-local
+bash safe/scripts/check-validator-package-dev-probe.sh --dist safe/dist --override-root validator-local/override-debs --port-lock validator-local/proof/local-port-debs-lock.json --artifact-root validator-artifacts/p08-package-dev-probe
+bash safe/scripts/run-validator-libgcrypt.sh --validator-dir validator --mode original --artifact-root validator-artifacts/p08-final --record-casts
+bash safe/scripts/run-validator-libgcrypt.sh --validator-dir validator --mode port --artifact-root validator-artifacts/p08-final --override-root validator-local/override-debs --port-lock validator-local/proof/local-port-debs-lock.json --record-casts
+python3 safe/scripts/check-validator-port-evidence.py --port-lock validator-local/proof/local-port-debs-lock.json --override-root validator-local/override-debs --artifact-root validator-artifacts/p08-final
+mkdir -p validator-artifacts/p08-final/proof validator-artifacts/p08-final/site
+python3 validator/tools/run_matrix.py --config validator/repositories.yml --tests-root validator/tests --list-libraries --library libgcrypt
+```
+
+The official proof/site commands were not run because the library-list command
+above is not selectable for libgcrypt at this validator commit. The captured
+selection error is:
+
+```text
+unknown libraries in config: libgcrypt
+```
+
+### Testcase counts
+
+libgcrypt_source_cases: 5
+libgcrypt_usage_cases: 170
+libgcrypt_total_cases: 175
+
+These are the fixed phase 2 counts for this validator checkout and are the
+minimum proof thresholds if the official proof loader later gains libgcrypt
+inventory support and no active skipped testcase result JSONs remain.
+
+### Original baseline result
+
+Complete original baseline run: executed 175 libgcrypt testcases with recorded
+casts under `validator-artifacts/p08-final/results/libgcrypt/`.
+
+- Summary: 170 passed, 5 failed, 0 skipped, 175 total.
+- Source cases: 5 passed, 0 failed.
+- Usage cases: 165 passed, 5 failed.
+- Failed original-baseline testcase IDs:
+  `usage-gpg-print-md-blake2b512`,
+  `usage-gpg-symmetric-cipher-camellia128`,
+  `usage-gpg-symmetric-compress-z9-decrypt`,
+  `usage-gpg-symmetric-list-packets-s2k-sha256`, and
+  `usage-gpg-symmetric-s2k-mode1-salted`.
+
+These failures are baseline validator/environment behavior at validator commit
+`87b321fe728340d6fc6dd2f638583cca82c667c3`; they are not safe-port
+regressions by themselves.
+
+### Safe candidate result
+
+Final safe candidate run: executed the complete 175-case libgcrypt matrix
+through the port-owned wrapper with local package overrides under
+`validator-artifacts/p08-final/port/results/libgcrypt/`.
+
+- Summary: 171 passed, 0 failed, 4 skipped, 175 total.
+- Source cases: 5 passed, 0 failed, 0 skipped.
+- Usage cases: 166 passed, 0 failed, 4 skipped.
+- The only skipped results are the active validator-side port skips listed in
+  `safe/scripts/validator-libgcrypt-skips.json`.
+- All 171 non-skipped port results passed and have complete local override
+  installation evidence.
+
+### Port override installation evidence
+
+Port override installation evidence: complete.
+
+- Checked artifact roots:
+  `validator-artifacts/p08-final`,
+  `validator-artifacts/p08-package-dev-probe`,
+  `validator-local/override-debs`, and
+  `validator-local/proof/local-port-debs-lock.json`.
+- `python3 safe/scripts/check-validator-port-evidence.py --port-lock validator-local/proof/local-port-debs-lock.json --override-root validator-local/override-debs --artifact-root validator-artifacts/p08-final`
+  passed.
+- Every non-skipped port result records `override_debs_installed: true`, the
+  installed package names, versions, architectures, filenames, and the matching
+  locked local package metadata.
+- The port lock uses release tag `local-libgcrypt-safe` and tag ref
+  `refs/tags/local-libgcrypt-safe`; verifiers resolve the exact local safe
+  commit from the ignored lock or the phase tag rather than from this report.
+
+Local safe package inputs:
+
+| Package | Version | Architecture | Filename | Size | SHA256 |
+| ------- | ------- | ------------ | -------- | ---- | ------ |
+| `libgcrypt20` | `1.10.3+safe1` | `amd64` | `libgcrypt20_1.10.3+safe1_amd64.deb` | 892498 | `60c2e2defebee89ea8c978a2ecc9db8d35b78b2b066c70b37182e02e10414269` |
+| `libgcrypt20-dev` | `1.10.3+safe1` | `amd64` | `libgcrypt20-dev_1.10.3+safe1_amd64.deb` | 4619368 | `fd567e01d3691c877ab8542fcbf4abe4f35b1c3bfe0fe7d4ec7a09fda7b57f54` |
+
+### Package/development probe
+
+Package/development probe: passed.
+
+- Artifact root: `validator-artifacts/p08-package-dev-probe/`
+- The probe installed the same locked local `libgcrypt20` and
+  `libgcrypt20-dev` `.deb` files used by the final port validator run into a
+  clean `ubuntu:24.04` container.
+- It verified dist and override package names, versions, architectures,
+  filenames, sizes, and SHA256s against
+  `validator-local/proof/local-port-debs-lock.json`.
+- It compiled and ran the package-surface probe through direct linker inputs,
+  `pkg-config --cflags --libs libgcrypt`, and
+  `libgcrypt-config --cflags --libs`.
+
+### Official proof/site status
+
+Official proof/site status: not run.
+
+Official validator inventory/proof defect: the checked-out validator contains
+`validator/tests/libgcrypt/`, but `validator/repositories.yml` and the
+inventory selection path used by `validator/tools/run_matrix.py` do not expose
+`libgcrypt` as a selectable library. The official selection command:
+
+```bash
+python3 validator/tools/run_matrix.py --config validator/repositories.yml --tests-root validator/tests --list-libraries --library libgcrypt
+```
+
+exits non-zero with:
+
+```text
+unknown libraries in config: libgcrypt
+```
+
+Official validator proof/status limitation: the final port artifact root also
+contains active skipped result JSONs for validator commit
+`87b321fe728340d6fc6dd2f638583cca82c667c3`. The current validator proof loader
+accepts only `passed` and `failed` statuses, so skipped testcase result JSONs
+are not proof-eligible even if inventory support becomes available for this
+same artifact root.
+
+Active skipped testcase values:
+
+- `port:usage-gpg-symmetric-cipher-camellia128`
+- `port:usage-gpg-symmetric-compress-z9-decrypt`
+- `port:usage-gpg-symmetric-list-packets-s2k-sha256`
+- `port:usage-gpg-symmetric-s2k-mode1-salted`
+
+Fallback artifact summary for `validator-artifacts/p08-final`:
+
+- Original fallback summary:
+  `validator-artifacts/p08-final/results/libgcrypt/summary.json` records
+  5 source cases, 170 usage cases, 175 total cases, 170 passed, 5 failed,
+  0 skipped, and 175 casts.
+- Port fallback summary:
+  `validator-artifacts/p08-final/port/results/libgcrypt/summary.json` records
+  5 source cases, 170 usage cases, 175 total cases, 171 passed, 0 failed,
+  4 skipped, and 171 casts.
+- The final proof and site directories are present for verifier compatibility
+  at `validator-artifacts/p08-final/proof/` and
+  `validator-artifacts/p08-final/site/`, but no official proof JSON or site
+  output was generated because the official libgcrypt inventory path is
+  unavailable and the port fallback includes active skips.
+
+### Failures found
+
+Failures found by phase:
+
+- Phase 2 baseline triage: the original run had 5 validator/environment
+  baseline failures; the initial safe candidate had 91 safe-candidate failures.
+- Phase 3 packaging/install: clean; no package-install failures were found.
+- Phase 4 source API: clean; all five source-facing cases passed.
+- Phase 5 symmetric/digest/random usage: fixed the safe-side Ed25519,
+  Curve25519 ECDH, digest preference, and weak-digest setup failures; retained
+  four exact port-mode skips for validator testcase defects that also fail
+  against the original baseline.
+- Phase 6 public-key/keyring usage: fixed remaining RSA, ASNOID, keygrip, ECC
+  alias, and Ed25519 import compatibility gaps.
+- Phase 7 catch-all: no remaining safe-side validator failures; the required
+  safety review fixed X448 high-level ECDH result encoding.
+- Phase 8 final run: no new safe-side failures; final port result is
+  171 passed, 0 failed, 4 skipped.
+
+### Regression tests
+
+Regression tests added and retained in
+`safe/tests/regressions/manifest.json`:
+
+- `dependent-image-current-phase-tag`
+- `dependent-image-apt-snapshot-retry`
+- `gpg-ed25519-eddsa-genkey-sign`
+- `gpg-curve25519-ecdh-encrypt-ephemeral`
+- `gpg-phase5-usage-bucket`
+- `gcry-md-asnoid-sha-family`
+- `gcry-rsa-keygrip-leading-zero`
+- `gcry-eddsa-testkey-import-seed`
+- `gcry-pk-map-name-ecc-aliases`
+- `gpg-rsa-keyring-md-asnoid`
+- `gcry-x448-ecdh-raw-result`
+
+### Fixes applied
+
+Fixes applied with file/module summaries:
+
+- `safe/src/pubkey/ecc.rs`: GPG-compatible Ed25519 generation, Curve25519 ECDH
+  encryption/decryption atoms, Ed25519/Ed448 seed-form import validation, and
+  X448 raw shared-secret return encoding.
+- `safe/src/pubkey/mod.rs`: public-key alias mapping for `ecdsa`, `ecdh`, and
+  `eddsa`, plus ECDH private-key routing.
+- `safe/src/pubkey/rsa.rs`: positive-MPI leading-zero preservation for RSA
+  generated keys and stable GPG keygrips.
+- `safe/src/digest/algorithms.rs`: libgcrypt-compatible ASNOID DER
+  DigestInfo prefixes for MD5 and SHA-family digest algorithms.
+- `safe/src/error.rs`: error-path compatibility needed by the Curve25519 ECDH
+  routing changes.
+- `safe/scripts/*.sh` and `safe/scripts/*.py`: validator invocation,
+  package/development probe, local override metadata, dependent metadata, and
+  evidence checks used by the final artifact flow.
+- `safe/tests/regressions/`: reduced regressions for each fixed safe-side
+  behavior and dependent-image metadata contract.
+
+### Validator bugs and skipped checks
+
+Validator bugs and skipped checks:
+
+- `validator/repositories.yml` and the official inventory path do not expose
+  `libgcrypt`; the official selector fails with
+  `unknown libraries in config: libgcrypt`.
+- Original baseline failures at this validator commit:
+  `usage-gpg-print-md-blake2b512`,
+  `usage-gpg-symmetric-cipher-camellia128`,
+  `usage-gpg-symmetric-compress-z9-decrypt`,
+  `usage-gpg-symmetric-list-packets-s2k-sha256`, and
+  `usage-gpg-symmetric-s2k-mode1-salted`.
+- Exact active port skips at this validator commit:
+  `usage-gpg-symmetric-cipher-camellia128`,
+  `usage-gpg-symmetric-compress-z9-decrypt`,
+  `usage-gpg-symmetric-list-packets-s2k-sha256`, and
+  `usage-gpg-symmetric-s2k-mode1-salted`.
+- Official proof/site generation is skipped for this phase because of the
+  official inventory/proof defect and because active skipped port results are
+  not accepted by the current official proof loader.
+
+### Final status
+
+Final status: passed for the safe port. The final safe candidate has a complete
+175-case validator run with 171 passed, 0 failed, and 4 explicitly justified
+validator-side port skips; every non-skipped port testcase installed the local
+safe `libgcrypt20` and `libgcrypt20-dev` packages. The package/development
+probe passed against the same local `.deb` files. Official proof/site output is
+blocked by the validator inventory/proof defect and proof/status limitation
+documented above; the port-owned fallback summaries under
+`validator-artifacts/p08-final` are the final validation artifacts for this
+phase.
